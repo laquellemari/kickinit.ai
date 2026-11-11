@@ -46,11 +46,11 @@ export default async function RequestPage({ params, searchParams }: Props) {
                 <p className="google-meta">★ {place.rating.toFixed(1)} on Google · {place.ratingCount.toLocaleString("en-US")} {place.ratingCount === 1 ? "review" : "reviews"}</p>
               )}
               <p className="google-meta">
-                Hold estimate: ${Number(place.estimatePerPerson).toFixed(0)} per person ({place.estimateBasis}). The venue confirms the real amount; you&rsquo;re never charged more than the hold.
+                Estimated spend: ${Number(place.estimatePerPerson).toFixed(0)} per person ({place.estimateBasis}). You pay the venue&rsquo;s real bill, not the estimate.
               </p>
             </section>
             <p className="pick-why">
-              This venue isn&rsquo;t a kickinit partner yet, so we send them your request. PayPal holds an estimate now; you&rsquo;re charged only if they confirm, and the hold is released if they can&rsquo;t.
+              This venue isn&rsquo;t a kickinit partner yet, so we send them your request and pay the bill for you. PayPal holds the estimate now. If the venue can&rsquo;t take you, the hold is released; if they confirm, you&rsquo;re charged the real bill plus our booking fee when it closes.
             </p>
             <div className="pick-actions">
               <a className="btn-line" href={place.mapsUrl} target="_blank" rel="noopener noreferrer">View on Google Maps</a>
