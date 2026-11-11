@@ -18,10 +18,6 @@ services:
         generateValue: true
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: ELASTIC_URL
-        sync: false
-      - key: ELASTIC_API_KEY
-        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: kickinit-db

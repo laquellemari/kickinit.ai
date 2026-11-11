@@ -4,7 +4,8 @@
 _(none)_
 
 ## Up next
-- [ ] Concierge chat API (Claude) + results page
+- [ ] Concierge agent API (Claude + PayPal Agent Toolkit)
+- [ ] Results + detail pages
 - [ ] Experience detail + checkout (PayPal JS SDK)
 - [ ] Group gift pool
 - [ ] Passport, profile, settings pages
