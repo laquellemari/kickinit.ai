@@ -61,7 +61,7 @@ describe("POST /api/paypal/orders", () => {
     await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJnope", partySize: 2 })), { status: 404, body: { error: "Place not found" } });
   });
   it("400 for an unknown kind", async () => {
-    await verifyResponse(await createOrder(post({ kind: "gift", itemId: "marea", partySize: 2 })), { status: 400, body: { error: "Kind must be partner or live" } });
+    await verifyResponse(await createOrder(post({ kind: "voucher", itemId: "marea", partySize: 2 })), { status: 400, body: { error: "Kind must be partner or live" } });
   });
   it("ignores an amount sent by the browser", async () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
