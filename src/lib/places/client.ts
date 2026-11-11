@@ -25,7 +25,7 @@ type GPlace = {
   primaryTypeDisplayName?: { text: string };
   googleMapsUri?: string;
   businessStatus?: string;
-  addressComponents?: { longText: string; shortText: string; types: string[] }[];
+  addressComponents?: { longText: string; shortText: string; types?: string[] }[];
   utcOffsetMinutes?: number;
   rating?: number;
   userRatingCount?: number;
@@ -70,7 +70,7 @@ async function call(url: string, init: RequestInit, mask: string): Promise<unkno
 }
 
 function component(p: GPlace, type: string, short = false): string {
-  const c = p.addressComponents?.find((x) => x.types.includes(type));
+  const c = p.addressComponents?.find((x) => x.types?.includes(type));
   return (short ? c?.shortText : c?.longText) ?? "";
 }
 
