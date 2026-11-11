@@ -98,3 +98,18 @@ export async function setContributionStatus(id: string, from: ContributionStatus
   );
   return rows.length === 1;
 }
+
+export async function listGiftsByOrganizer(organizerId: string): Promise<Gift[]> {
+  const { rows } = await (await getDb()).query<GiftRow>("SELECT * FROM gifts WHERE organizer_id = $1 ORDER BY created_at DESC LIMIT 100", [organizerId]);
+  return rows.map(gift);
+}
+
+/** Gifts someone chipped in to (newest first), with how much they put in. */
+export async function listContributionsBy(contributorId: string): Promise<(Contribution & { giftName: string; recipientName: string; giftStatus: GiftStatus })[]> {
+  const { rows } = await (await getDb()).query<ContribRow & { gift_name: string; recipient_name: string; gift_status: GiftStatus }>(
+    `SELECT c.*, g.name AS gift_name, g.recipient_name, g.status AS gift_status FROM contributions c JOIN gifts g ON g.id = c.gift_id
+     WHERE c.contributor_id = $1 ORDER BY c.created_at DESC LIMIT 100`,
+    [contributorId],
+  );
+  return rows.map((r) => ({ ...contribution(r), giftName: r.gift_name, recipientName: r.recipient_name, giftStatus: r.gift_status }));
+}

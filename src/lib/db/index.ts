@@ -69,6 +69,17 @@ CREATE TABLE IF NOT EXISTS contributions (
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS contributions_gift ON contributions (gift_id, created_at);
+CREATE INDEX IF NOT EXISTS contributions_contributor ON contributions (contributor_id);
+CREATE INDEX IF NOT EXISTS gifts_organizer ON gifts (organizer_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS profiles (
+  user_id      TEXT PRIMARY KEY,
+  display_name TEXT NOT NULL DEFAULT '',
+  home_city    TEXT NOT NULL DEFAULT 'Miami',
+  home_country TEXT NOT NULL DEFAULT 'US',
+  avatar       TEXT,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 /** Use a specific database (tests pass PGlite). Resets schema readiness. */
