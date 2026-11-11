@@ -1,0 +1,95 @@
+import type { Category } from "@/lib/catalog/types";
+import type { LivePlace } from "./types";
+
+const BASE = "https://places.googleapis.com/v1";
+/** Text Search "Pro" fields only (5,000 free/month). Rating, price level, hours etc. are Enterprise-priced. */
+export const FIELD_MASK = [
+  "places.id", "places.displayName", "places.formattedAddress", "places.location", "places.primaryType",
+  "places.primaryTypeDisplayName", "places.googleMapsUri", "places.businessStatus",
+].join(",");
+const ID_RE = /^[A-Za-z0-9_-]{1,300}$/;
+
+export class PlacesError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "PlacesError";
+  }
+}
+
+type GPlace = {
+  id: string;
+  displayName?: { text: string };
+  formattedAddress?: string;
+  location?: { latitude: number; longitude: number };
+  primaryType?: string;
+  primaryTypeDisplayName?: { text: string };
+  googleMapsUri?: string;
+  businessStatus?: string;
+};
+
+/** Rough per-person spend by venue type, used only to size the PayPal hold. The venue confirms the real amount. */
+const RULES: [RegExp, Category, string][] = [
+  [/(^|_)(cafe|coffee_shop|bakery|ice_cream_shop|dessert_shop)$/, "culinary", "20.00"],
+  [/restaurant$|^(meal_takeaway|food_court|steak_house|sushi_bar)$/, "culinary", "60.00"],
+  [/^(spa|massage|sauna|wellness_center|day_spa|beauty_salon)$/, "wellness", "120.00"],
+  [/^(gym|fitness_center|yoga_studio|pilates_studio|sports_club|swimming_pool)$/, "movement", "35.00"],
+  [/^(performing_arts_theater|concert_hall|opera_house|comedy_club)$/, "culture", "70.00"],
+  [/^(museum|art_gallery|cultural_center|historical_landmark)$/, "culture", "30.00"],
+  [/^(night_club|bar|pub|wine_bar|karaoke|cocktail_bar|live_music_venue)$/, "nightlife", "45.00"],
+  [/^(park|marina|hiking_area|beach|national_park|tour_agency|tourist_attraction|zoo|aquarium)$/, "outdoors", "40.00"],
+  [/^(hotel|lodging|resort_hotel|bed_and_breakfast|inn|motel)$/, "getaways", "250.00"],
+  [/class$|^(art_studio|cooking_school)$/, "create", "80.00"],
+];
+
+export function estimateFor(primaryType: string | undefined): { category: Category; estimatePerPerson: string } {
+  for (const [re, category, estimatePerPerson] of RULES) if (primaryType && re.test(primaryType)) return { category, estimatePerPerson };
+  return { category: "culture", estimatePerPerson: "50.00" };
+}
+
+function apiKey(): string {
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key) throw new Error("Live search is not configured");
+  return key;
+}
+
+async function call(url: string, init: RequestInit, mask: string): Promise<unknown> {
+  const res = await fetch(url, { ...init, headers: { "content-type": "application/json", "x-goog-api-key": apiKey(), "x-goog-fieldmask": mask } });
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    const status = json?.error?.status ?? "UNKNOWN";
+    throw new PlacesError(res.status, `Google Places ${status}: ${json?.error?.message ?? `HTTP ${res.status}`}`);
+  }
+  return json;
+}
+
+function toLivePlace(p: GPlace): LivePlace {
+  return {
+    id: `gp:${p.id}`,
+    placeId: p.id,
+    name: p.displayName?.text ?? "Unnamed place",
+    address: p.formattedAddress ?? "",
+    lat: p.location?.latitude ?? 0,
+    lng: p.location?.longitude ?? 0,
+    typeLabel: p.primaryTypeDisplayName?.text ?? "Place",
+    mapsUrl: p.googleMapsUri ?? `https://www.google.com/maps/place/?q=place_id:${p.id}`,
+    ...estimateFor(p.primaryType),
+  };
+}
+
+const isOpen = (p: GPlace) => !p.businessStatus || p.businessStatus === "OPERATIONAL";
+
+export async function searchLivePlaces(query: string): Promise<LivePlace[]> {
+  const q = query.trim();
+  if (!q) throw new Error("Search text is required");
+  if (q.length > 200) throw new Error("Search text cannot exceed 200 characters");
+  const body = (await call(`${BASE}/places:searchText`, { method: "POST", body: JSON.stringify({ textQuery: q, pageSize: 6 }) }, FIELD_MASK)) as { places?: GPlace[] };
+  return (body.places ?? []).filter(isOpen).map(toLivePlace);
+}
+
+export async function getLivePlace(placeId: string): Promise<LivePlace> {
+  if (!ID_RE.test(placeId)) throw new Error("Place id has invalid characters");
+  const p = (await call(`${BASE}/places/${placeId}`, { method: "GET" }, FIELD_MASK.replaceAll("places.", ""))) as GPlace;
+  if (!isOpen(p)) throw new Error("This place is closed");
+  return toLivePlace(p);
+}
