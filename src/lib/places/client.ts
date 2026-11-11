@@ -2,11 +2,14 @@ import type { Category } from "@/lib/catalog/types";
 import type { LivePlace } from "./types";
 
 const BASE = "https://places.googleapis.com/v1";
-/** Text Search "Pro" fields only (5,000 free/month). Rating, price level, hours etc. are Enterprise-priced. */
+/** Search fields: the basics plus Google's price data, which sizes the PayPal hold (price fields are Enterprise-priced). */
 export const FIELD_MASK = [
   "places.id", "places.displayName", "places.formattedAddress", "places.location", "places.primaryType",
   "places.primaryTypeDisplayName", "places.googleMapsUri", "places.businessStatus", "places.addressComponents", "places.utcOffsetMinutes",
+  "places.priceLevel", "places.priceRange",
 ].join(",");
+/** One venue's page: the search fields plus Google's description and rating. */
+export const DETAIL_MASK = `${FIELD_MASK.replaceAll("places.", "")},editorialSummary,generativeSummary,rating,userRatingCount`;
 const ID_RE = /^[A-Za-z0-9_-]{1,300}$/;
 
 export class PlacesError extends Error {
@@ -29,13 +32,17 @@ type GPlace = {
   utcOffsetMinutes?: number;
   rating?: number;
   userRatingCount?: number;
+  priceLevel?: string;
+  priceRange?: { startPrice?: { units?: string; currencyCode?: string }; endPrice?: { units?: string; currencyCode?: string } };
+  editorialSummary?: { text?: string };
+  generativeSummary?: { overview?: { text?: string } };
 };
 
 /** Rough per-person spend by venue type, used only to size the PayPal hold. The venue confirms the real amount. */
 const RULES: [RegExp, Category, string][] = [
   [/(^|_)(cafe|coffee_shop|bakery|ice_cream_shop|dessert_shop)$/, "culinary", "20.00"],
-  [/restaurant$|^(meal_takeaway|food_court|steak_house|sushi_bar)$/, "culinary", "60.00"],
-  [/^(spa|massage|sauna|wellness_center|day_spa|beauty_salon)$/, "wellness", "120.00"],
+  [/restaurant$|^(meal_takeaway|food_court|steak_house|sushi_bar)$/, "culinary", "40.00"],
+  [/^(spa|massage|sauna|wellness_center|day_spa|beauty_salon)$/, "wellness", "100.00"],
   [/^(gym|fitness_center|yoga_studio|pilates_studio|sports_club|swimming_pool)$/, "movement", "35.00"],
   [/^(performing_arts_theater|concert_hall|opera_house|comedy_club)$/, "culture", "70.00"],
   [/^(museum|art_gallery|cultural_center|historical_landmark)$/, "culture", "30.00"],
@@ -48,6 +55,26 @@ const RULES: [RegExp, Category, string][] = [
 export function estimateFor(primaryType: string | undefined): { category: Category; estimatePerPerson: string } {
   for (const [re, category, estimatePerPerson] of RULES) if (primaryType && re.test(primaryType)) return { category, estimatePerPerson };
   return { category: "culture", estimatePerPerson: "50.00" };
+}
+
+/** Google's $ to $$$$ levels as a per-person spend. */
+export const PRICE_LEVEL_USD: Record<string, [number, string]> = {
+  PRICE_LEVEL_INEXPENSIVE: [15, "$"], PRICE_LEVEL_MODERATE: [30, "$$"], PRICE_LEVEL_EXPENSIVE: [60, "$$$"], PRICE_LEVEL_VERY_EXPENSIVE: [100, "$$$$"],
+};
+
+/** Per-person hold: Google's price range for the venue if it has one, else its price level, else a typical spend for the venue type. */
+export function estimateSpend(p: { primaryType?: string; priceLevel?: string; priceRange?: GPlace["priceRange"]; typeLabel: string }): { category: Category; estimatePerPerson: string; estimateBasis: string } {
+  const byType = estimateFor(p.primaryType);
+  const usd = (m?: { units?: string; currencyCode?: string }) => (m?.currencyCode === "USD" && Number(m.units) > 0 ? Number(m.units) : null);
+  const start = usd(p.priceRange?.startPrice);
+  const end = usd(p.priceRange?.endPrice);
+  if (start !== null) {
+    const mid = end !== null ? (start + end) / 2 : start;
+    return { category: byType.category, estimatePerPerson: mid.toFixed(2), estimateBasis: end !== null ? `Google lists $${start}–$${end} per person` : `Google lists from $${start} per person` };
+  }
+  const level = p.priceLevel ? PRICE_LEVEL_USD[p.priceLevel] : undefined;
+  if (level) return { category: byType.category, estimatePerPerson: level[0].toFixed(2), estimateBasis: `Google rates it ${level[1]}` };
+  return { ...byType, estimateBasis: `Typical spend for a ${p.typeLabel.toLowerCase()}` };
 }
 
 function apiKey(): string {
@@ -88,7 +115,10 @@ function toLivePlace(p: GPlace): LivePlace {
     lng: p.location?.longitude ?? 0,
     typeLabel: p.primaryTypeDisplayName?.text ?? "Place",
     mapsUrl: p.googleMapsUri ?? `https://www.google.com/maps/place/?q=place_id:${p.id}`,
-    ...estimateFor(p.primaryType),
+    summary: p.editorialSummary?.text || p.generativeSummary?.overview?.text || null,
+    rating: p.rating ?? null,
+    ratingCount: p.userRatingCount ?? 0,
+    ...estimateSpend({ ...p, typeLabel: p.primaryTypeDisplayName?.text ?? "Place" }),
   };
 }
 
@@ -104,7 +134,7 @@ export async function searchLivePlaces(query: string): Promise<LivePlace[]> {
 
 export async function getLivePlace(placeId: string): Promise<LivePlace> {
   if (!ID_RE.test(placeId)) throw new Error("Place id has invalid characters");
-  const p = (await call(`${BASE}/places/${placeId}`, { method: "GET" }, FIELD_MASK.replaceAll("places.", ""))) as GPlace;
+  const p = (await call(`${BASE}/places/${placeId}`, { method: "GET" }, DETAIL_MASK)) as GPlace;
   if (!isOpen(p)) throw new Error("This place is closed");
   return toLivePlace(p);
 }

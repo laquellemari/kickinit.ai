@@ -135,3 +135,12 @@ a:hover { color: var(--navy-deep); }
 .ideas { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .idea { min-height: 44px; padding: 0 16px; border: 1px solid var(--blue); border-radius: 999px; background: #fff; font: 400 15px var(--body); color: var(--navy); cursor: pointer; text-align: left; }
 .idea:hover { border-color: var(--navy); }
+
+/* Recommendations carousel */
+.recs { display: flex; flex-direction: column; gap: 16px; }
+.recs-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.recs-btn { border: 1px solid var(--navy); background: #fff; color: var(--navy); }
+.recs-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 260px); gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 4px 16px; }
+.recs-card { scroll-snap-align: start; text-decoration: none; color: var(--navy); }
+.google-about { margin: 0; font-size: 17px; line-height: 1.55; color: var(--navy); }
+.google-meta { margin: 0; font-size: 14px; color: var(--muted); }

@@ -41,15 +41,15 @@ describe("placeBooking", () => {
       const f = mockPayPal(
         { status: 200, body: gPlace },
         { status: 200, body: pp.token() },
-        { status: 201, body: pp.authorizedOrder({ amount: { value: "120.00", currency_code: "USD" } }) },
+        { status: 201, body: pp.authorizedOrder({ amount: { value: "80.00", currency_code: "USD" } }) },
       );
       const b = await placeBooking(input({ kind: "live", itemId: "gp:ChIJ1" }));
-      verifyBooking(b, { status: "held", kind: "live", itemId: "gp:ChIJ1", name: "Barbusa", amount: "120.00", captureId: null });
+      verifyBooking(b, { status: "held", kind: "live", itemId: "gp:ChIJ1", name: "Barbusa", amount: "80.00", captureId: null });
       expect(urls(f).filter((u) => u.includes("capture"))).toEqual([]);
     });
 
     it("a hold with no expiry from PayPal is saved with a null expiry", async () => {
-      mockPayPal({ status: 200, body: gPlace }, { status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder({ amount: { value: "120.00", currency_code: "USD" }, expiration_time: undefined }) });
+      mockPayPal({ status: 200, body: gPlace }, { status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder({ amount: { value: "80.00", currency_code: "USD" }, expiration_time: undefined }) });
       verifyBooking(await placeBooking(input({ kind: "live", itemId: "gp:ChIJ1" })), { status: "held", holdExpiresAt: null });
     });
 
