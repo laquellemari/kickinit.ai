@@ -59,6 +59,10 @@ describe("searchRatedPlaces", () => {
     expect((await searchRatedPlaces("x")).map((p) => p.placeId)).toEqual(["R", "N1", "N2"]);
     expect((await searchRatedPlaces("x")).map((p) => p.placeId)).toEqual(["R", "N1"]);
   });
+  it("address parts without a types list are skipped instead of crashing", async () => {
+    mockFetch({ status: 200, body: { places: [gPlace({ addressComponents: [{ longText: "Odd", shortText: "Odd" }, { longText: "Venice", shortText: "Venice", types: ["neighborhood"] }] })] } });
+    expect((await searchRatedPlaces("x"))[0]).toMatchObject({ neighborhood: "Venice", city: "" });
+  });
   it("no results", async () => {
     mockFetch({ status: 200, body: {} });
     expect(await searchRatedPlaces("x")).toEqual([]);
