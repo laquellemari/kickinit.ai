@@ -2,11 +2,18 @@ import { generateText, tool, type CoreMessage, type LanguageModelV1, type ToolSe
 import { z } from "zod";
 import { getExperience, quote, searchExperiences } from "@/lib/catalog/catalog";
 import { CATEGORIES, type Quote, type SearchResult } from "@/lib/catalog/types";
+import { quoteLive } from "@/lib/places/quote";
+import type { LivePlace } from "@/lib/places/types";
 
 export type Mode = "you" | "them";
 export type HistoryItem = { role: "user" | "assistant"; content: string };
 export type ConciergeInput = { message: string; mode: Mode; where?: string; history?: HistoryItem[]; today?: Date };
-export type Pick = { experience: SearchResult; why: string; quote: Quote };
+/** Partner experiences book instantly at a fixed price; live venues are a request, held at an estimate. */
+export type Pick =
+  | { kind: "partner"; experience: SearchResult; why: string; quote: Quote }
+  | { kind: "live"; place: LivePlace; why: string; quote: Quote };
+export type SearchLive = (query: string) => Promise<LivePlace[]>;
+export const PARTNER_CITIES = "Miami (most), plus Islamorada, Austin, Mexico City and Tulum";
 export type ConciergeResult = { reply: string; partySize: number | null; options: Pick[] };
 
 export const LIMITS = { message: 1000, historyItems: 20, historyContent: 4000, picks: 4 } as const;
@@ -25,7 +32,7 @@ export function validateInput(input: ConciergeInput): void {
   }
 }
 
-export function systemPrompt(input: ConciergeInput): string {
+export function systemPrompt(input: ConciergeInput, opts: { live?: boolean } = {}): string {
   const today = (input.today ?? new Date()).toDateString();
   const who =
     input.mode === "them"
@@ -36,8 +43,12 @@ export function systemPrompt(input: ConciergeInput): string {
     who,
     `Today is ${today}. The user's area: ${input.where?.trim() || "Miami"}.`,
     "Rules:",
-    "- Only recommend experiences returned by search_experiences. Never invent venues, prices or availability.",
-    "- Search at least once. Try a broader search (fewer filters) if the first returns nothing.",
+    `- kickinit partners (search_experiences) are in ${PARTNER_CITIES}. They book instantly at a fixed price; prefer them when they fit.`,
+    opts.live
+      ? "- When the user's area isn't covered or partners don't fit, use search_live_places with what + where, e.g. 'romantic italian dinner in San Diego'. Live venues are 'request to book': we hold an estimate on PayPal and only charge once the venue confirms. Say so briefly."
+      : `- If the user's area isn't covered, say kickinit doesn't have partners there yet and suggest the closest options.`,
+    "- Only recommend places returned by your search tools, using their exact id. Never invent venues, prices or availability.",
+    "- Search at least once. Try a broader search if the first returns nothing.",
     "- Infer party size from the request (\"for 2\", \"me and my sister\" = 2, a gift for one person = 1 unless they say otherwise). Default 2 for dates and dinners, otherwise 1.",
     `- Finish by calling present_options with 1 to ${LIMITS.picks} picks, best first, each with a one-sentence reason in a warm, specific voice. Do not list the picks in plain text as well.`,
     "- If nothing fits, call present_options with your best near-misses and say plainly what's missing.",
@@ -46,10 +57,10 @@ export function systemPrompt(input: ConciergeInput): string {
   ].join("\n");
 }
 
-function catalogTools() {
-  return {
+function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, LivePlace>) {
+  const tools: ToolSet = {
     search_experiences: tool({
-      description: "Search kickinit's partner catalog. Returns matching experiences with the total price for the party.",
+      description: `Search kickinit's partner catalog (${PARTNER_CITIES}). Returns matching experiences with the total price for the party.`,
       parameters: z.object({
         q: z.string().optional().describe("Free-text keywords, e.g. 'romantic italian waterfront'"),
         category: z.enum(CATEGORIES).optional(),
@@ -65,7 +76,7 @@ function catalogTools() {
         })),
     }),
     present_options: tool({
-      description: "Show your final picks to the user. Call this exactly once, last.",
+      description: "Show your final picks to the user. Call this exactly once, last. Use ids exactly as returned by the search tools.",
       parameters: z.object({
         intro: z.string().max(400),
         partySize: z.number().int().min(1).max(20),
@@ -74,37 +85,64 @@ function catalogTools() {
       // No execute: calling this ends the agent run.
     }),
   };
+  if (searchLive) {
+    tools.search_live_places = tool({
+      description: "Search real venues anywhere via Google Maps. Results are request-to-book (not partners). Include the place in the query.",
+      parameters: z.object({ query: z.string().min(1).max(200).describe("What and where, e.g. 'day spa in San Diego'") }),
+      execute: async ({ query }) => {
+        try {
+          const places = await searchLive(query);
+          for (const p of places) liveCache.set(p.id, p);
+          return places.map((p) => ({ id: p.id, name: p.name, type: p.typeLabel, address: p.address, estimatePerPerson: p.estimatePerPerson }));
+        } catch (err) {
+          console.error("Live search failed:", err);
+          return { error: "Live search is unavailable right now. Use partner experiences or ask the user to try again." };
+        }
+      },
+    });
+  }
+  return tools;
 }
 
 /** Keeps only picks that exist and can be booked for the party, priced by the server. */
-export function resolvePicks(picks: { experienceId: string; why: string }[], partySize: number): Pick[] {
+export function resolvePicks(picks: { experienceId: string; why: string }[], partySize: number, liveCache: Map<string, LivePlace> = new Map()): Pick[] {
   const seen = new Set<string>();
   const out: Pick[] = [];
   for (const p of picks) {
     if (seen.has(p.experienceId)) continue;
-    const e = getExperience(p.experienceId);
-    if (!e) continue;
-    let q: Quote;
-    try {
-      q = quote(e.id, partySize);
-    } catch {
-      continue;
+    const live = liveCache.get(p.experienceId);
+    if (live) {
+      seen.add(live.id);
+      out.push({ kind: "live", place: live, why: p.why, quote: quoteLive(live, partySize) });
+    } else {
+      const e = getExperience(p.experienceId);
+      if (!e) continue;
+      let q: Quote;
+      try {
+        q = quote(e.id, partySize);
+      } catch {
+        continue;
+      }
+      seen.add(e.id);
+      out.push({ kind: "partner", experience: { ...e, total: q.total }, why: p.why, quote: q });
     }
-    seen.add(e.id);
-    out.push({ experience: { ...e, total: q.total }, why: p.why, quote: q });
     if (out.length === LIMITS.picks) break;
   }
   return out;
 }
 
-export async function runConcierge(input: ConciergeInput, deps: { model: LanguageModelV1; extraTools?: ToolSet }): Promise<ConciergeResult> {
+export async function runConcierge(
+  input: ConciergeInput,
+  deps: { model: LanguageModelV1; extraTools?: ToolSet; searchLive?: SearchLive },
+): Promise<ConciergeResult> {
   validateInput(input);
+  const liveCache = new Map<string, LivePlace>();
   const messages: CoreMessage[] = [...(input.history ?? []), { role: "user", content: input.message.trim() }];
   const result = await generateText({
     model: deps.model,
-    system: systemPrompt(input),
+    system: systemPrompt(input, { live: !!deps.searchLive }),
     messages,
-    tools: { ...(deps.extraTools ?? {}), ...catalogTools() },
+    tools: { ...(deps.extraTools ?? {}), ...buildTools(deps.searchLive, liveCache) },
     maxSteps: 6,
     maxTokens: 1200,
   });
@@ -113,7 +151,7 @@ export async function runConcierge(input: ConciergeInput, deps: { model: Languag
   if (!call) return { reply: result.text.trim() || "Sorry, I couldn't put options together. Try rephrasing?", partySize: null, options: [] };
 
   const args = call.args as { intro: string; partySize: number; picks: { experienceId: string; why: string }[] };
-  const options = resolvePicks(args.picks, args.partySize);
+  const options = resolvePicks(args.picks, args.partySize, liveCache);
   const reply = options.length ? args.intro : "I couldn't find anything bookable that fits. Try a different area, date or budget?";
   return { reply, partySize: args.partySize, options };
 }

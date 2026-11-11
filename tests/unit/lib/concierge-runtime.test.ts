@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { conciergeModel, paypalTools, DEFAULT_MODEL } from "@/lib/concierge/runtime";
+import { conciergeModel, paypalTools, liveSearch, DEFAULT_MODEL } from "@/lib/concierge/runtime";
+import { searchLivePlaces } from "@/lib/places/client";
 import { createLimiter, clientKey } from "@/lib/concierge/rate-limit";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -59,5 +60,16 @@ describe("rate limiter", () => {
   it("keys on the first forwarded IP, else anonymous", () => {
     expect(clientKey(new Request("http://x", { headers: { "x-forwarded-for": " 1.2.3.4 , 5.6.7.8" } }))).toBe("1.2.3.4");
     expect(clientKey(new Request("http://x"))).toBe("anonymous");
+  });
+});
+
+describe("liveSearch", () => {
+  it("is off without a Google key", () => {
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "");
+    expect(liveSearch()).toBeUndefined();
+  });
+  it("uses Google Places when the key is set", () => {
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "g");
+    expect(liveSearch()).toBe(searchLivePlaces);
   });
 });

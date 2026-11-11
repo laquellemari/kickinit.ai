@@ -2,10 +2,11 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { createScriptedModel } from "../../helpers/factories";
 
-const runtime = vi.hoisted(() => ({ model: null as unknown, configured: true }));
+const runtime = vi.hoisted(() => ({ model: null as unknown, configured: true, live: undefined as undefined | (() => Promise<unknown[]>) }));
 vi.mock("@/lib/concierge/runtime", () => ({
   conciergeModel: () => { if (!runtime.configured) throw new Error("Concierge is not configured"); return runtime.model; },
   paypalTools: () => ({}),
+  liveSearch: () => runtime.live,
 }));
 
 const { POST } = await import("@/app/api/concierge/route");
@@ -14,7 +15,7 @@ let ip = 0;
 const post = (body: unknown, headers: Record<string, string> = {}) =>
   POST(new Request("http://localhost/api/concierge", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `10.0.0.${++ip}`, ...headers }, body: JSON.stringify(body) }));
 
-beforeEach(() => { runtime.configured = true; });
+beforeEach(() => { runtime.configured = true; runtime.live = undefined; });
 afterEach(() => vi.restoreAllMocks());
 
 describe("POST /api/concierge", () => {
@@ -25,6 +26,17 @@ describe("POST /api/concierge", () => {
     const body = await res.json();
     expect(body.reply).toBe("Try these.");
     expect(body.options[0]).toMatchObject({ experience: { id: "blue-room" }, quote: { total: "70.00" }, why: "Late jazz." });
+  });
+  it("passes live search through when configured, and returns request-to-book picks", async () => {
+    runtime.live = async () => [{ id: "gp:A", placeId: "A", name: "Sorella", address: "SD", lat: 1, lng: 2, category: "culinary", typeLabel: "Restaurant", mapsUrl: "u", estimatePerPerson: "60.00" }];
+    const { model, toolNames } = createScriptedModel([
+      { tool: "search_live_places", args: { query: "italian in San Diego" } },
+      { tool: "present_options", args: { intro: "One spot.", partySize: 2, picks: [{ experienceId: "gp:A", why: "Cozy." }] } },
+    ]);
+    runtime.model = model;
+    const body = await (await post({ message: "italian dinner for 2", where: "San Diego" })).json();
+    expect(toolNames[0]).toContain("search_live_places");
+    expect(body.options[0]).toMatchObject({ kind: "live", place: { name: "Sorella" }, quote: { total: "120.00" } });
   });
   it("defaults mode to 'you'", async () => {
     const { model, prompts } = createScriptedModel([{ text: "ok" }]);

@@ -1,6 +1,8 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { PayPalAgentToolkit } from "@paypal/agent-toolkit/ai-sdk";
 import type { ToolSet } from "ai";
+import { searchLivePlaces } from "@/lib/places/client";
+import type { SearchLive } from "./agent";
 
 export const DEFAULT_MODEL = "claude-sonnet-5-5";
 
@@ -20,4 +22,9 @@ export function paypalTools(): ToolSet {
     configuration: { actions: { orders: { get: true } }, context: { sandbox: process.env.PAYPAL_ENV !== "live" } },
   });
   return toolkit.getTools() as ToolSet;
+}
+
+/** Google Places live search, when a key is configured. */
+export function liveSearch(): SearchLive | undefined {
+  return process.env.GOOGLE_PLACES_API_KEY ? searchLivePlaces : undefined;
 }

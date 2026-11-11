@@ -78,10 +78,12 @@ type ScriptedCall = { tool: string; args: Record<string, unknown> } | { text: st
 /** A fake Claude that plays back one tool call (or text) per step, and records every prompt it was given. */
 export function createScriptedModel(steps: ScriptedCall[]) {
   const prompts: unknown[] = [];
+  const toolNames: string[][] = [];
   let i = 0;
   const model = new MockLanguageModelV1({
     doGenerate: async (opts) => {
       prompts.push(opts.prompt);
+      toolNames.push(opts.mode.type === "regular" ? (opts.mode.tools ?? []).map((x) => x.name) : []);
       const s = steps[i++];
       if (!s) throw new Error("Model called more times than scripted");
       const base = { rawCall: { rawPrompt: null, rawSettings: {} }, usage: { promptTokens: 10, completionTokens: 10 } };
@@ -89,5 +91,15 @@ export function createScriptedModel(steps: ScriptedCall[]) {
       return { ...base, finishReason: "tool-calls" as const, toolCalls: [{ toolCallType: "function" as const, toolCallId: `c${i}`, toolName: s.tool, args: JSON.stringify(s.args) }] };
     },
   });
-  return { model, prompts };
+  return { model, prompts, toolNames };
 }
+
+import type { LivePlace } from "@/lib/places/types";
+
+export const createLivePlace = (overrides: Partial<LivePlace> = {}): LivePlace => {
+  const placeId = overrides.placeId ?? "ChIJsd1";
+  return {
+    id: `gp:${placeId}`, placeId, name: "Cucina Sorella", address: "1 Main St, San Diego, CA", lat: 32.7, lng: -117.16,
+    category: "culinary", typeLabel: "Italian restaurant", mapsUrl: "https://maps.google.com/?cid=1", estimatePerPerson: "60.00", ...overrides,
+  };
+};
