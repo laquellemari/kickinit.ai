@@ -46,3 +46,15 @@ export function verifyAchievement(a: Achievement, input: ActivityInput, expected
   expect(r.unlocked).toBe(expected.unlocked);
   return r;
 }
+
+import type { Quote, SearchResult } from "@/lib/catalog/types";
+
+export function verifyQuote(q: Quote, expected: Partial<Quote>) {
+  expect(q).toMatchObject(expected);
+  expect(q.total).toMatch(/^\d+\.\d{2}$/);
+  expect(q.description.length).toBeLessThanOrEqual(127);
+}
+
+export function verifyResultIds(results: SearchResult[], ids: string[]) {
+  expect(results.map((r) => r.id)).toEqual(ids);
+}

@@ -61,3 +61,12 @@ export const createAchievement = (rule: Partial<AchievementRule> & Pick<Achievem
   id: "ach-test", name: "Test", emoji: "", description: "", tier: "bronze", xp: 250, group: "test",
   rule: { count: 1, ...rule } as AchievementRule, ...overrides,
 });
+
+import type { Experience } from "@/lib/catalog/types";
+
+export const createExperience = (overrides: Partial<Experience> = {}): Experience => ({
+  id: "exp-test", name: "Test Dinner", category: "culinary", tags: ["restaurant", "italian"],
+  city: "Miami", country: "US", neighborhood: "Brickell", lat: 25.765, lng: -80.193,
+  price: "50.00", currency: "USD", pricing: "per_person", durationMinutes: 90, partyMin: 1, partyMax: 8,
+  description: "A test dinner by the water.", photo: "test", bg: "#fff", ...overrides,
+});

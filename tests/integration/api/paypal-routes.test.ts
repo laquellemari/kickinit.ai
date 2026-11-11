@@ -20,30 +20,45 @@ async function verifyResponse(res: Response, expected: { status: number; body: R
   expect(await res.json()).toMatchObject(expected.body);
 }
 
-const goodOrder = { amount: "180.00", description: "Dinner for 2 at Marea", referenceId: "booking-1" };
+const goodOrder = { experienceId: "marea", partySize: 2 };
 
 beforeEach(() => { setPayPalEnv(); vi.stubEnv("ADMIN_API_KEY", ADMIN); resetTokenCache(); });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("POST /api/paypal/orders", () => {
-  it("happy: 201 with the PayPal order id, USD by default, fresh idempotency key", async () => {
+  it("happy: prices on the server, holds the total, returns the order and quote", async () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
-    await verifyResponse(await createOrder(post(goodOrder)), { status: 201, body: { id: "5O190127TN364715T", status: "CREATED" } });
-    verifyPayPalCall(f, 1, { method: "POST", url: `${SANDBOX}/v2/checkout/orders`, body: { intent: "AUTHORIZE", purchase_units: [{ reference_id: "booking-1", description: "Dinner for 2 at Marea", amount: { currency_code: "USD", value: "180.00" } }] } });
+    await verifyResponse(await createOrder(post(goodOrder)), {
+      status: 201,
+      body: { id: "5O190127TN364715T", status: "CREATED", quote: { experienceId: "marea", partySize: 2, total: "180.00", currency: "USD" } },
+    });
+    const sent = JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
+    expect(sent.intent).toBe("AUTHORIZE");
+    expect(sent.purchase_units[0].amount).toEqual({ currency_code: "USD", value: "180.00" });
+    expect(sent.purchase_units[0].description).toBe("Ristorante Marea · 2 guests");
+    expect(sent.purchase_units[0].reference_id).toMatch(/^marea:[0-9a-f-]{36}$/);
     const key = new Headers((f.mock.calls[1] as unknown as [string, RequestInit])[1].headers).get("paypal-request-id");
     expect(key).toMatch(UUID);
   });
-  it("accepts a numeric amount and an explicit currency", async () => {
+  it("ignores an amount sent by the browser", async () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
-    await createOrder(post({ ...goodOrder, amount: 25, currency: "EUR" }));
-    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount).toEqual({ currency_code: "EUR", value: "25" });
+    await createOrder(post({ ...goodOrder, amount: "0.01", currency: "EUR" }));
+    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount).toEqual({ currency_code: "USD", value: "180.00" });
+  });
+  it("accepts partySize as a numeric string", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
+    expect((await createOrder(post({ experienceId: "marea", partySize: "3" }))).status).toBe(201);
   });
   it.each([
-    ["missing amount", { ...goodOrder, amount: undefined }, "Amount must be a decimal like 180.00"],
-    ["missing description", { ...goodOrder, description: undefined }, "Description is required"],
-    ["missing referenceId", { ...goodOrder, referenceId: undefined }, "Reference id is required"],
-  ])("400 on %s", async (_l, body, error) => {
-    await verifyResponse(await createOrder(post(body)), { status: 400, body: { error } });
+    ["missing experienceId", { partySize: 2 }, 400, "Experience id is required"],
+    ["non-string experienceId", { experienceId: 7, partySize: 2 }, 400, "Experience id is required"],
+    ["missing partySize", { experienceId: "marea" }, 400, "Party size must be a whole number from 1 to 20"],
+    ["party too big for the venue", { experienceId: "halcyon-spa", partySize: 3 }, 400, "Party size for Halcyon Spa must be from 1 to 2"],
+    ["unknown experience", { experienceId: "nope", partySize: 2 }, 404, "Experience not found: nope"],
+  ])("%s -> %i", async (_l, body, status, error) => {
+    const f = mockPayPal();
+    await verifyResponse(await createOrder(post(body)), { status, body: { error } });
+    expect(f).not.toHaveBeenCalled();
   });
   it.each([["invalid JSON", "{nope"], ["a JSON array", "[]"], ["JSON null", "null"], ["no body", undefined]])("400 on %s", async (_l, raw) => {
     await verifyResponse(await createOrder(post(raw)), { status: 400, body: { error: "Body must be a JSON object" } });

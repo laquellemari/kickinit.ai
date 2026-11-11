@@ -38,6 +38,7 @@ export function toResponse(err: unknown): NextResponse {
   }
   const message = err instanceof Error ? err.message : "Unexpected error";
   if (CONFIG_ERRORS.includes(message)) return NextResponse.json({ error: message }, { status: 503 });
+  if (message.startsWith("Experience not found")) return NextResponse.json({ error: message }, { status: 404 });
   if (err instanceof Error && !(err instanceof TypeError)) return NextResponse.json({ error: message }, { status: 400 });
   console.error("Unhandled PayPal route error:", err);
   return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
