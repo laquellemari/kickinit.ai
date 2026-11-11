@@ -38,7 +38,8 @@ describe("/request/[placeId]", () => {
     const about = screen.getByRole("region", { name: "About this place" });
     expect(about).toHaveTextContent("Lively Italian spot with handmade pasta.");
     expect(about).toHaveTextContent("★ 4.6 on Google · 1,234 reviews");
-    expect(about).toHaveTextContent("Hold estimate: $60 per person (Google rates it $$$)");
+    expect(about).toHaveTextContent("Estimated spend: $60 per person (Google rates it $$$). You pay the venue’s real bill, not the estimate.");
+    expect(screen.getByText(/pay the bill for you/)).toHaveTextContent("you’re charged the real bill plus our booking fee when it closes");
   });
   it("no Google description or rating: a plain line instead, no rating", async () => {
     vi.mocked(getLivePlace).mockResolvedValue(place);
