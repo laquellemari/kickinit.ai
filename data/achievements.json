@@ -1,0 +1,832 @@
+{
+ "version": 1,
+ "levels": [
+  {
+   "level": 1,
+   "title": "Newcomer",
+   "min_xp": 0
+  },
+  {
+   "level": 2,
+   "title": "Explorer",
+   "min_xp": 500
+  },
+  {
+   "level": 3,
+   "title": "Adventurer",
+   "min_xp": 1500
+  },
+  {
+   "level": 4,
+   "title": "Connoisseur",
+   "min_xp": 4000
+  },
+  {
+   "level": 5,
+   "title": "Trailblazer",
+   "min_xp": 8000
+  },
+  {
+   "level": 6,
+   "title": "Luminary",
+   "min_xp": 15000
+  },
+  {
+   "level": 7,
+   "title": "Legend",
+   "min_xp": 30000
+  }
+ ],
+ "achievements": [
+  {
+   "id": "ach-culinary-bronze",
+   "name": "Taster",
+   "emoji": "🍽️",
+   "description": "Complete 3 Culinary quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "culinary",
+    "count": 3
+   },
+   "tier": "bronze",
+   "xp": 250,
+   "group": "category"
+  },
+  {
+   "id": "ach-culinary-silver",
+   "name": "Gourmand",
+   "emoji": "🍽️",
+   "description": "Complete 10 Culinary quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "culinary",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "category"
+  },
+  {
+   "id": "ach-culinary-gold",
+   "name": "Epicure",
+   "emoji": "🍽️",
+   "description": "Complete 25 Culinary quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "culinary",
+    "count": 25
+   },
+   "tier": "gold",
+   "xp": 2000,
+   "group": "category"
+  },
+  {
+   "id": "ach-culinary-platinum",
+   "name": "Culinary Legend",
+   "emoji": "🍽️",
+   "description": "Complete every Culinary quests (52).",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "culinary",
+    "count": 52
+   },
+   "tier": "platinum",
+   "xp": 5000,
+   "group": "category"
+  },
+  {
+   "id": "ach-wellness-bronze",
+   "name": "Unwound",
+   "emoji": "🧖",
+   "description": "Complete 3 Wellness & Spa quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "wellness",
+    "count": 3
+   },
+   "tier": "bronze",
+   "xp": 250,
+   "group": "category"
+  },
+  {
+   "id": "ach-wellness-silver",
+   "name": "Restored",
+   "emoji": "🧖",
+   "description": "Complete 10 Wellness & Spa quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "wellness",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "category"
+  },
+  {
+   "id": "ach-wellness-gold",
+   "name": "Serene",
+   "emoji": "🧖",
+   "description": "Complete 25 Wellness & Spa quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "wellness",
+    "count": 25
+   },
+   "tier": "gold",
+   "xp": 2000,
+   "group": "category"
+  },
+  {
+   "id": "ach-wellness-platinum",
+   "name": "Zen Sovereign",
+   "emoji": "🧖",
+   "description": "Complete every Wellness & Spa quests (50).",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "wellness",
+    "count": 50
+   },
+   "tier": "platinum",
+   "xp": 5000,
+   "group": "category"
+  },
+  {
+   "id": "ach-movement-bronze",
+   "name": "Mover",
+   "emoji": "🏃",
+   "description": "Complete 3 Movement & Fitness quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "movement",
+    "count": 3
+   },
+   "tier": "bronze",
+   "xp": 250,
+   "group": "category"
+  },
+  {
+   "id": "ach-movement-silver",
+   "name": "Athlete",
+   "emoji": "🏃",
+   "description": "Complete 10 Movement & Fitness quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "movement",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "category"
+  },
+  {
+   "id": "ach-movement-gold",
+   "name": "Machine",
+   "emoji": "🏃",
+   "description": "Complete 25 Movement & Fitness quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "movement",
+    "count": 25
+   },
+   "tier": "gold",
+   "xp": 2000,
+   "group": "category"
+  },
+  {
+   "id": "ach-movement-platinum",
+   "name": "Movement Legend",
+   "emoji": "🏃",
+   "description": "Complete every Movement & Fitness quests (51).",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "movement",
+    "count": 51
+   },
+   "tier": "platinum",
+   "xp": 5000,
+   "group": "category"
+  },
+  {
+   "id": "ach-culture-bronze",
+   "name": "Curious",
+   "emoji": "🎭",
+   "description": "Complete 3 Arts & Culture quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "culture",
+    "count": 3
+   },
+   "tier": "bronze",
+   "xp": 250,
+   "group": "category"
+  },
+  {
+   "id": "ach-culture-silver",
+   "name": "Connoisseur",
+   "emoji": "🎭",
+   "description": "Complete 10 Arts & Culture quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "culture",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "category"
+  },
+  {
+   "id": "ach-culture-gold",
+   "name": "Patron",
+   "emoji": "🎭",
+   "description": "Complete 25 Arts & Culture quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "culture",
+    "count": 25
+   },
+   "tier": "gold",
+   "xp": 2000,
+   "group": "category"
+  },
+  {
+   "id": "ach-culture-platinum",
+   "name": "Culture Legend",
+   "emoji": "🎭",
+   "description": "Complete every Arts & Culture quests (50).",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "culture",
+    "count": 50
+   },
+   "tier": "platinum",
+   "xp": 5000,
+   "group": "category"
+  },
+  {
+   "id": "ach-nightlife-bronze",
+   "name": "Night Out",
+   "emoji": "🎶",
+   "description": "Complete 3 Nightlife & Music quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "nightlife",
+    "count": 3
+   },
+   "tier": "bronze",
+   "xp": 250,
+   "group": "category"
+  },
+  {
+   "id": "ach-nightlife-silver",
+   "name": "Regular",
+   "emoji": "🎶",
+   "description": "Complete 10 Nightlife & Music quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "nightlife",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "category"
+  },
+  {
+   "id": "ach-nightlife-gold",
+   "name": "Headliner",
+   "emoji": "🎶",
+   "description": "Complete 25 Nightlife & Music quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "nightlife",
+    "count": 25
+   },
+   "tier": "gold",
+   "xp": 2000,
+   "group": "category"
+  },
+  {
+   "id": "ach-nightlife-platinum",
+   "name": "Nightlife Legend",
+   "emoji": "🎶",
+   "description": "Complete every Nightlife & Music quests (50).",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "nightlife",
+    "count": 50
+   },
+   "tier": "platinum",
+   "xp": 5000,
+   "group": "category"
+  },
+  {
+   "id": "ach-outdoors-bronze",
+   "name": "Wanderer",
+   "emoji": "🏞️",
+   "description": "Complete 3 Outdoors & Adventure quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "outdoors",
+    "count": 3
+   },
+   "tier": "bronze",
+   "xp": 250,
+   "group": "category"
+  },
+  {
+   "id": "ach-outdoors-silver",
+   "name": "Trailhand",
+   "emoji": "🏞️",
+   "description": "Complete 10 Outdoors & Adventure quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "outdoors",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "category"
+  },
+  {
+   "id": "ach-outdoors-gold",
+   "name": "Pathfinder",
+   "emoji": "🏞️",
+   "description": "Complete 25 Outdoors & Adventure quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "outdoors",
+    "count": 25
+   },
+   "tier": "gold",
+   "xp": 2000,
+   "group": "category"
+  },
+  {
+   "id": "ach-outdoors-platinum",
+   "name": "Wild Legend",
+   "emoji": "🏞️",
+   "description": "Complete every Outdoors & Adventure quests (50).",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "outdoors",
+    "count": 50
+   },
+   "tier": "platinum",
+   "xp": 5000,
+   "group": "category"
+  },
+  {
+   "id": "ach-create-bronze",
+   "name": "Dabbler",
+   "emoji": "🎨",
+   "description": "Complete 3 Learn & Create quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "create",
+    "count": 3
+   },
+   "tier": "bronze",
+   "xp": 250,
+   "group": "category"
+  },
+  {
+   "id": "ach-create-silver",
+   "name": "Maker",
+   "emoji": "🎨",
+   "description": "Complete 10 Learn & Create quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "create",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "category"
+  },
+  {
+   "id": "ach-create-gold",
+   "name": "Artisan",
+   "emoji": "🎨",
+   "description": "Complete 25 Learn & Create quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "create",
+    "count": 25
+   },
+   "tier": "gold",
+   "xp": 2000,
+   "group": "category"
+  },
+  {
+   "id": "ach-create-platinum",
+   "name": "Master Maker",
+   "emoji": "🎨",
+   "description": "Complete every Learn & Create quests (50).",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "create",
+    "count": 50
+   },
+   "tier": "platinum",
+   "xp": 5000,
+   "group": "category"
+  },
+  {
+   "id": "ach-getaways-bronze",
+   "name": "Day Tripper",
+   "emoji": "✈️",
+   "description": "Complete 3 Getaways & Travel quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "getaways",
+    "count": 3
+   },
+   "tier": "bronze",
+   "xp": 250,
+   "group": "category"
+  },
+  {
+   "id": "ach-getaways-silver",
+   "name": "Traveler",
+   "emoji": "✈️",
+   "description": "Complete 10 Getaways & Travel quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "getaways",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "category"
+  },
+  {
+   "id": "ach-getaways-gold",
+   "name": "Voyager",
+   "emoji": "✈️",
+   "description": "Complete 25 Getaways & Travel quests.",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "getaways",
+    "count": 25
+   },
+   "tier": "gold",
+   "xp": 2000,
+   "group": "category"
+  },
+  {
+   "id": "ach-getaways-platinum",
+   "name": "Globe Legend",
+   "emoji": "✈️",
+   "description": "Complete every Getaways & Travel quests (50).",
+   "rule": {
+    "type": "quests_in_category",
+    "category": "getaways",
+    "count": 50
+   },
+   "tier": "platinum",
+   "xp": 5000,
+   "group": "category"
+  },
+  {
+   "id": "ach-first-booking",
+   "name": "First Step",
+   "emoji": "👣",
+   "description": "Book your first experience.",
+   "rule": {
+    "type": "bookings",
+    "count": 1
+   },
+   "tier": "bronze",
+   "xp": 50,
+   "group": "milestone"
+  },
+  {
+   "id": "ach-first-quest",
+   "name": "Quest Starter",
+   "emoji": "🗝️",
+   "description": "Complete your first quest.",
+   "rule": {
+    "type": "quests",
+    "count": 1
+   },
+   "tier": "bronze",
+   "xp": 100,
+   "group": "milestone"
+  },
+  {
+   "id": "ach-ten-quests",
+   "name": "Questing",
+   "emoji": "🧭",
+   "description": "Complete 10 quests.",
+   "rule": {
+    "type": "quests",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 500,
+   "group": "milestone"
+  },
+  {
+   "id": "ach-fifty-quests",
+   "name": "Questmaster",
+   "emoji": "🗺️",
+   "description": "Complete 50 quests.",
+   "rule": {
+    "type": "quests",
+    "count": 50
+   },
+   "tier": "gold",
+   "xp": 2500,
+   "group": "milestone"
+  },
+  {
+   "id": "ach-all-quests",
+   "name": "Completionist",
+   "emoji": "👑",
+   "description": "Complete every quest in the catalog.",
+   "rule": {
+    "type": "quests",
+    "count": 403
+   },
+   "tier": "platinum",
+   "xp": 25000,
+   "group": "milestone"
+  },
+  {
+   "id": "ach-renaissance",
+   "name": "Renaissance",
+   "emoji": "🌈",
+   "description": "Complete a quest in every category.",
+   "rule": {
+    "type": "categories_with_quest",
+    "count": 8
+   },
+   "tier": "gold",
+   "xp": 1500,
+   "group": "breadth"
+  },
+  {
+   "id": "ach-polymath",
+   "name": "Polymath",
+   "emoji": "🧩",
+   "description": "Complete 5 quests in every category.",
+   "rule": {
+    "type": "min_quests_per_category",
+    "count": 5
+   },
+   "tier": "platinum",
+   "xp": 6000,
+   "group": "breadth"
+  },
+  {
+   "id": "ach-ten-experiences",
+   "name": "Out & About",
+   "emoji": "📍",
+   "description": "Complete 10 experiences.",
+   "rule": {
+    "type": "bookings",
+    "count": 10
+   },
+   "tier": "bronze",
+   "xp": 300,
+   "group": "volume"
+  },
+  {
+   "id": "ach-fifty-experiences",
+   "name": "Experience Collector",
+   "emoji": "🎟️",
+   "description": "Complete 50 experiences.",
+   "rule": {
+    "type": "bookings",
+    "count": 50
+   },
+   "tier": "silver",
+   "xp": 1500,
+   "group": "volume"
+  },
+  {
+   "id": "ach-hundred-experiences",
+   "name": "Centurion",
+   "emoji": "💯",
+   "description": "Complete 100 experiences.",
+   "rule": {
+    "type": "bookings",
+    "count": 100
+   },
+   "tier": "gold",
+   "xp": 4000,
+   "group": "volume"
+  },
+  {
+   "id": "ach-first-gift",
+   "name": "Thoughtful",
+   "emoji": "🎁",
+   "description": "Gift your first experience.",
+   "rule": {
+    "type": "gifts_sent",
+    "count": 1
+   },
+   "tier": "bronze",
+   "xp": 150,
+   "group": "gifting"
+  },
+  {
+   "id": "ach-five-gifts",
+   "name": "Generous Soul",
+   "emoji": "💝",
+   "description": "Gift 5 experiences.",
+   "rule": {
+    "type": "gifts_sent",
+    "count": 5
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "gifting"
+  },
+  {
+   "id": "ach-pool-organizer",
+   "name": "Ringleader",
+   "emoji": "🤝",
+   "description": "Organize a group gift that gets fully funded.",
+   "rule": {
+    "type": "pools_funded_as_organizer",
+    "count": 1
+   },
+   "tier": "silver",
+   "xp": 500,
+   "group": "gifting"
+  },
+  {
+   "id": "ach-pool-contributor",
+   "name": "Chipped In",
+   "emoji": "🪙",
+   "description": "Contribute to 3 group gifts.",
+   "rule": {
+    "type": "pool_contributions",
+    "count": 3
+   },
+   "tier": "bronze",
+   "xp": 300,
+   "group": "gifting"
+  },
+  {
+   "id": "ach-gift-received",
+   "name": "Lucky One",
+   "emoji": "🍀",
+   "description": "Redeem a gifted experience.",
+   "rule": {
+    "type": "gifts_redeemed",
+    "count": 1
+   },
+   "tier": "bronze",
+   "xp": 100,
+   "group": "gifting"
+  },
+  {
+   "id": "ach-streak-4",
+   "name": "On a Roll",
+   "emoji": "🔥",
+   "description": "Book an experience 4 weeks in a row.",
+   "rule": {
+    "type": "weekly_streak",
+    "count": 4
+   },
+   "tier": "silver",
+   "xp": 600,
+   "group": "streak"
+  },
+  {
+   "id": "ach-streak-12",
+   "name": "Unstoppable",
+   "emoji": "☄️",
+   "description": "Book an experience 12 weeks in a row.",
+   "rule": {
+    "type": "weekly_streak",
+    "count": 12
+   },
+   "tier": "gold",
+   "xp": 2500,
+   "group": "streak"
+  },
+  {
+   "id": "ach-five-cities",
+   "name": "City Hopper",
+   "emoji": "🏙️",
+   "description": "Book experiences in 5 cities.",
+   "rule": {
+    "type": "distinct_cities",
+    "count": 5
+   },
+   "tier": "silver",
+   "xp": 1000,
+   "group": "travel"
+  },
+  {
+   "id": "ach-three-countries",
+   "name": "Globetrotter",
+   "emoji": "🌍",
+   "description": "Book experiences in 3 countries.",
+   "rule": {
+    "type": "distinct_countries",
+    "count": 3
+   },
+   "tier": "gold",
+   "xp": 2000,
+   "group": "travel"
+  },
+  {
+   "id": "ach-dynamic-duo",
+   "name": "Dynamic Duo",
+   "emoji": "💞",
+   "description": "Share 10 experiences with the same companion.",
+   "rule": {
+    "type": "same_companion",
+    "count": 10
+   },
+   "tier": "silver",
+   "xp": 1000,
+   "group": "social"
+  },
+  {
+   "id": "ach-squad",
+   "name": "Squad",
+   "emoji": "👯",
+   "description": "Book 5 experiences with a party of 4 or more.",
+   "rule": {
+    "type": "party_size_bookings",
+    "min_party": 4,
+    "count": 5
+   },
+   "tier": "silver",
+   "xp": 750,
+   "group": "social"
+  },
+  {
+   "id": "ach-connector",
+   "name": "Connector",
+   "emoji": "🔗",
+   "description": "Invite 3 friends who book their first experience.",
+   "rule": {
+    "type": "referrals_converted",
+    "count": 3
+   },
+   "tier": "silver",
+   "xp": 1000,
+   "group": "social"
+  },
+  {
+   "id": "ach-critic",
+   "name": "Critic",
+   "emoji": "⭐",
+   "description": "Rate 10 experiences.",
+   "rule": {
+    "type": "reviews",
+    "count": 10
+   },
+   "tier": "bronze",
+   "xp": 300,
+   "group": "community"
+  },
+  {
+   "id": "ach-early-bird",
+   "name": "Early Bird",
+   "emoji": "🌄",
+   "description": "Complete 5 experiences that start before 8am.",
+   "rule": {
+    "type": "bookings_filter",
+    "filter": "early",
+    "count": 5
+   },
+   "tier": "bronze",
+   "xp": 300,
+   "group": "timing"
+  },
+  {
+   "id": "ach-night-owl",
+   "name": "Night Owl",
+   "emoji": "🦉",
+   "description": "Complete 5 experiences that start after 10pm.",
+   "rule": {
+    "type": "bookings_filter",
+    "filter": "late",
+    "count": 5
+   },
+   "tier": "bronze",
+   "xp": 300,
+   "group": "timing"
+  },
+  {
+   "id": "ach-legendary",
+   "name": "Legend Hunter",
+   "emoji": "🐉",
+   "description": "Complete 5 Legendary quests.",
+   "rule": {
+    "type": "quests_by_difficulty",
+    "difficulty": "Legendary",
+    "count": 5
+   },
+   "tier": "platinum",
+   "xp": 5000,
+   "group": "milestone"
+  }
+ ]
+}
