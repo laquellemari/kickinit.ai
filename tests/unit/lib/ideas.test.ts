@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { ideaPrompt, parseIdeas, suggestIdeas, FALLBACK_IDEAS, IDEA_COUNT, MAX_IDEA_CHARS } from "@/lib/ideas/ideas";
 import { recordSearch, recentSearches, MAX_SEARCH_CHARS } from "@/lib/ideas/repo";
 import { createScriptedModel } from "../../helpers/factories";
@@ -53,10 +53,13 @@ describe("suggestIdeas", () => {
     const { model } = createScriptedModel([{ text: "Idea one" }]);
     expect(await suggestIdeas({ ...ctx, searches: [] }, model)).toEqual({ ideas: ["Idea one"], personalized: false });
   });
-  it.each(["you", "them"] as const)("an unusable reply falls back to stock ideas (%s)", async (mode) => {
+  it.each(["you", "them"] as const)("an unusable reply falls back to stock ideas and is logged (%s)", async (mode) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { model } = createScriptedModel([{ text: "" }]);
     expect(await suggestIdeas({ ...ctx, mode }, model)).toEqual({ ideas: FALLBACK_IDEAS[mode], personalized: false });
     expect(FALLBACK_IDEAS[mode]).toHaveLength(IDEA_COUNT);
+    expect(warn).toHaveBeenCalledWith("Ideas reply was unusable:", '""');
+    warn.mockRestore();
   });
 });
 
