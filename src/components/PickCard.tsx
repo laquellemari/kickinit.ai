@@ -39,7 +39,8 @@ export function PickCard({ pick, partySize }: { pick: PlanPick; partySize: numbe
         <strong>{money(pick.quote.total)}</strong>
       </div>
       <div className="pick-actions">
-        <a className="btn-line" href={p.mapsUrl} target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+        <Link className="btn-navy" href={`/request/${p.placeId}?party=${partySize}`}>Request to book</Link>
+        <a className="btn-line" href={p.mapsUrl} target="_blank" rel="noopener noreferrer">Map</a>
       </div>
     </article>
   );
