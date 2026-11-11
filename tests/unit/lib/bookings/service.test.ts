@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { placeBooking, confirmBooking, declineBooking, closeBill, parseStartsAt, BookingError, type PlaceBookingInput } from "@/lib/bookings/service";
-import { getBooking, getBookingByOrder, insertBooking, transition } from "@/lib/bookings/repo";
+import { placeBooking, confirmBooking, declineBooking, closeBill, parseStartsAt, BookingError, LIVE_MAX_DAYS, HONOR_DAYS, type PlaceBookingInput } from "@/lib/bookings/service";
+import { getBooking, getBookingByOrder, insertBooking, setReauthorized, transition } from "@/lib/bookings/repo";
 import { resetTokenCache } from "@/lib/paypal/client";
 import { useTestDb } from "../../../helpers/db";
 import { createNewBooking } from "../../../helpers/factories";
@@ -314,5 +314,73 @@ describe("closeBill (pay the venue's bill from the hold)", () => {
       return new Response(JSON.stringify(pp.capture()), { status: 201 });
     }));
     await expect(closeBill({ id: b.id, billTotal: "50" })).rejects.toMatchObject({ status: 409, message: "Booking changed while closing the bill" });
+  });
+});
+
+describe("keeping request-to-book holds valid", () => {
+  const DAY = 86_400_000;
+  const live = async (o: Parameters<typeof createNewBooking>[0] = {}) => {
+    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1", amount: "100.00", fee: "4.00", authorizationId: "AUTH-OLD", ...o }));
+    await transition(b.id, ["held"], "confirmed");
+    return b;
+  };
+  const captured = (f: ReturnType<typeof vi.fn>) => urls(f).find((u) => u.endsWith("/capture"));
+  it("boundary: exactly 3 days after booking, the hold is renewed first and the renewed hold is captured", async () => {
+    const b = await live();
+    expect(HONOR_DAYS).toBe(3);
+    const f = mockPayPal(
+      { status: 200, body: pp.token() },
+      { status: 201, body: { id: "AUTH-NEW", status: "CREATED", expiration_time: "2026-12-09T12:00:00Z" } },
+      { status: 201, body: pp.capture() },
+    );
+    const at = new Date(b.createdAt.getTime() + 3 * DAY);
+    await closeBill({ id: b.id, billTotal: "50", now: at });
+    expect(urls(f)[1]).toBe("/v2/payments/authorizations/AUTH-OLD/reauthorize");
+    expect(captured(f)).toBe("/v2/payments/authorizations/AUTH-NEW/capture");
+    expect(await getBooking(b.id)).toMatchObject({ authorizationId: "AUTH-NEW", reauthorizedAt: at, holdExpiresAt: new Date("2026-12-09T12:00:00Z") });
+  });
+  it("boundary: 1 ms before 3 days, no renewal", async () => {
+    const b = await live();
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
+    await closeBill({ id: b.id, billTotal: "50", now: new Date(b.createdAt.getTime() + 3 * DAY - 1) });
+    expect(urls(f).some((u) => u.endsWith("/reauthorize"))).toBe(false);
+    expect(captured(f)).toBe("/v2/payments/authorizations/AUTH-OLD/capture");
+  });
+  it("renewed without a new expiry keeps the old one", async () => {
+    const b = await live({ holdExpiresAt: new Date("2026-12-01T00:00:00Z") });
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: { id: "AUTH-NEW", status: "CREATED" } }, { status: 201, body: pp.capture() });
+    await closeBill({ id: b.id, billTotal: "50", now: new Date(b.createdAt.getTime() + 5 * DAY) });
+    expect((await getBooking(b.id))!.holdExpiresAt).toEqual(new Date("2026-12-01T00:00:00Z"));
+  });
+  it("a renewal that fails falls back to capturing the original hold, and is logged", async () => {
+    const b = await live();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 422, body: { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "REAUTHORIZATION_TOO_SOON" }], message: "x" } }, { status: 201, body: pp.capture() });
+    await closeBill({ id: b.id, billTotal: "50", now: new Date(b.createdAt.getTime() + 4 * DAY) });
+    expect(captured(f)).toBe("/v2/payments/authorizations/AUTH-OLD/capture");
+    expect(warn.mock.calls[0][0]).toContain("capturing the original hold");
+    expect((await getBooking(b.id))!.reauthorizedAt).toBeNull();
+  });
+  it("a hold already renewed isn't renewed again", async () => {
+    const b = await live();
+    await setReauthorized(b.id, "AUTH-NEW", null, new Date());
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
+    await closeBill({ id: b.id, billTotal: "50", now: new Date(b.createdAt.getTime() + 10 * DAY) });
+    expect(urls(f).some((u) => u.endsWith("/reauthorize"))).toBe(false);
+    expect(captured(f)).toBe("/v2/payments/authorizations/AUTH-NEW/capture");
+  });
+  it("request-to-book dates beyond 28 days are refused before PayPal holds anything", async () => {
+    expect(LIVE_MAX_DAYS).toBe(28);
+    const f = mockPayPal({ status: 200, body: gPlace });
+    await expect(placeBooking(input({ kind: "live", itemId: "gp:ChIJ1", startsAt: new Date(NOW.getTime() + 28 * DAY + 1).toISOString() })))
+      .rejects.toMatchObject({ status: 400, message: "Request-to-book dates open up to 28 days ahead" });
+    expect(urls(f).some((u) => u.includes("/authorize"))).toBe(false);
+  });
+  it("boundary: exactly 28 days ahead is fine; partners can still book 89 days out", async () => {
+    mockPayPal({ status: 200, body: gPlace }, { status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder({ amount: { value: "100.00", currency_code: "USD" } }) });
+    await expect(placeBooking(input({ kind: "live", itemId: "gp:ChIJ1", startsAt: new Date(NOW.getTime() + 28 * DAY).toISOString() }))).resolves.toMatchObject({ kind: "live" });
+    resetTokenCache();
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
+    await expect(placeBooking(input({ orderId: "ORD-P89", startsAt: new Date(NOW.getTime() + 89 * DAY).toISOString() }))).resolves.toMatchObject({ kind: "partner" });
   });
 });

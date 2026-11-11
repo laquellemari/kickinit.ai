@@ -4,13 +4,13 @@ import { isoDay, slotLabel, TIME_SLOTS } from "@/lib/slots";
 
 const DAY = 86_400_000;
 
-/** Date + half-hour time slot, today through 89 days out. */
-export function WhenPicker({ day, time, onDay, onTime, now }: { day: string; time: string; onDay: (v: string) => void; onTime: (v: string) => void; now: Date }) {
+/** Date + half-hour time slot, today through `maxDays` out (89 for partners; 27 for request-to-book, inside PayPal's hold window). */
+export function WhenPicker({ day, time, onDay, onTime, now, maxDays = 89 }: { day: string; time: string; onDay: (v: string) => void; onTime: (v: string) => void; now: Date; maxDays?: number }) {
   return (
     <>
       <label>
         Date
-        <input type="date" value={day} min={isoDay(now)} max={isoDay(new Date(now.getTime() + 89 * DAY))} onChange={(e) => onDay(e.target.value)} />
+        <input type="date" value={day} min={isoDay(now)} max={isoDay(new Date(now.getTime() + maxDays * DAY))} onChange={(e) => onDay(e.target.value)} />
       </label>
       <label>
         Time

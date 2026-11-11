@@ -29,10 +29,12 @@ export type Booking = {
   vaultId: string | null;
   /** Set once the venue closes the bill. */
   settlement: Settlement | null;
+  /** When the PayPal hold was renewed (once, after its 3-day guarantee). */
+  reauthorizedAt: Date | null;
 };
 export type OverageStatus = "none" | "charged" | "pay_at_table";
 export type Settlement = { billTotal: string; capturedTotal: string; overage: string; overageStatus: OverageStatus; overageCaptureId: string | null; settledAt: Date };
-export type NewBooking = Omit<Booking, "id" | "status" | "captureId" | "createdAt" | "updatedAt" | "checkedInAt" | "fee" | "vaultId" | "settlement"> &
+export type NewBooking = Omit<Booking, "id" | "status" | "captureId" | "createdAt" | "updatedAt" | "checkedInAt" | "fee" | "vaultId" | "settlement" | "reauthorizedAt"> &
   { fee?: string | null; vaultId?: string | null };
 
 type Row = {
@@ -42,6 +44,7 @@ type Row = {
   tags: string[]; city: string; country: string; neighborhood: string | null; cuisine: string | null; local_hour: number; checked_in_at: Date | string | null;
   fee: string | null; vault_id: string | null; bill_total: string | null; captured_total: string | null; overage: string | null;
   overage_status: OverageStatus | null; overage_capture_id: string | null; settled_at: Date | string | null;
+  reauthorized_at: Date | string | null;
 };
 
 const toDate = (v: Date | string) => new Date(v);
@@ -52,6 +55,7 @@ const fromRow = (r: Row): Booking => ({
   facts: { tags: r.tags, city: r.city, country: r.country, neighborhood: r.neighborhood, cuisine: r.cuisine, localHour: r.local_hour },
   checkedInAt: r.checked_in_at === null ? null : toDate(r.checked_in_at),
   fee: r.fee, vaultId: r.vault_id,
+  reauthorizedAt: r.reauthorized_at === null ? null : toDate(r.reauthorized_at),
   settlement: r.settled_at === null ? null : {
     billTotal: r.bill_total!, capturedTotal: r.captured_total!, overage: r.overage!, overageStatus: r.overage_status!,
     overageCaptureId: r.overage_capture_id, settledAt: toDate(r.settled_at),
@@ -124,4 +128,13 @@ export async function settleBooking(id: string, s: Omit<Settlement, "settledAt">
     [id, s.billTotal, s.capturedTotal, s.overage, s.overageStatus, s.overageCaptureId, captureId, at],
   );
   return rows[0] ? fromRow(rows[0]) : null;
+}
+
+/** The hold was renewed: PayPal gave it a new authorization id. */
+export async function setReauthorized(id: string, authorizationId: string, holdExpiresAt: Date | null, at: Date): Promise<Booking> {
+  const { rows } = await (await getDb()).query<Row>(
+    "UPDATE bookings SET authorization_id = $2, hold_expires_at = COALESCE($3, hold_expires_at), reauthorized_at = $4, updated_at = now() WHERE id = $1 RETURNING *",
+    [id, authorizationId, holdExpiresAt, at],
+  );
+  return fromRow(rows[0]);
 }

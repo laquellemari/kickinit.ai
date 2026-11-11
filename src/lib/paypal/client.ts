@@ -193,6 +193,19 @@ export async function captureAuthorization(authorizationId: string, requestId: s
   return { captureId: capture!.id, status: capture!.status };
 }
 
+/** PayPal guarantees a hold for 3 days; from day 4 to 29 it can be renewed once, with a fresh 3-day guarantee. */
+export async function reauthorizeAuthorization(authorizationId: string, requestId: string, amount: { value: string; currency: string }) {
+  checkId(authorizationId, "Authorization");
+  checkRequestId(requestId);
+  checkAmount(amount.value);
+  checkCurrency(amount.currency);
+  const res = await call<{ id: string; status: string; expiration_time?: string }>(
+    `/v2/payments/authorizations/${authorizationId}/reauthorize`, requestId, { amount: { currency_code: amount.currency, value: amount.value } },
+  );
+  if (!res?.id) throw new PayPalError(502, "EMPTY_RESPONSE", "PayPal didn't return the renewed hold");
+  return { authorizationId: res.id, status: res.status, expiresAt: res.expiration_time ?? null };
+}
+
 export async function voidAuthorization(authorizationId: string, requestId: string) {
   checkId(authorizationId, "Authorization");
   checkRequestId(requestId);

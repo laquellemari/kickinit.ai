@@ -89,7 +89,7 @@ export function CheckoutPanel({ item, initialParty, clientId, now = new Date() }
   return (
     <aside className="book-panel" aria-label="Book">
       <span className="caps" style={{ color: "var(--muted)" }}>{live ? "Request to book" : "Instant book · kickinit partner"}</span>
-      <WhenPicker day={day} time={time} onDay={setDay} onTime={setTime} now={now} />
+      <WhenPicker day={day} time={time} onDay={setDay} onTime={setTime} now={now} maxDays={live ? 27 : 89} />
       <label>
         Guests
         <select value={party} onChange={(e) => setParty(Number(e.target.value))}>
