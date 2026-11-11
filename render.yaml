@@ -20,10 +20,27 @@ services:
         sync: false
       - key: GOOGLE_PLACES_API_KEY
         sync: false
+      - key: CHANNEL3_API_KEY
+        sync: false
+      - key: CONCIERGE_MODEL
+        value: claude-haiku-5-5
       - key: DATABASE_URL
         fromDatabase:
           name: kickinit-db
           property: connectionString
+  - type: cron
+    name: kickinit-close-pools
+    runtime: node
+    plan: starter
+    schedule: "*/15 * * * *"
+    buildCommand: echo "no build needed"
+    startCommand: curl -fsS -X POST -H "x-admin-key: $ADMIN_API_KEY" https://kickinit.onrender.com/api/cron/close-pools
+    envVars:
+      - key: ADMIN_API_KEY
+        fromService:
+          type: web
+          name: kickinit
+          envVarKey: ADMIN_API_KEY
 databases:
   - name: kickinit-db
     plan: basic-256mb

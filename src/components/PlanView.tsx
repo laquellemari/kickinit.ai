@@ -108,7 +108,7 @@ export function PlanView({ q, mode, where }: { q: string; mode: Mode; where: str
             </div>
             <div className="pick-grid" style={{ marginTop: 18 }}>
               {result.options.map((o) => (
-                <PickCard key={o.kind === "partner" ? o.experience.id : o.place.id} pick={o} partySize={party} />
+                <PickCard key={o.kind === "partner" ? o.experience.id : o.place.id} pick={o} partySize={party} gift={mode === "them"} />
               ))}
             </div>
           </section>

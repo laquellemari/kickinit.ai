@@ -27,6 +27,41 @@ CREATE TABLE IF NOT EXISTS bookings (
 );
 CREATE INDEX IF NOT EXISTS bookings_user ON bookings (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS bookings_status ON bookings (status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS gifts (
+  id             TEXT PRIMARY KEY,
+  organizer_id   TEXT NOT NULL,
+  organizer_name TEXT NOT NULL,
+  experience_id  TEXT NOT NULL,
+  name           TEXT NOT NULL,
+  party_size     INTEGER NOT NULL CHECK (party_size BETWEEN 1 AND 20),
+  amount_cents   INTEGER NOT NULL CHECK (amount_cents > 0),
+  currency       TEXT NOT NULL,
+  recipient_name TEXT NOT NULL,
+  note           TEXT NOT NULL DEFAULT '',
+  mode           TEXT NOT NULL CHECK (mode IN ('solo', 'pool')),
+  status         TEXT NOT NULL CHECK (status IN ('open', 'funded', 'redeemed', 'expired')),
+  deadline       TIMESTAMPTZ NOT NULL,
+  redeem_code    TEXT NOT NULL UNIQUE,
+  booking_id     TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS gifts_open_deadline ON gifts (status, deadline);
+
+CREATE TABLE IF NOT EXISTS contributions (
+  id               TEXT PRIMARY KEY,
+  gift_id          TEXT NOT NULL REFERENCES gifts(id),
+  contributor_id   TEXT NOT NULL,
+  name             TEXT NOT NULL,
+  amount_cents     INTEGER NOT NULL CHECK (amount_cents > 0),
+  status           TEXT NOT NULL CHECK (status IN ('held', 'captured', 'voided')),
+  paypal_order_id  TEXT NOT NULL UNIQUE,
+  authorization_id TEXT NOT NULL,
+  capture_id       TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS contributions_gift ON contributions (gift_id, created_at);
 `;
 
 /** Use a specific database (tests pass PGlite). Resets schema readiness. */

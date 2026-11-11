@@ -26,6 +26,11 @@ describe("PickCard", () => {
     expect(maps).toHaveAttribute("rel", "noopener noreferrer");
     expect(within(card).queryByText("INSTANT BOOK")).toBeNull();
   });
+  it("gift mode: partner cards offer Gift this instead of details", () => {
+    render(<PickCard pick={partnerPick("still-water", 2)} partySize={2} gift />);
+    expect(screen.getByRole("link", { name: "Gift this" })).toHaveAttribute("href", "/gift/new?experience=still-water&party=2");
+    expect(screen.queryByRole("link", { name: "See details" })).toBeNull();
+  });
   it("boundary: 1 guest is singular", () => {
     render(<PickCard pick={livePick({}, 1)} partySize={1} />);
     expect(screen.getByText("Est. hold · 1 guest")).toBeInTheDocument();

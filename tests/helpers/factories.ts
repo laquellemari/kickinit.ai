@@ -129,3 +129,17 @@ export const createNewBooking = (overrides: Partial<NewBooking> = {}): NewBookin
   startsAt: new Date("2026-11-14T19:30:00Z"), amount: "180.00", currency: "USD",
   paypalOrderId: `ORDER${++orderSeq}`, authorizationId: `AUTH${orderSeq}`, holdExpiresAt: new Date("2026-12-13T00:00:00Z"), ...overrides,
 });
+
+import type { NewGift, NewContribution } from "@/lib/gifts/repo";
+
+export const createNewGift = (overrides: Partial<NewGift> = {}): NewGift => ({
+  organizerId: "org-1", organizerName: "Kavon", experienceId: "still-water", name: "Still Water Bathhouse", partySize: 2,
+  amountCents: 19000, currency: "USD", recipientName: "Mom", note: "Happy 60th!", mode: "pool",
+  deadline: new Date("2026-11-20T00:00:00Z"), ...overrides,
+});
+
+let contribSeq = 0;
+export const createNewContribution = (giftId: string, overrides: Partial<NewContribution> = {}): NewContribution => ({
+  giftId, contributorId: "friend-1", name: "Ana", amountCents: 5000,
+  paypalOrderId: `CORDER${++contribSeq}`, authorizationId: `CAUTH${contribSeq}`, ...overrides,
+});
