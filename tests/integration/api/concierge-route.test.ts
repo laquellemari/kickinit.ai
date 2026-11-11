@@ -20,12 +20,12 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("POST /api/concierge", () => {
   it("happy: returns the reply and server-priced options", async () => {
-    runtime.model = createScriptedModel([{ tool: "present_options", args: { intro: "Try these.", partySize: 2, picks: [{ experienceId: "blue-room", why: "Late jazz." }] } }]).model;
+    runtime.model = createScriptedModel([{ tool: "present_options", args: { intro: "Try these.", partySize: 2, picks: [{ experienceId: "vibrato-grill-jazz", why: "Late jazz." }] } }]).model;
     const res = await post({ message: "jazz tonight for 2" });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.reply).toBe("Try these.");
-    expect(body.options[0]).toMatchObject({ experience: { id: "blue-room" }, quote: { total: "70.00" }, why: "Late jazz." });
+    expect(body.options[0]).toMatchObject({ experience: { id: "vibrato-grill-jazz" }, quote: { total: "70.00" }, why: "Late jazz." });
   });
   it("passes live search through when configured, and returns request-to-book picks", async () => {
     runtime.live = async () => [{ id: "gp:A", placeId: "A", name: "Sorella", address: "SD", lat: 1, lng: 2, category: "culinary", typeLabel: "Restaurant", mapsUrl: "u", estimatePerPerson: "60.00" }];

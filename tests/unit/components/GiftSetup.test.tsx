@@ -6,7 +6,7 @@ import { routerPush } from "../../helpers/setup";
 import { createExperience } from "../../helpers/factories";
 
 const NOW = new Date(2026, 10, 11, 12, 0);
-const spa = getExperience("still-water")!;
+const spa = getExperience("hugh-spa")!;
 function mockApi(status: number, body: unknown) {
   const f = vi.fn(async () => new Response(JSON.stringify(body), { status }));
   vi.stubGlobal("fetch", f);
@@ -29,7 +29,7 @@ describe("GiftSetup", () => {
     fill();
     fireEvent.click(screen.getByRole("button", { name: "Create the pool" }));
     await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/gift/g1"));
-    expect(sent(f)).toEqual({ experienceId: "still-water", partySize: 2, organizerName: "Kavon", recipientName: "Mom", note: "Happy 60th", mode: "pool", deadline: new Date(2026, 10, 14, 21, 0).toISOString() });
+    expect(sent(f)).toEqual({ experienceId: "hugh-spa", partySize: 2, organizerName: "Kavon", recipientName: "Mom", note: "Happy 60th", mode: "pool", deadline: new Date(2026, 10, 14, 21, 0).toISOString() });
   });
   it("pay in full: no deadline field, no deadline sent", async () => {
     const f = mockApi(201, { id: "g2" });

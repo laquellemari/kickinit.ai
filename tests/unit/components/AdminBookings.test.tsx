@@ -84,7 +84,7 @@ describe("AdminBookings", () => {
     });
   });
   it("arrivals: confirmed bookings not yet checked in can be checked in", async () => {
-    const arrival = { ...held("a1", "The Blue Room"), status: "confirmed", checkedInAt: null };
+    const arrival = { ...held("a1", "Vibrato Grill Jazz"), status: "confirmed", checkedInAt: null };
     const done = { ...held("a2", "Marea"), status: "confirmed", checkedInAt: "2026-11-15T03:00:00.000Z" };
     let checkedIn = false;
     vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
@@ -94,7 +94,7 @@ describe("AdminBookings", () => {
     }));
     render(<AdminBookings />);
     login();
-    const row = await screen.findByLabelText("Arrival: The Blue Room");
+    const row = await screen.findByLabelText("Arrival: Vibrato Grill Jazz");
     expect(screen.queryByLabelText("Arrival: Marea")).toBeNull();
     fireEvent.click(within(row).getByRole("button", { name: "Check in" }));
     expect(await screen.findByText("No confirmed guests waiting to check in.")).toBeInTheDocument();

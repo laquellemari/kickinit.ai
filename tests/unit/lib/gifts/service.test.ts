@@ -17,7 +17,7 @@ const SANDBOX = "https://api-m.sandbox.paypal.com";
 const urls = (f: ReturnType<typeof vi.fn>) => f.mock.calls.map((c) => (c as unknown as [string])[0].replace(SANDBOX, ""));
 const auth = (value: string, o: Record<string, unknown> = {}) => ({ status: 201, body: pp.authorizedOrder({ amount: { value, currency_code: "USD" }, ...o }) });
 const giftInput = (o: Partial<CreateGiftInput> = {}): CreateGiftInput => ({
-  organizerId: "org", organizerName: "Kavon", experienceId: "still-water", partySize: 2, recipientName: "Mom", note: "Happy 60th",
+  organizerId: "org", organizerName: "Kavon", experienceId: "hugh-spa", partySize: 2, recipientName: "Mom", note: "Happy 60th",
   mode: "pool", deadline: new Date(NOW.getTime() + 3 * DAY).toISOString(), now: NOW, ...o,
 });
 
@@ -40,7 +40,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(
 describe("createGift", () => {
   it("pool: prices from the catalog, trims text, keeps the chosen deadline", async () => {
     const g = await createGift(giftInput({ organizerName: "  Kavon ", recipientName: " Mom ", note: "  Happy 60th " }));
-    expect(g).toMatchObject({ status: "open", mode: "pool", amountCents: 19000, name: "Still Water Bathhouse", organizerName: "Kavon", recipientName: "Mom", note: "Happy 60th", partySize: 2 });
+    expect(g).toMatchObject({ status: "open", mode: "pool", amountCents: 19000, name: "Hugh Spa", organizerName: "Kavon", recipientName: "Mom", note: "Happy 60th", partySize: 2 });
     expect(g.deadline.getTime()).toBe(NOW.getTime() + 3 * DAY);
   });
   it("solo: deadline is a day to finish paying, and the note is optional", async () => {
@@ -60,7 +60,7 @@ describe("createGift", () => {
     ["bad mode", { mode: "split" }, 400, "Choose to pay in full or start a group pool"],
     ["missing experience", { experienceId: "" }, 400, "Experience id is required"],
     ["unknown experience", { experienceId: "nope" }, 404, "Experience not found: nope"],
-    ["party too big", { experienceId: "halcyon-spa", partySize: 3 }, 400, "Party size for Halcyon Spa must be from 1 to 2"],
+    ["party too big", { experienceId: "desuar-hollywood-spa", partySize: 3 }, 400, "Party size for DESUAR HOLLYWOOD SPA must be from 1 to 2"],
     ["pool with no deadline", { deadline: undefined }, 400, "Pick a pool deadline between 1 hour and 14 days from now"],
     ["pool deadline garbage", { deadline: "soon" }, 400, "Pick a pool deadline between 1 hour and 14 days from now"],
   ])("rejects %s", async (_l, o, status, message) => {
@@ -298,8 +298,8 @@ describe("redeemGift", () => {
     const f = mockPayPal();
     const r = await redeemGift({ code: g.redeemCode, userId: "mom", startsAt: SAT, now: NOW });
     expect(r.gift).toMatchObject({ status: "redeemed", bookingId: r.booking.id });
-    expect(r.booking).toMatchObject({ status: "confirmed", userId: "mom", itemId: "still-water", amount: "190.00", partySize: 2, paypalOrderId: `gift:${g.id}` });
-    expect(r.booking.facts).toMatchObject({ city: "Miami", neighborhood: "Wynwood", tags: ["wellness", "spa", "bathhouse", "sauna", "cold_plunge"] });
+    expect(r.booking).toMatchObject({ status: "confirmed", userId: "mom", itemId: "hugh-spa", amount: "190.00", partySize: 2, paypalOrderId: `gift:${g.id}` });
+    expect(r.booking.facts).toMatchObject({ city: "Los Angeles", neighborhood: "Pico-Union", tags: ["wellness", "spa", "bathhouse", "sauna", "korean_spa"] });
     expect((await getBooking(r.booking.id))?.status).toBe("confirmed");
     expect(f).not.toHaveBeenCalled(); // already paid by the givers
     await expect(redeemGift({ code: g.redeemCode, userId: "mom", startsAt: SAT, now: NOW })).rejects.toMatchObject({ status: 409, message: "This gift has already been redeemed" });

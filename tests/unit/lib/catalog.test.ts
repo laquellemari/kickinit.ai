@@ -24,7 +24,7 @@ describe("shipped catalog", () => {
     expect(new Set(ALL_EXPERIENCES.map((e) => e.category)).size).toBe(8);
   });
   it("includes the four home-page postcards", () => {
-    for (const id of ["marea", "still-water", "biscayne-dusk", "blue-room"]) expect(getExperience(id)).toBeDefined();
+    for (const id of ["carasau-pasta-bar", "hugh-spa", "la-yacht-charter", "vibrato-grill-jazz"]) expect(getExperience(id)).toBeDefined();
   });
   it("every category has experiences whose tags advance at least one quest", () => {
     const questTags = new Set(ALL_QUESTS.flatMap((q) => q.requirement.tags));
@@ -125,7 +125,7 @@ describe("quote", () => {
     const e = createExperience({ id: "long", name: "N".repeat(200) });
     verifyQuote(quote("long", 2, [e]), { experienceId: "long" });
   });
-  it("defaults to the shipped catalog", () => verifyQuote(quote("marea", 2), { total: "180.00" }));
+  it("defaults to the shipped catalog", () => verifyQuote(quote("carasau-pasta-bar", 2), { total: "180.00" }));
   it.each([
     ["unknown id", "nope", 2, "Experience not found: nope"],
     ["party below the minimum", "c", 1, "Party size for Charlie Karaoke must be from 2 to 10"],

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+vi.mock("@/components/VenuePhoto", () => ({ VenuePhoto: ({ children }: { children?: React.ReactNode }) => <div>{children}</div> }));
 import { PlanView } from "@/components/PlanView";
 import { createConciergeResult } from "../../helpers/factories";
 
@@ -30,7 +31,7 @@ describe("PlanView", () => {
       render(<PlanView q="dinner for 2" mode="you" where="Miami" />);
       expect(screen.getByRole("status")).toHaveTextContent("Finding the table");
       expect(screen.getByText("“dinner for 2”")).toBeInTheDocument();
-      await verifyPlan({ reply: "Here are two good ones.", cards: ["Ristorante Marea", "Cucina Sorella"] });
+      await verifyPlan({ reply: "Here are two good ones.", cards: ["Carasau Pasta Bar", "Cucina Sorella"] });
       expect(f).toHaveBeenCalledTimes(1);
       expect(sent(f, 0)).toEqual({ message: "dinner for 2", mode: "you", where: "Miami", history: [] });
       expect(screen.getByText(/we hold an estimate on PayPal/)).toBeInTheDocument();
@@ -43,7 +44,7 @@ describe("PlanView", () => {
       expect(screen.getByText("For them · San Diego")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Gifts" })).toHaveAttribute("aria-current", "page");
       await screen.findByText("Here are two good ones.");
-      expect(screen.getByRole("link", { name: "Gift this" })).toHaveAttribute("href", "/gift/new?experience=marea&party=2");
+      expect(screen.getByRole("link", { name: "Gift this" })).toHaveAttribute("href", "/gift/new?experience=carasau-pasta-bar&party=2");
     });
 
     it("refining sends the conversation so far, then shows the new answer", async () => {
@@ -68,7 +69,7 @@ describe("PlanView", () => {
       mockConcierge({ status: 200, body: createConciergeResult({ partySize: null }) });
       render(<PlanView q="x" mode="you" where="Miami" />);
       await screen.findByText("Here are two good ones.");
-      expect(screen.getByRole("link", { name: "See details" })).toHaveAttribute("href", "/experience/marea?party=2");
+      expect(screen.getByRole("link", { name: "See details" })).toHaveAttribute("href", "/experience/carasau-pasta-bar?party=2");
     });
   });
 
@@ -101,7 +102,7 @@ describe("PlanView", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(msg);
       fireEvent.change(screen.getByLabelText("Refine it:"), { target: { value: "try again" } });
       fireEvent.click(screen.getByRole("button", { name: "Update →" }));
-      await verifyPlan({ reply: "Here are two good ones.", cards: ["Ristorante Marea", "Cucina Sorella"] });
+      await verifyPlan({ reply: "Here are two good ones.", cards: ["Carasau Pasta Bar", "Cucina Sorella"] });
     });
     it("a network failure shows the generic message", async () => {
       vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("offline"); }));

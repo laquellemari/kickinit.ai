@@ -40,13 +40,13 @@ afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(
 describe("POST /api/gifts", () => {
   it("creates a pool and shows the organizer their redeem code", async () => {
     const deadline = new Date(Date.now() + 3 * DAY).toISOString();
-    const body = await verifyRes(await create(req({ method: "POST", body: { experienceId: "still-water", partySize: "2", organizerName: "Kavon", recipientName: "Mom", note: "60!", mode: "pool", deadline } })), {
+    const body = await verifyRes(await create(req({ method: "POST", body: { experienceId: "hugh-spa", partySize: "2", organizerName: "Kavon", recipientName: "Mom", note: "60!", mode: "pool", deadline } })), {
       status: 201, body: { status: "open", mode: "pool", amount: "190.00", raised: "0.00", remaining: "190.00", minContribution: "5.00", maxContribution: "190.00", isOrganizer: true, contributors: [] },
     });
     expect(body.redeemCode).toMatch(/^[A-Za-z0-9_-]{22}$/);
   });
   it("400 on bad input", async () => {
-    await verifyRes(await create(req({ method: "POST", body: { experienceId: "still-water", partySize: 2, organizerName: "", recipientName: "Mom", mode: "solo" } })), { status: 400, body: { error: "Your name is required" } });
+    await verifyRes(await create(req({ method: "POST", body: { experienceId: "hugh-spa", partySize: 2, organizerName: "", recipientName: "Mom", mode: "solo" } })), { status: 400, body: { error: "Your name is required" } });
   });
   it("401 without a visitor cookie", async () => {
     await verifyRes(await create(req({ method: "POST", visitor: null, body: {} })), { status: 401 });
@@ -85,7 +85,7 @@ describe("chipping in: POST /api/paypal/orders {kind: gift} then POST /api/gifts
     await verifyRes(await order(req({ method: "POST", visitor: FRIEND, body: { kind: "gift", giftId: g.id, amount: "50" } })), { status: 201, body: { id: "GO1", amount: "50.00" } });
     const sent = JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0];
     expect(sent.amount).toEqual({ currency_code: "USD", value: "50.00" });
-    expect(sent.description).toBe("Gift for Mom: Still Water Bathhouse");
+    expect(sent.description).toBe("Gift for Mom: Hugh Spa");
     // The access token is cached from the order call, so PayPal is only asked to authorize.
     mockPayPal({ status: 201, body: pp.authorizedOrder({ amount: { value: "50.00", currency_code: "USD" } }) });
     await verifyRes(await contribute(req({ method: "POST", visitor: FRIEND, body: { orderId: "GO1", name: "Ana" } }), id(g.id)), {
@@ -121,14 +121,14 @@ describe("chipping in: POST /api/paypal/orders {kind: gift} then POST /api/gifts
 describe("redeem", () => {
   it("GET shows the recipient what they got, without amounts", async () => {
     const g = await insertGift(createNewGift());
-    const body = await verifyRes(await redeemInfo(req(), code(g.redeemCode)), { status: 200, body: { name: "Still Water Bathhouse", recipientName: "Mom", organizerName: "Kavon", status: "open" } });
+    const body = await verifyRes(await redeemInfo(req(), code(g.redeemCode)), { status: 200, body: { name: "Hugh Spa", recipientName: "Mom", organizerName: "Kavon", status: "open" } });
     expect(body).not.toHaveProperty("amount");
   });
   it("POST books it for the recipient", async () => {
     const g = await insertGift(createNewGift());
     await transitionGift(g.id, ["open"], "funded");
     await verifyRes(await redeem(req({ method: "POST", visitor: FRIEND, body: { startsAt: new Date(Date.now() + 3 * DAY).toISOString() } }), code(g.redeemCode)), {
-      status: 201, body: { status: "confirmed", itemId: "still-water", amount: "190.00" },
+      status: 201, body: { status: "confirmed", itemId: "hugh-spa", amount: "190.00" },
     });
   });
   it("404 for malformed or unknown codes", async () => {

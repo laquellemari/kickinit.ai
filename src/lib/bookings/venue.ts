@@ -5,14 +5,10 @@ import type { LivePlace } from "@/lib/places/types";
 /** What the quest engine needs to know about where and when a booking happens. */
 export type VenueFacts = { tags: string[]; city: string; country: string; neighborhood: string | null; cuisine: string | null; localHour: number };
 
-/** Partner cities and their time zones. */
-export const CITY_TZ: Record<string, string> = {
-  Miami: "America/New_York",
-  Islamorada: "America/New_York",
-  Austin: "America/Chicago",
-  "Mexico City": "America/Mexico_City",
-  Tulum: "America/Cancun",
-};
+/** Partner cities and their time zones (all partners are in Southern/Central California). */
+export const CITY_TZ: Record<string, string> = Object.fromEntries(
+  ["Los Angeles", "West Hollywood", "Santa Monica", "Marina del Rey", "Malibu", "San Marino", "Long Beach", "Palm Springs", "Ojai", "Santa Barbara"].map((c) => [c, "America/Los_Angeles"]),
+);
 
 /** Tags a live venue gets from its category, so it can count toward quests. */
 const CATEGORY_TAGS: Record<Category, string[]> = {

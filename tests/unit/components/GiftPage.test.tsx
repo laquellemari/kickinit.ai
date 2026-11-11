@@ -4,7 +4,7 @@ import { paypalReact } from "../../helpers/paypal-react";
 import { GiftPage } from "@/components/GiftPage";
 
 const view = (o: Record<string, unknown> = {}) => ({
-  id: "g1", experienceId: "still-water", name: "Still Water Bathhouse", partySize: 2, mode: "pool", status: "open",
+  id: "g1", experienceId: "hugh-spa", name: "Hugh Spa", partySize: 2, mode: "pool", status: "open",
   amount: "190.00", raised: "50.00", remaining: "140.00", minContribution: "5.00", maxContribution: "140.00", currency: "USD",
   recipientName: "Mom", organizerName: "Kavon", note: "Happy 60th", deadline: "2026-11-15T05:00:00.000Z",
   contributors: [{ name: "Ana", amount: "50.00" }], isOrganizer: false, redeemCode: null, ...o,
@@ -39,7 +39,7 @@ describe("GiftPage", () => {
     page();
     expect(screen.getByRole("status")).toHaveTextContent("Loading the gift");
     expect(await screen.findByRole("heading", { name: "A gift for Mom" })).toBeInTheDocument();
-    expect(screen.getByText("Still Water Bathhouse · 2 guests · from Kavon")).toBeInTheDocument();
+    expect(screen.getByText("Hugh Spa · 2 guests · from Kavon")).toBeInTheDocument();
     expect(screen.getByText("“Happy 60th”")).toBeInTheDocument();
     expect(screen.getByTestId("raised")).toHaveTextContent("$50");
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "26");

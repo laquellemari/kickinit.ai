@@ -8,13 +8,15 @@ describe("venue facts", () => {
     for (const e of ALL_EXPERIENCES) expect(CITY_TZ[e.city], e.city).toBeDefined();
   });
   it("partner: catalog tags, city, neighborhood, cuisine, and the local hour in the venue's time zone", () => {
-    // 2026-11-15 02:30 UTC is 9:30 pm Saturday in Miami (EST, UTC-5)
-    expect(partnerFacts("marea", new Date("2026-11-15T02:30:00Z"))).toEqual({
-      tags: ["restaurant", "italian", "waterfront", "romantic"], city: "Miami", country: "US", neighborhood: "Coconut Grove", cuisine: "italian", localHour: 21,
+    // 2026-11-15 02:30 UTC is 6:30 pm Saturday in Los Angeles (PST, UTC-8)
+    expect(partnerFacts("carasau-pasta-bar", new Date("2026-11-15T02:30:00Z"))).toEqual({
+      tags: ["restaurant", "italian", "romantic"], city: "Los Angeles", country: "US", neighborhood: "Mid-City", cuisine: "italian", localHour: 18,
     });
   });
-  it("partner without a cuisine has null cuisine; Austin uses Central time", () => {
-    expect(partnerFacts("austin-food-tour", new Date("2026-11-15T02:30:00Z"))).toMatchObject({ cuisine: null, city: "Austin", localHour: 20 });
+  it("partner without a cuisine has null cuisine; out-of-town getaways use Pacific time too", () => {
+    expect(partnerFacts("sustainable-wine-tours", new Date("2026-11-15T02:30:00Z"))).toMatchObject({ cuisine: null, city: "Santa Barbara", localHour: 18 });
+    // summer: PDT is UTC-7
+    expect(partnerFacts("the-cactai", new Date("2026-07-15T02:30:00Z"))).toMatchObject({ city: "Palm Springs", localHour: 19 });
   });
   it("unknown partner throws", () => {
     expect(() => partnerFacts("nope", new Date())).toThrow("Experience not found: nope");

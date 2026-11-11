@@ -20,7 +20,7 @@ async function verifyResponse(res: Response, expected: { status: number; body: R
   expect(await res.json()).toMatchObject(expected.body);
 }
 
-const goodOrder = { experienceId: "marea", partySize: 2 };
+const goodOrder = { experienceId: "carasau-pasta-bar", partySize: 2 };
 
 beforeEach(() => { setPayPalEnv(); vi.stubEnv("ADMIN_API_KEY", ADMIN); resetTokenCache(); });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
@@ -30,19 +30,19 @@ describe("POST /api/paypal/orders", () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
     await verifyResponse(await createOrder(post(goodOrder)), {
       status: 201,
-      body: { id: "5O190127TN364715T", status: "CREATED", quote: { experienceId: "marea", partySize: 2, total: "180.00", currency: "USD" } },
+      body: { id: "5O190127TN364715T", status: "CREATED", quote: { experienceId: "carasau-pasta-bar", partySize: 2, total: "180.00", currency: "USD" } },
     });
     const sent = JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
     expect(sent.intent).toBe("AUTHORIZE");
     expect(sent.purchase_units[0].amount).toEqual({ currency_code: "USD", value: "180.00" });
-    expect(sent.purchase_units[0].description).toBe("Ristorante Marea · 2 guests");
-    expect(sent.purchase_units[0].reference_id).toMatch(/^marea:[0-9a-f-]{36}$/);
+    expect(sent.purchase_units[0].description).toBe("Carasau Pasta Bar · 2 guests");
+    expect(sent.purchase_units[0].reference_id).toMatch(/^carasau-pasta-bar:[0-9a-f-]{36}$/);
     const key = new Headers((f.mock.calls[1] as unknown as [string, RequestInit])[1].headers).get("paypal-request-id");
     expect(key).toMatch(UUID);
   });
   it("accepts the { kind, itemId } form for partners", async () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
-    await verifyResponse(await createOrder(post({ kind: "partner", itemId: "blue-room", partySize: 2 })), { status: 201, body: { quote: { total: "70.00" } } });
+    await verifyResponse(await createOrder(post({ kind: "partner", itemId: "vibrato-grill-jazz", partySize: 2 })), { status: 201, body: { quote: { total: "70.00" } } });
     expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("70.00");
   });
   it("prices a live venue from Google on the server", async () => {
@@ -61,7 +61,7 @@ describe("POST /api/paypal/orders", () => {
     await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJnope", partySize: 2 })), { status: 404, body: { error: "Place not found" } });
   });
   it("400 for an unknown kind", async () => {
-    await verifyResponse(await createOrder(post({ kind: "voucher", itemId: "marea", partySize: 2 })), { status: 400, body: { error: "Kind must be partner or live" } });
+    await verifyResponse(await createOrder(post({ kind: "voucher", itemId: "carasau-pasta-bar", partySize: 2 })), { status: 400, body: { error: "Kind must be partner or live" } });
   });
   it("ignores an amount sent by the browser", async () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
@@ -70,13 +70,13 @@ describe("POST /api/paypal/orders", () => {
   });
   it("accepts partySize as a numeric string", async () => {
     mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
-    expect((await createOrder(post({ experienceId: "marea", partySize: "3" }))).status).toBe(201);
+    expect((await createOrder(post({ experienceId: "carasau-pasta-bar", partySize: "3" }))).status).toBe(201);
   });
   it.each([
     ["missing experienceId", { partySize: 2 }, 400, "Experience id is required"],
     ["non-string experienceId", { experienceId: 7, partySize: 2 }, 400, "Experience id is required"],
-    ["missing partySize", { experienceId: "marea" }, 400, "Party size must be a whole number from 1 to 20"],
-    ["party too big for the venue", { experienceId: "halcyon-spa", partySize: 3 }, 400, "Party size for Halcyon Spa must be from 1 to 2"],
+    ["missing partySize", { experienceId: "carasau-pasta-bar" }, 400, "Party size must be a whole number from 1 to 20"],
+    ["party too big for the venue", { experienceId: "desuar-hollywood-spa", partySize: 3 }, 400, "Party size for DESUAR HOLLYWOOD SPA must be from 1 to 2"],
     ["unknown experience", { experienceId: "nope", partySize: 2 }, 404, "Experience not found: nope"],
   ])("%s -> %i", async (_l, body, status, error) => {
     const f = mockPayPal();

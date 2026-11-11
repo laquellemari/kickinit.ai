@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { BookingStatus } from "@/components/BookingStatus";
 
 const booking = (o: Record<string, unknown> = {}) => ({
-  id: "b1", kind: "partner", itemId: "marea", name: "Ristorante Marea", partySize: 2, startsAt: "2026-11-15T03:30:00.000Z",
+  id: "b1", kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", partySize: 2, startsAt: "2026-11-15T03:30:00.000Z",
   amount: "180.00", currency: "USD", status: "confirmed", paypalOrderId: "5KY78813NL6193526", holdExpiresAt: null, createdAt: "2026-11-11T00:00:00.000Z", checkedInAt: null, city: "Miami", ...o,
 });
 const mock = (status: number, body: unknown) => {

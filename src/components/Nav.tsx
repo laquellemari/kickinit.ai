@@ -6,7 +6,7 @@ const LINKS = [
   { href: "/gifts", label: "Gifts", key: "gifts" },
 ] as const;
 
-export function Nav({ active, region = "Miami · 10 mi" }: { active: (typeof LINKS)[number]["key"]; region?: string }) {
+export function Nav({ active, region = "Los Angeles · 10 mi" }: { active: (typeof LINKS)[number]["key"]; region?: string }) {
   return (
     <>
       <div className="awning" aria-hidden="true" />

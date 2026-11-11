@@ -9,7 +9,7 @@ describe("AddOns", () => {
   it("shows up to 3 products that open the merchant in a new tab", async () => {
     const f = vi.fn(async () => new Response(JSON.stringify({ addOns: [a(), a({ id: "p2", title: "Candle", brand: null, imageUrl: null })] })));
     vi.stubGlobal("fetch", f);
-    render(<AddOns experienceId="still-water" recipientName="Mom" />);
+    render(<AddOns experienceId="hugh-spa" recipientName="Mom" />);
     const link = await screen.findByRole("link", { name: "Lavender Bath Set" });
     expect(link).toHaveAttribute("href", "https://aff/buy");
     expect(link).toHaveAttribute("rel", "noopener noreferrer sponsored");
@@ -18,7 +18,7 @@ describe("AddOns", () => {
     expect(within(link).getByText("$42")).toBeInTheDocument();
     expect(screen.getByText(/Hand Mom something/)).toBeInTheDocument();
     expect(screen.getByText("[No photo]")).toBeInTheDocument();
-    expect((f.mock.calls[0] as unknown as [string])[0]).toBe("/api/addons?experience=still-water");
+    expect((f.mock.calls[0] as unknown as [string])[0]).toBe("/api/addons?experience=hugh-spa");
   });
   it.each([
     ["no add-ons", async () => new Response(JSON.stringify({ addOns: [] }))],

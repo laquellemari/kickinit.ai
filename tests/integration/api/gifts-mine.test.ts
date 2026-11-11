@@ -21,7 +21,7 @@ describe("GET /api/gifts/mine", () => {
     const res = await GET(new Request("http://x", { headers: { cookie: `kid=${ME}` } }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      organized: [{ id: mine.id, name: "Still Water Bathhouse", recipientName: "Mom", status: "open", mode: "pool", amount: "190.00", raised: "40.00" }],
+      organized: [{ id: mine.id, name: "Hugh Spa", recipientName: "Mom", status: "open", mode: "pool", amount: "190.00", raised: "40.00" }],
       chippedIn: [{ giftId: theirs.id, giftName: "Blue Room", recipientName: "Ben", amount: "25.00", status: "held", giftStatus: "open" }],
     });
   });

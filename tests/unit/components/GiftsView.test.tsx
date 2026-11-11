@@ -8,7 +8,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("GiftsView", () => {
   it("lists gifts you started and chipped in to, with status in words", async () => {
     mock(200, {
-      organized: [{ id: "g1", name: "Still Water", recipientName: "Mom", status: "open", amount: "190.00", raised: "50.00", mode: "pool" }, { id: "g2", name: "Marea", recipientName: "Ana", status: "redeemed", amount: "180.00", raised: "180.00", mode: "solo" }],
+      organized: [{ id: "g1", name: "Hugh Spa", recipientName: "Mom", status: "open", amount: "190.00", raised: "50.00", mode: "pool" }, { id: "g2", name: "Marea", recipientName: "Ana", status: "redeemed", amount: "180.00", raised: "180.00", mode: "solo" }],
       chippedIn: [
         { giftId: "g3", giftName: "Blue Room", recipientName: "Ben", amount: "20.00", status: "held", giftStatus: "open" },
         { giftId: "g4", giftName: "Spa", recipientName: "Cy", amount: "25.00", status: "captured", giftStatus: "funded" },
@@ -18,7 +18,7 @@ describe("GiftsView", () => {
     render(<GiftsView />);
     expect(screen.getByRole("status")).toHaveTextContent("Loading your gifts");
     const started = await screen.findByRole("region", { name: "Gifts you started" });
-    expect(within(started).getByRole("link", { name: "Still Water for Mom" })).toHaveAttribute("href", "/gift/g1");
+    expect(within(started).getByRole("link", { name: "Hugh Spa for Mom" })).toHaveAttribute("href", "/gift/g1");
     expect(within(started).getByText("Collecting · $50 of $190 · pool")).toBeInTheDocument();
     expect(within(started).getByText("Redeemed · $180 of $180")).toBeInTheDocument();
     const chipped = screen.getByRole("region", { name: "Gifts you chipped in to" });

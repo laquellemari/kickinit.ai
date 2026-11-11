@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { VenuePhoto } from "@/components/VenuePhoto";
+import Link from "next/link";
 
-export type Slide = { title: string; where: string; photo: string; stamp: string; bg: string };
+export type Slide = { title: string; where: string; placeId?: string; stamp: string; bg: string; href?: string };
 
 export function Carousel({ slides }: { slides: Slide[] }) {
   const [i, setI] = useState(0);
@@ -20,12 +22,13 @@ export function Carousel({ slides }: { slides: Slide[] }) {
   return (
     <div className="carousel" aria-roledescription="carousel" aria-label="This week's experiences">
       <div className="postcard" aria-live="polite">
-        <div className="postcard-photo" style={{ height: 280, background: s.bg }}>
-          [Photo: {s.photo}]
+        <VenuePhoto placeId={s.placeId} alt={s.title} height={280} bg={s.bg}>
           <span className="stamp">{s.stamp}</span>
-        </div>
+        </VenuePhoto>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-          <span className="display" style={{ fontWeight: 800, fontSize: 28 }}>{s.title}</span>
+          {s.href
+            ? <Link href={s.href} className="display" style={{ fontWeight: 800, fontSize: 28, textDecoration: "none" }}>{s.title}</Link>
+            : <span className="display" style={{ fontWeight: 800, fontSize: 28 }}>{s.title}</span>}
           <span style={{ fontSize: 13, color: "var(--muted)" }}>{s.where}</span>
         </div>
       </div>

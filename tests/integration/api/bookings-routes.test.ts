@@ -39,15 +39,15 @@ afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(
 describe("POST /api/bookings", () => {
   it("happy: partner booking is placed, charged and returned without private fields", async () => {
     mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
-    const body = await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "marea", partySize: "2", startsAt: FUTURE } })), {
-      status: 201, body: { kind: "partner", itemId: "marea", name: "Ristorante Marea", partySize: 2, amount: "180.00", status: "confirmed", paypalOrderId: "O1", startsAt: FUTURE },
+    const body = await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "carasau-pasta-bar", partySize: "2", startsAt: FUTURE } })), {
+      status: 201, body: { kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", partySize: 2, amount: "180.00", status: "confirmed", paypalOrderId: "O1", startsAt: FUTURE },
     });
     expect(body).not.toHaveProperty("userId");
     expect(body).not.toHaveProperty("authorizationId");
   });
   it("400 on validation, before PayPal", async () => {
     const f = mockPayPal();
-    await verifyRes(await create(req({ method: "POST", body: { orderId: 7, kind: "partner", itemId: "marea", partySize: 2, startsAt: FUTURE } })), { status: 400, body: { error: "Order id is required" } });
+    await verifyRes(await create(req({ method: "POST", body: { orderId: 7, kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: FUTURE } })), { status: 400, body: { error: "Order id is required" } });
     expect(f).not.toHaveBeenCalled();
   });
   it("404 for an unknown experience", async () => {
@@ -64,7 +64,7 @@ describe("POST /api/bookings", () => {
   it("503 when the database isn't configured", async () => {
     setDb(null);
     vi.stubEnv("DATABASE_URL", "");
-    await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "marea", partySize: 2, startsAt: FUTURE } })), { status: 503, body: { error: "Database is not configured" } });
+    await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: FUTURE } })), { status: 503, body: { error: "Database is not configured" } });
     await t.reset();
   });
 });

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { GiftSetup } from "@/components/GiftSetup";
 import { Nav } from "@/components/Nav";
 import { getExperience } from "@/lib/catalog/catalog";
+import { VenuePhoto } from "@/components/VenuePhoto";
 
 export const metadata = { title: "Gift an experience · kickinit" };
 
@@ -23,10 +24,9 @@ export default async function NewGiftPage({ searchParams }: { searchParams: Prom
       <main className="plan-main">
         <div className="detail-grid">
           <article className="concierge-card" style={{ gap: 16 }}>
-            <div className="postcard-photo" style={{ height: 260, background: e.bg }}>
-              [Photo: {e.photo}]
+            <VenuePhoto placeId={e.placeId} alt={e.name} height={260} bg={e.bg}>
               <span className="stamp stamp-wide">GIFT</span>
-            </div>
+            </VenuePhoto>
             <p className="concierge-reply">{e.description}</p>
           </article>
           <GiftSetup experience={e} initialParty={party} />

@@ -75,11 +75,12 @@ CREATE INDEX IF NOT EXISTS gifts_organizer ON gifts (organizer_id, created_at DE
 CREATE TABLE IF NOT EXISTS profiles (
   user_id      TEXT PRIMARY KEY,
   display_name TEXT NOT NULL DEFAULT '',
-  home_city    TEXT NOT NULL DEFAULT 'Miami',
+  home_city    TEXT NOT NULL DEFAULT 'Los Angeles',
   home_country TEXT NOT NULL DEFAULT 'US',
   avatar       TEXT,
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE profiles ALTER COLUMN home_city SET DEFAULT 'Los Angeles';
 `;
 
 /** Use a specific database (tests pass PGlite). Resets schema readiness. */

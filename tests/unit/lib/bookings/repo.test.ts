@@ -15,7 +15,7 @@ describe("bookings repo", () => {
   describe("happy path", () => {
     it("inserts a held booking and reads it back by id and by PayPal order", async () => {
       const b = await insertBooking(createNewBooking({ paypalOrderId: "O-1", authorizationId: "A-1" }));
-      verifyBooking(b, { status: "held", userId: "user-1", kind: "partner", itemId: "marea", partySize: 2, amount: "180.00", paypalOrderId: "O-1", authorizationId: "A-1", captureId: null });
+      verifyBooking(b, { status: "held", userId: "user-1", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, amount: "180.00", paypalOrderId: "O-1", authorizationId: "A-1", captureId: null });
       expect(b.startsAt.toISOString()).toBe("2026-11-14T19:30:00.000Z");
       verifyBooking(await getBooking(b.id), { status: "held", id: b.id });
       verifyBooking(await getBookingByOrder("O-1"), { status: "held", id: b.id });
