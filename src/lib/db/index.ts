@@ -81,6 +81,16 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE profiles ALTER COLUMN home_city SET DEFAULT 'Los Angeles';
+
+CREATE TABLE IF NOT EXISTS searches (
+  id          BIGSERIAL PRIMARY KEY,
+  user_id     TEXT NOT NULL,
+  text        TEXT NOT NULL,
+  mode        TEXT NOT NULL,
+  where_text  TEXT NOT NULL DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS searches_user ON searches (user_id, created_at DESC);
 `;
 
 /** Use a specific database (tests pass PGlite). Resets schema readiness. */

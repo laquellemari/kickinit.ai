@@ -29,7 +29,7 @@ describe("searchLivePlaces", () => {
     expect(init.method).toBe("POST");
     expect(h.get("x-goog-api-key")).toBe("g-key");
     expect(h.get("x-goog-fieldmask")).toBe(FIELD_MASK);
-    expect(JSON.parse(init.body as string)).toEqual({ textQuery: "romantic italian dinner in San Diego", pageSize: 6 });
+    expect(JSON.parse(init.body as string)).toEqual({ textQuery: "romantic italian dinner in San Diego", pageSize: 20 });
   });
   it("reads city, country code and UTC offset from Pro-tier fields", async () => {
     mockFetch({ status: 200, body: { places: [gPlace({

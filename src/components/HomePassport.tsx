@@ -28,7 +28,7 @@ export function HomePassport() {
   return (
     <section className="passport" aria-label="Your passport">
       <div style={{ flex: "1 1 220px" }}>
-        <h2 className="display" style={{ margin: 0, fontSize: 40, color: "var(--sun)" }}>Your passport</h2>
+        <h2 className="display" style={{ margin: 0, fontSize: 40, color: "var(--accent-text)" }}>Your passport</h2>
         <div style={{ fontSize: 14, color: "var(--on-navy)", marginTop: 4 }}>
           {p ? `${p.level.title} · ${p.level.xp.toLocaleString("en-US")} XP` : failed ? "Couldn't load your passport." : "Opening…"}
         </div>

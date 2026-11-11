@@ -16,7 +16,8 @@ export type SearchLive = (query: string) => Promise<LivePlace[]>;
 export const PARTNER_CITIES = "Los Angeles and its beach towns (most), plus getaways in Palm Springs, Ojai, Malibu and Santa Barbara";
 export type ConciergeResult = { reply: string; partySize: number | null; options: PlanPick[] };
 
-export const LIMITS = { message: 1000, historyItems: 20, historyContent: 4000, picks: 4 } as const;
+/** picks: hand-picked by the model, each with a reason. options: everything shown, topped up by the server. */
+export const LIMITS = { message: 1000, historyItems: 20, historyContent: 4000, picks: 8, options: 30, minOptions: 20, searchLimit: 30 } as const;
 
 export function validateInput(input: ConciergeInput): void {
   if (typeof input.message !== "string" || !input.message.trim()) throw new Error("Message is required");
@@ -45,19 +46,19 @@ export function systemPrompt(input: ConciergeInput, opts: { live?: boolean } = {
     "Rules:",
     `- kickinit partners (search_experiences) are in ${PARTNER_CITIES}. They book instantly at a fixed price; prefer them when they fit.`,
     opts.live
-      ? "- When the user's area isn't covered or partners don't fit, use search_live_places with what + where, e.g. 'romantic italian dinner in San Diego'. Live venues are 'request to book': we hold an estimate on PayPal and only charge once the venue confirms. Say so briefly."
+      ? "- Also call search_live_places with what + where (e.g. 'romantic italian dinner in San Diego') so the user gets plenty of choice, and always when the area isn't covered or partners don't fit. Live venues are 'request to book': we hold an estimate on PayPal and only charge once the venue confirms. Say so briefly."
       : `- If the user's area isn't covered, say kickinit doesn't have partners there yet and suggest the closest options.`,
     "- Only recommend places returned by your search tools, using their exact id. Never invent venues, prices or availability.",
     "- Search at least once. Try a broader search if the first returns nothing.",
     "- Infer party size from the request (\"for 2\", \"me and my sister\" = 2, a gift for one person = 1 unless they say otherwise). Default 2 for dates and dinners, otherwise 1.",
-    `- Finish by calling present_options with 1 to ${LIMITS.picks} picks, best first, each with a one-sentence reason in a warm, specific voice. Do not list the picks in plain text as well.`,
+    `- Finish by calling present_options with your 1 to ${LIMITS.picks} best picks, best first, each with a one-sentence reason in a warm, specific voice. The app also shows the other good matches from your searches below them. Do not list the picks in plain text as well.`,
     "- If nothing fits, call present_options with your best near-misses and say plainly what's missing.",
     "- If the user asks about a payment or booking and gives a PayPal order id, use get_order (when available) and explain the status in plain words.",
     "- Keep the intro to 2 sentences. No emojis.",
   ].join("\n");
 }
 
-function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, LivePlace>) {
+function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, LivePlace>, found: string[]) {
   const tools: ToolSet = {
     search_experiences: tool({
       description: `Search kickinit's partner catalog (${PARTNER_CITIES}). Returns matching experiences with the total price for the party.`,
@@ -70,10 +71,13 @@ function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, L
       }),
       // The schema above already enforces everything searchExperiences validates.
       execute: async (args) =>
-        searchExperiences({ ...args, limit: 8 }).map((e) => ({
-          id: e.id, name: e.name, category: e.category, neighborhood: e.neighborhood, city: e.city,
-          total: e.total, pricing: e.pricing, partyMin: e.partyMin, partyMax: e.partyMax, description: e.description, tags: e.tags,
-        })),
+        searchExperiences({ ...args, limit: LIMITS.searchLimit }).map((e) => {
+          found.push(e.id);
+          return {
+            id: e.id, name: e.name, category: e.category, neighborhood: e.neighborhood, city: e.city,
+            total: e.total, pricing: e.pricing, partyMin: e.partyMin, partyMax: e.partyMax, description: e.description, tags: e.tags,
+          };
+        }),
     }),
     present_options: tool({
       description: "Show your final picks to the user. Call this exactly once, last. Use ids exactly as returned by the search tools.",
@@ -92,7 +96,7 @@ function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, L
       execute: async ({ query }) => {
         try {
           const places = await searchLive(query);
-          for (const p of places) liveCache.set(p.id, p);
+          for (const p of places) { liveCache.set(p.id, p); found.push(p.id); }
           return places.map((p) => ({ id: p.id, name: p.name, type: p.typeLabel, address: p.address, estimatePerPerson: p.estimatePerPerson }));
         } catch (err) {
           console.error("Live search failed:", err);
@@ -105,7 +109,7 @@ function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, L
 }
 
 /** Keeps only picks that exist and can be booked for the party, priced by the server. */
-export function resolvePicks(picks: { experienceId: string; why: string }[], partySize: number, liveCache: Map<string, LivePlace> = new Map()): PlanPick[] {
+export function resolvePicks(picks: { experienceId: string; why: string }[], partySize: number, liveCache: Map<string, LivePlace> = new Map(), max: number = LIMITS.picks): PlanPick[] {
   const seen = new Set<string>();
   const out: PlanPick[] = [];
   for (const p of picks) {
@@ -126,10 +130,34 @@ export function resolvePicks(picks: { experienceId: string; why: string }[], par
       seen.add(e.id);
       out.push({ kind: "partner", experience: { ...e, total: q.total }, why: p.why, quote: q });
     }
-    if (out.length === LIMITS.picks) break;
+    if (out.length === max) break;
   }
   return out;
 }
+
+/** The model's picks first, then every other bookable match its searches found, then similar partners from the same categories, up to LIMITS.options. */
+export function withMoreOptions(picks: PlanPick[], found: string[], partySize: number, liveCache: Map<string, LivePlace>): PlanPick[] {
+  const shown = new Set(picks.map(idOf));
+  const reason = (id: string) => {
+    const live = liveCache.get(id);
+    return live ? `${live.typeLabel} · ${live.address}` : getExperience(id)!.description;
+  };
+  const extra = (ids: string[]) => {
+    const fresh = [...new Set(ids)].filter((id) => !shown.has(id));
+    const more = resolvePicks(fresh.map((id) => ({ experienceId: id, why: reason(id) })), partySize, liveCache, LIMITS.options - picks.length);
+    for (const m of more) shown.add(idOf(m));
+    return more;
+  };
+  let out = [...picks, ...extra(found)];
+  if (out.length < LIMITS.minOptions) {
+    const cats = new Set(out.filter((p) => p.kind === "partner").map((p) => (p as Extract<PlanPick, { kind: "partner" }>).experience.category));
+    const similar = searchExperiences({ partySize, limit: 50 }).filter((e) => cats.has(e.category)).map((e) => e.id);
+    out = [...out, ...extra(similar)];
+  }
+  return out.slice(0, LIMITS.options);
+}
+
+const idOf = (p: PlanPick) => (p.kind === "live" ? p.place.id : p.experience.id);
 
 export async function runConcierge(
   input: ConciergeInput,
@@ -137,21 +165,22 @@ export async function runConcierge(
 ): Promise<ConciergeResult> {
   validateInput(input);
   const liveCache = new Map<string, LivePlace>();
+  const found: string[] = [];
   const messages: CoreMessage[] = [...(input.history ?? []), { role: "user", content: input.message.trim() }];
   const result = await generateText({
     model: deps.model,
     system: systemPrompt(input, { live: !!deps.searchLive }),
     messages,
-    tools: { ...(deps.extraTools ?? {}), ...buildTools(deps.searchLive, liveCache) },
+    tools: { ...(deps.extraTools ?? {}), ...buildTools(deps.searchLive, liveCache, found) },
     maxSteps: 6,
-    maxTokens: 1200,
+    maxTokens: 1600,
   });
 
   const call = result.steps.flatMap((s) => s.toolCalls).find((c) => c.toolName === "present_options");
   if (!call) return { reply: result.text.trim() || "Sorry, I couldn't put options together. Try rephrasing?", partySize: null, options: [] };
 
   const args = call.args as { intro: string; partySize: number; picks: { experienceId: string; why: string }[] };
-  const options = resolvePicks(args.picks, args.partySize, liveCache);
+  const options = withMoreOptions(resolvePicks(args.picks, args.partySize, liveCache), found, args.partySize, liveCache);
   const reply = options.length ? args.intro : "I couldn't find anything bookable that fits. Try a different area, date or budget?";
   return { reply, partySize: args.partySize, options };
 }

@@ -4,6 +4,7 @@
   --navy: #14234b;
   --navy-deep: #0b1530;
   --sun: #ffc53d;
+  --accent-text: #a9dcff; /* light blue for display text on navy (was yellow) */
   --sky: #eaf3fa;
   --sky-2: #f6fafd;
   --blue: #9cc7e6;
@@ -29,8 +30,8 @@ a:hover { color: var(--navy-deep); }
 .awning { height: 30px; background: repeating-linear-gradient(90deg, #fff 0 40px, var(--blue) 40px 80px); border-bottom: 3px solid var(--sun); }
 .hero { background: var(--navy); color: var(--white); }
 .nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; padding-top: 10px; padding-bottom: 10px; }
-.brand { font-family: var(--display); font-weight: 900; font-size: 32px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sun); text-decoration: none; min-height: 44px; display: flex; align-items: center; }
-.brand:hover { color: var(--sun); }
+.brand { font-family: var(--display); font-weight: 900; font-size: 32px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-text); text-decoration: none; min-height: 44px; display: flex; align-items: center; }
+.brand:hover { color: var(--accent-text); }
 .nav-links { display: flex; gap: 22px; flex-wrap: wrap; }
 .nav-link { min-height: 44px; display: flex; align-items: center; color: var(--on-navy); text-decoration: none; }
 .nav-link:hover { color: var(--white); }
@@ -41,7 +42,7 @@ a:hover { color: var(--navy-deep); }
 .hero-body { display: flex; flex-wrap: wrap; gap: 48px; align-items: center; padding-top: 32px; padding-bottom: 130px; }
 .hero-copy { flex: 1 1 460px; display: flex; flex-direction: column; gap: 18px; }
 .eyebrow { font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--blue); }
-.headline { margin: 0; font-size: clamp(64px, 8vw, 108px); line-height: 0.86; color: var(--sun); }
+.headline { margin: 0; font-size: clamp(64px, 8vw, 108px); line-height: 0.86; color: var(--accent-text); }
 .subcopy { margin: 0; font-size: 18px; line-height: 1.55; color: var(--on-navy-2); max-width: 440px; }
 
 /* Postcards */
@@ -60,11 +61,9 @@ a:hover { color: var(--navy-deep); }
 .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .field { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 16px 22px; border-right: 1px solid var(--line); min-height: 76px; box-sizing: border-box; }
 .field span { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
-.field input { border: 0; padding: 0; font: 400 17px var(--body); color: var(--navy); background: transparent; }
-.cta { display: flex; align-items: center; justify-content: center; min-height: 76px; border: 0; background: var(--navy); color: var(--sun); font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
+.field input, .field select { border: 0; padding: 0; font: 400 17px var(--body); color: var(--navy); background: transparent; cursor: pointer; min-height: 28px; }
+.cta { display: flex; align-items: center; justify-content: center; min-height: 76px; border: 0; background: var(--navy); color: var(--accent-text); font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
 .cta:hover { background: var(--navy-deep); }
-.ask { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 22px; border-top: 1px solid var(--line); background: var(--sky-2); }
-.ask input { flex: 1 1 320px; min-height: 44px; border: 0; border-bottom: 1px solid var(--navy); background: transparent; font: 400 16px var(--body); color: var(--navy); }
 .text-btn { min-height: 44px; border: 0; background: none; font: 600 13px var(--body); letter-spacing: 0.18em; text-transform: uppercase; color: var(--navy); cursor: pointer; }
 
 /* Passport band */
@@ -73,7 +72,7 @@ a:hover { color: var(--navy-deep); }
 
 /* Plan / results */
 .plan-hero { padding-top: 28px; padding-bottom: 110px; display: flex; flex-direction: column; gap: 12px; }
-.plan-hero h1 { margin: 0; font-size: clamp(44px, 5vw, 72px); line-height: 0.9; color: var(--sun); }
+.plan-hero h1 { margin: 0; font-size: clamp(44px, 5vw, 72px); line-height: 0.9; color: var(--accent-text); }
 .plan-ask { margin: 0; font-size: 20px; color: var(--on-navy-2); max-width: 760px; }
 .plan-main { max-width: 1180px; margin: -80px auto 0; padding: 0 24px 64px; position: relative; display: flex; flex-direction: column; gap: 28px; }
 .concierge-card { background: #fff; border-radius: 6px; box-shadow: 0 20px 50px rgba(20,35,75,.2); padding: 22px 26px; display: flex; flex-direction: column; gap: 14px; }
@@ -93,8 +92,8 @@ a:hover { color: var(--navy-deep); }
 .pick-price { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; border-top: 1px dashed var(--line); padding-top: 10px; }
 .pick-price strong { font-family: var(--display); font-weight: 800; font-size: 22px; }
 .pick-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.btn-navy { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; background: var(--navy); color: var(--sun); border: 0; border-radius: 3px; font-family: var(--display); font-weight: 800; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; text-decoration: none; cursor: pointer; }
-.btn-navy:hover { background: var(--navy-deep); color: var(--sun); }
+.btn-navy { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; background: var(--navy); color: var(--accent-text); border: 0; border-radius: 3px; font-family: var(--display); font-weight: 800; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; text-decoration: none; cursor: pointer; }
+.btn-navy:hover { background: var(--navy-deep); color: var(--accent-text); }
 .btn-navy:disabled { opacity: .45; cursor: not-allowed; }
 .btn-line { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--navy); border-radius: 3px; color: var(--navy); text-decoration: none; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; }
 .stamp-live { background: #fff; border-color: var(--muted); color: var(--muted); }
@@ -118,3 +117,21 @@ a:hover { color: var(--navy-deep); }
 
 .photo-credit { position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 8px; font-size: 10px; letter-spacing: 0; text-transform: none; text-align: left; color: #fff; background: linear-gradient(transparent, rgba(11,21,48,.7)); }
 .photo-credit a { color: #fff; }
+
+.pick-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .pick-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .pick-grid-4 { grid-template-columns: 1fr; } }
+
+/* Chat box on the search card */
+.chat { display: flex; flex-direction: column; gap: 12px; padding: 22px; border-top: 1px solid var(--line); background: var(--sky-2); }
+.chat-label { font-family: var(--display); font-weight: 800; font-size: 26px; text-transform: uppercase; color: var(--navy); }
+.chat-row { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; }
+.chat-row textarea { flex: 1 1 420px; min-height: 120px; resize: vertical; box-sizing: border-box; padding: 16px 18px; border: 2px solid var(--navy); border-radius: 6px; background: #fff; font: 400 21px/1.4 var(--body); color: var(--navy); }
+.chat-actions { flex: 0 0 250px; display: flex; flex-direction: column; gap: 10px; }
+.chat-go { min-height: 60px; font-size: 20px; white-space: nowrap; }
+.chat-idea { justify-content: center; min-height: 52px; background: #fff; cursor: pointer; }
+.chat-idea:disabled { opacity: .5; cursor: progress; }
+.chat-note { margin: 0; font-size: 14px; color: var(--muted); }
+.ideas { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.idea { min-height: 44px; padding: 0 16px; border: 1px solid var(--blue); border-radius: 999px; background: #fff; font: 400 15px var(--body); color: var(--navy); cursor: pointer; text-align: left; }
+.idea:hover { border-color: var(--navy); }

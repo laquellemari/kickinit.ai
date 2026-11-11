@@ -8,6 +8,9 @@ import { PickCard } from "./PickCard";
 
 type Status = "idle" | "loading" | "done" | "error";
 
+/** Results show 2 rows of 4; each "Show more" adds 2 more rows. */
+export const PAGE = 8;
+
 const ERRORS: Record<number, string> = {
   429: "That's a lot of requests in a minute. Give it a moment and try again.",
   503: "The concierge is offline right now. Please try again shortly.",
@@ -20,6 +23,7 @@ export function PlanView({ q, mode, where }: { q: string; mode: Mode; where: str
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [asked, setAsked] = useState(q);
   const [refine, setRefine] = useState("");
+  const [shown, setShown] = useState(PAGE);
   const started = useRef(false);
 
   const ask = useCallback(
@@ -36,6 +40,7 @@ export function PlanView({ q, mode, where }: { q: string; mode: Mode; where: str
         const body = await res.json();
         if (!res.ok) throw Object.assign(new Error(body.error), { status: res.status });
         setResult(body);
+        setShown(PAGE);
         setHistory([...prior, { role: "user", content: message }, { role: "assistant", content: body.reply }]);
         setStatus("done");
       } catch (err) {
@@ -106,11 +111,21 @@ export function PlanView({ q, mode, where }: { q: string; mode: Mode; where: str
               <span><strong>Instant book</strong>: kickinit partner, fixed price.</span>
               <span><strong>Request</strong>: we hold an estimate on PayPal; you&rsquo;re only charged once the venue confirms.</span>
             </div>
-            <div className="pick-grid" style={{ marginTop: 18 }}>
-              {result.options.map((o) => (
+            <p className="pick-meta" style={{ margin: "8px 0 0" }}>
+              Showing {Math.min(shown, result.options.length)} of {result.options.length} options
+            </p>
+            <div className="pick-grid pick-grid-4" style={{ marginTop: 18 }}>
+              {result.options.slice(0, shown).map((o) => (
                 <PickCard key={o.kind === "partner" ? o.experience.id : o.place.id} pick={o} partySize={party} gift={mode === "them"} />
               ))}
             </div>
+            {shown < result.options.length && (
+              <div style={{ display: "flex", justifyContent: "center", marginTop: 28 }}>
+                <button type="button" className="btn-navy" onClick={() => setShown((n) => n + PAGE)}>
+                  Show more
+                </button>
+              </div>
+            )}
           </section>
         )}
       </main>
