@@ -43,6 +43,7 @@ describe("PlanView", () => {
       expect(screen.getByText("For them · San Diego")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Gifts" })).toHaveAttribute("aria-current", "page");
       await screen.findByText("Here are two good ones.");
+      expect(screen.getByRole("link", { name: "Gift this" })).toHaveAttribute("href", "/gift/new?experience=marea&party=2");
     });
 
     it("refining sends the conversation so far, then shows the new answer", async () => {

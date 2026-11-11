@@ -4,7 +4,8 @@ import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { guests, money } from "@/lib/format";
-import { isoDay, slotLabel, startsAtIso, TIME_SLOTS } from "@/lib/slots";
+import { startsAtIso } from "@/lib/slots";
+import { WhenPicker } from "./WhenPicker";
 
 export type CheckoutItem = {
   kind: "partner" | "live";
@@ -16,8 +17,6 @@ export type CheckoutItem = {
   partyMin: number;
   partyMax: number;
 };
-
-const DAY = 86_400_000;
 
 export function CheckoutPanel({ item, initialParty, clientId, now = new Date() }: { item: CheckoutItem; initialParty: number; clientId: string; now?: Date }) {
   const router = useRouter();
@@ -66,17 +65,7 @@ export function CheckoutPanel({ item, initialParty, clientId, now = new Date() }
   return (
     <aside className="book-panel" aria-label="Book">
       <span className="caps" style={{ color: "var(--muted)" }}>{live ? "Request to book" : "Instant book · kickinit partner"}</span>
-      <label>
-        Date
-        <input type="date" value={day} min={isoDay(now)} max={isoDay(new Date(now.getTime() + 89 * DAY))} onChange={(e) => setDay(e.target.value)} />
-      </label>
-      <label>
-        Time
-        <select value={time} onChange={(e) => setTime(e.target.value)}>
-          <option value="">Choose a time</option>
-          {TIME_SLOTS.map((t) => <option key={t} value={t}>{slotLabel(t)}</option>)}
-        </select>
-      </label>
+      <WhenPicker day={day} time={time} onDay={setDay} onTime={setTime} now={now} />
       <label>
         Guests
         <select value={party} onChange={(e) => setParty(Number(e.target.value))}>

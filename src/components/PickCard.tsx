@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { PlanPick } from "@/lib/concierge/agent";
 import { guests, money } from "@/lib/format";
 
-export function PickCard({ pick, partySize }: { pick: PlanPick; partySize: number }) {
+export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; partySize: number; gift?: boolean }) {
   if (pick.kind === "partner") {
     const e = pick.experience;
     return (
@@ -19,7 +19,11 @@ export function PickCard({ pick, partySize }: { pick: PlanPick; partySize: numbe
           <strong>{money(pick.quote.total)}</strong>
         </div>
         <div className="pick-actions">
-          <Link className="btn-navy" href={`/experience/${e.id}?party=${partySize}`}>See details</Link>
+          {gift ? (
+            <Link className="btn-navy" href={`/gift/new?experience=${e.id}&party=${partySize}`}>Gift this</Link>
+          ) : (
+            <Link className="btn-navy" href={`/experience/${e.id}?party=${partySize}`}>See details</Link>
+          )}
         </div>
       </article>
     );
