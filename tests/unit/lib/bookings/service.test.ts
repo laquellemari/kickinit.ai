@@ -11,7 +11,7 @@ import { mockPayPal, pp, setPayPalEnv } from "../../../helpers/paypal";
 const NOW = new Date("2026-11-11T12:00:00Z");
 const SAT = "2026-11-14T19:30:00.000Z";
 const input = (o: Partial<PlaceBookingInput> = {}): PlaceBookingInput => ({
-  orderId: "ORDER-1", kind: "partner", itemId: "marea", partySize: 2, startsAt: SAT, userId: "u1", now: NOW, ...o,
+  orderId: "ORDER-1", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: SAT, userId: "u1", now: NOW, ...o,
 });
 const SANDBOX = "https://api-m.sandbox.paypal.com";
 const urls = (f: ReturnType<typeof vi.fn>) => f.mock.calls.map((c) => (c as unknown as [string])[0].replace(SANDBOX, ""));
@@ -31,7 +31,7 @@ describe("placeBooking", () => {
         { status: 201, body: pp.capture() },
       );
       const b = await placeBooking(input());
-      verifyBooking(b, { status: "confirmed", kind: "partner", itemId: "marea", name: "Ristorante Marea", amount: "180.00", partySize: 2, paypalOrderId: "ORDER-1", authorizationId: "0AW2184448108334S", captureId: "7TK53561YB803214S", userId: "u1" });
+      verifyBooking(b, { status: "confirmed", kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", amount: "180.00", partySize: 2, paypalOrderId: "ORDER-1", authorizationId: "0AW2184448108334S", captureId: "7TK53561YB803214S", userId: "u1" });
       expect(b.startsAt.toISOString()).toBe(SAT);
       expect(b.holdExpiresAt?.toISOString()).toBe("2026-12-12T21:20:49.000Z");
       expect(urls(f)).toEqual(["/v1/oauth2/token", "/v2/checkout/orders/ORDER-1/authorize", "/v2/payments/authorizations/0AW2184448108334S/capture"]);
@@ -78,7 +78,7 @@ describe("placeBooking", () => {
       ["time in the past", { startsAt: "2026-11-10T19:00:00Z" }, 400, "Pick a time at least an hour from now"],
       ["bad kind", { kind: "x" }, 400, "Kind must be partner or live"],
       ["unknown partner", { itemId: "nope" }, 404, "Experience not found: nope"],
-      ["party too big for the venue", { itemId: "halcyon-spa", partySize: 3 }, 400, "Party size for Halcyon Spa must be from 1 to 2"],
+      ["party too big for the venue", { itemId: "desuar-hollywood-spa", partySize: 3 }, 400, "Party size for DESUAR HOLLYWOOD SPA must be from 1 to 2"],
     ])("%s", async (_l, o, status, msg) => {
       const f = mockPayPal();
       await expect(placeBooking(input(o as Partial<PlaceBookingInput>))).rejects.toMatchObject({ status, message: msg });

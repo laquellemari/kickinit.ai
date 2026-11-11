@@ -19,7 +19,8 @@ export type Experience = {
   partyMin: number;
   partyMax: number;
   description: string;
-  photo: string;
+  /** Google place id of the real venue, used for its photo. */
+  placeId: string;
   bg: string;
   cuisine?: string;
 };

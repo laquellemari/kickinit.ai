@@ -12,10 +12,10 @@ describe("/plan page", () => {
     expect(screen.getByText("“jazz tonight”")).toBeInTheDocument();
     expect(screen.getByText("For them · San Diego")).toBeInTheDocument();
   });
-  it("defaults mode to you and where to Miami; any other mode is treated as you", async () => {
+  it("defaults mode to you and where to Los Angeles; any other mode is treated as you", async () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
     await renderPage({ q: "x", mode: "admin" });
-    expect(screen.getByText("For you · Miami")).toBeInTheDocument();
+    expect(screen.getByText("For you · Los Angeles")).toBeInTheDocument();
   });
   it("uses the first value when a param repeats, and handles no params", async () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));

@@ -17,7 +17,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(
 describe("addOnsFor", () => {
   it("happy: searches Channel3 with the pairing for the experience's category and returns clean add-ons", async () => {
     const f = mockFetch({ status: 200, body: { products: [product()] } });
-    expect(await addOnsFor("still-water")).toEqual([{
+    expect(await addOnsFor("hugh-spa")).toEqual([{
       id: "prod_1", title: "Lavender Bath Set", brand: "Aesop", imageUrl: "https://img/main.jpg", price: "42.00", currency: "USD", url: "https://aff.example/buy", merchant: "nordstrom.com",
     }]);
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
@@ -35,35 +35,35 @@ describe("addOnsFor", () => {
       product({ id: "c", offers: [offer({ price: { price: MAX_ADDON_PRICE + 0.01, currency: "USD" } })] }),
       product({ id: "d", offers: undefined }),
     ] } });
-    const r = await addOnsFor("marea");
+    const r = await addOnsFor("carasau-pasta-bar");
     expect(r.map((x) => [x.id, x.price, x.url])).toEqual([["a", "30.00", "u30"]]);
   });
   it("boundary: exactly $75 is allowed", async () => {
     mockFetch({ status: 200, body: { products: [product({ offers: [offer({ price: { price: 75, currency: "USD" } })] })] } });
-    expect((await addOnsFor("marea"))[0].price).toBe("75.00");
+    expect((await addOnsFor("carasau-pasta-bar"))[0].price).toBe("75.00");
   });
   it("caps at 3", async () => {
     mockFetch({ status: 200, body: { products: [1, 2, 3, 4, 5].map((i) => product({ id: `p${i}` })) } });
-    expect(await addOnsFor("marea")).toHaveLength(3);
+    expect(await addOnsFor("carasau-pasta-bar")).toHaveLength(3);
   });
   it("missing brand and images are fine; first image used when none is marked main", async () => {
     mockFetch({ status: 200, body: { products: [product({ brands: undefined, images: undefined }), product({ id: "x", images: [{ url: "https://img/first.jpg" }] })] } });
-    const r = await addOnsFor("marea");
+    const r = await addOnsFor("carasau-pasta-bar");
     expect(r[0]).toMatchObject({ brand: null, imageUrl: null });
     expect(r[1].imageUrl).toBe("https://img/first.jpg");
   });
   it("caches per pairing for an hour", async () => {
     const f = mockFetch({ status: 200, body: { products: [product()] } }, { status: 200, body: { products: [] } });
-    await addOnsFor("still-water", 0);
-    await addOnsFor("halcyon-spa", 60 * 60 * 1000 - 1); // same category, same pairing
+    await addOnsFor("hugh-spa", 0);
+    await addOnsFor("desuar-hollywood-spa", 60 * 60 * 1000 - 1); // same category, same pairing
     expect(f).toHaveBeenCalledTimes(1);
-    expect(await addOnsFor("still-water", 60 * 60 * 1000)).toEqual([]); // expired → refetched
+    expect(await addOnsFor("hugh-spa", 60 * 60 * 1000)).toEqual([]); // expired → refetched
     expect(f).toHaveBeenCalledTimes(2);
   });
   it("no key: returns nothing without calling Channel3", async () => {
     vi.stubEnv("CHANNEL3_API_KEY", "");
     const f = mockFetch();
-    expect(await addOnsFor("marea")).toEqual([]);
+    expect(await addOnsFor("carasau-pasta-bar")).toEqual([]);
     expect(f).not.toHaveBeenCalled();
   });
   it.each([
@@ -72,7 +72,7 @@ describe("addOnsFor", () => {
   ])("%s returns nothing (and logs errors) instead of breaking the gift page", async (_l, reply) => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     mockFetch(reply);
-    expect(await addOnsFor("marea")).toEqual([]);
+    expect(await addOnsFor("carasau-pasta-bar")).toEqual([]);
     if (reply.status !== 200) expect(log).toHaveBeenCalled();
   });
   it("unknown experience throws", async () => {
@@ -83,7 +83,7 @@ describe("addOnsFor", () => {
 describe("GET /api/addons", () => {
   it("returns add-ons for the experience", async () => {
     mockFetch({ status: 200, body: { products: [product()] } });
-    const res = await GET(new Request("http://x/api/addons?experience=still-water"));
+    const res = await GET(new Request("http://x/api/addons?experience=hugh-spa"));
     expect(res.status).toBe(200);
     expect((await res.json()).addOns).toHaveLength(1);
   });

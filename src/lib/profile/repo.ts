@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { BookingError } from "@/lib/bookings/service";
 
 export type Profile = { userId: string; displayName: string; homeCity: string; homeCountry: string; avatar: string | null };
-export const DEFAULT_PROFILE = { displayName: "", homeCity: "Miami", homeCountry: "US", avatar: null } as const;
+export const DEFAULT_PROFILE = { displayName: "", homeCity: "Los Angeles", homeCountry: "US", avatar: null } as const;
 /** About 200 KB of image once base64-encoded. */
 export const MAX_AVATAR_CHARS = 280_000;
 const AVATAR_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;

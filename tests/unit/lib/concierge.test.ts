@@ -15,17 +15,17 @@ describe("runConcierge", () => {
     it("searches, then presents server-priced picks", async () => {
       const { model, prompts } = createScriptedModel([
         { tool: "search_experiences", args: { q: "romantic italian waterfront", partySize: 2 } },
-        present([{ experienceId: "marea", why: "Terrace over the bay." }, { experienceId: "osteria-lume", why: "Tiny and intimate." }]),
+        present([{ experienceId: "carasau-pasta-bar", why: "Terrace over the bay." }, { experienceId: "trattoria-daly", why: "Tiny and intimate." }]),
       ]);
       const r = await runConcierge(input(), { model });
-      verifyConcierge(r, { reply: "Two lovely options.", partySize: 2, picks: [{ id: "marea", total: "180.00" }, { id: "osteria-lume", total: "130.00" }] });
+      verifyConcierge(r, { reply: "Two lovely options.", partySize: 2, picks: [{ id: "carasau-pasta-bar", total: "180.00" }, { id: "trattoria-daly", total: "130.00" }] });
       expect(r.options[0].why).toBe("Terrace over the bay.");
       // The model saw real search results on its second step
-      expect(JSON.stringify(prompts[1])).toContain("Ristorante Marea");
+      expect(JSON.stringify(prompts[1])).toContain("Carasau Pasta Bar");
     });
 
     it("passes history before the new message", async () => {
-      const { model, prompts } = createScriptedModel([present([{ experienceId: "blue-room", why: "Jazz." }])]);
+      const { model, prompts } = createScriptedModel([present([{ experienceId: "vibrato-grill-jazz", why: "Jazz." }])]);
       await runConcierge(input({ message: "make it later", history: [{ role: "user", content: "jazz tonight" }, { role: "assistant", content: "Sure" }] }), { model });
       const p = JSON.stringify(prompts[0]);
       expect(p.indexOf("jazz tonight")).toBeLessThan(p.indexOf("make it later"));
@@ -54,9 +54,9 @@ describe("runConcierge", () => {
       const { model, prompts } = createScriptedModel([
         { tool: "search_experiences", args: { category: "culinary", partySize: 2, maxTotal: 100, tags: ["x"], q: "y" } },
         { tool: "search_experiences", args: { partySize: 2 } },
-        present([{ experienceId: "marea", why: "x" }]),
+        present([{ experienceId: "carasau-pasta-bar", why: "x" }]),
       ]);
-      verifyConcierge(await runConcierge(input(), { model }), { partySize: 2, picks: [{ id: "marea", total: "180.00" }] });
+      verifyConcierge(await runConcierge(input(), { model }), { partySize: 2, picks: [{ id: "carasau-pasta-bar", total: "180.00" }] });
       const toolMsg = (prompts[1] as { role: string; content: { result: unknown }[] }[]).at(-1)!;
       expect(toolMsg.role).toBe("tool");
       expect(toolMsg.content[0].result).toEqual([]);
@@ -65,16 +65,16 @@ describe("runConcierge", () => {
 
   describe("the server checks every pick", () => {
     it("drops invented ids", async () => {
-      const { model } = createScriptedModel([present([{ experienceId: "made-up", why: "x" }, { experienceId: "marea", why: "y" }])]);
-      verifyConcierge(await runConcierge(input(), { model }), { partySize: 2, picks: [{ id: "marea", total: "180.00" }] });
+      const { model } = createScriptedModel([present([{ experienceId: "made-up", why: "x" }, { experienceId: "carasau-pasta-bar", why: "y" }])]);
+      verifyConcierge(await runConcierge(input(), { model }), { partySize: 2, picks: [{ id: "carasau-pasta-bar", total: "180.00" }] });
     });
     it("drops picks that can't take the party", async () => {
-      const { model } = createScriptedModel([present([{ experienceId: "halcyon-spa", why: "x" }, { experienceId: "still-water", why: "y" }], 3)]);
-      verifyConcierge(await runConcierge(input(), { model }), { partySize: 3, picks: [{ id: "still-water", total: "285.00" }] });
+      const { model } = createScriptedModel([present([{ experienceId: "desuar-hollywood-spa", why: "x" }, { experienceId: "hugh-spa", why: "y" }], 3)]);
+      verifyConcierge(await runConcierge(input(), { model }), { partySize: 3, picks: [{ id: "hugh-spa", total: "285.00" }] });
     });
     it("drops duplicates", async () => {
-      const { model } = createScriptedModel([present([{ experienceId: "marea", why: "x" }, { experienceId: "marea", why: "again" }])]);
-      verifyConcierge(await runConcierge(input(), { model }), { partySize: 2, picks: [{ id: "marea", total: "180.00" }] });
+      const { model } = createScriptedModel([present([{ experienceId: "carasau-pasta-bar", why: "x" }, { experienceId: "carasau-pasta-bar", why: "again" }])]);
+      verifyConcierge(await runConcierge(input(), { model }), { partySize: 2, picks: [{ id: "carasau-pasta-bar", total: "180.00" }] });
     });
     it("when every pick is invalid, says so instead of showing the intro", async () => {
       const { model } = createScriptedModel([present([{ experienceId: "nope", why: "x" }], 2, "Here you go!")]);
@@ -87,10 +87,10 @@ describe("runConcierge", () => {
       expect(systemPrompt(input({ mode: "them" }))).toContain("GIFT");
       expect(systemPrompt(input({ mode: "you" }))).not.toContain("GIFT");
     });
-    it("uses the user's area, defaulting to Miami, and today's date", () => {
+    it("uses the user's area, defaulting to Los Angeles, and today's date", () => {
       const today = new Date("2026-11-14T12:00:00Z");
       expect(systemPrompt(input({ where: "Austin", today }))).toContain("The user's area: Austin");
-      expect(systemPrompt(input({ where: "  ", today }))).toContain("The user's area: Miami");
+      expect(systemPrompt(input({ where: "  ", today }))).toContain("The user's area: Los Angeles");
       expect(systemPrompt(input({ today }))).toContain(today.toDateString());
     });
     it("defaults today to now", () => {
@@ -127,7 +127,7 @@ describe("validateInput", () => {
 
 describe("resolvePicks", () => {
   it("caps at 4 picks", () => {
-    const ids = ["marea", "osteria-lume", "kaito-omakase", "la-tapa", "sol-taqueria"];
+    const ids = ["carasau-pasta-bar", "trattoria-daly", "n-naka", "bacari-silver-lake", "tacos-y-birria-la-unica"];
     expect(resolvePicks(ids.map((experienceId) => ({ experienceId, why: "" })), 2)).toHaveLength(4);
   });
   it("0 picks gives an empty list", () => expect(resolvePicks([], 2)).toEqual([]));
@@ -166,16 +166,16 @@ describe("live search (Google Places)", () => {
   it("mixes partner and live picks", async () => {
     const { model } = createScriptedModel([
       { tool: "search_live_places", args: { query: "spa in Miami" } },
-      present([{ experienceId: "still-water", why: "Partner." }, { experienceId: "gp:ChIJsd2", why: "Live." }]),
+      present([{ experienceId: "hugh-spa", why: "Partner." }, { experienceId: "gp:ChIJsd2", why: "Live." }]),
     ]);
     const r = await runConcierge(input(), { model, searchLive: async () => sd });
-    verifyConcierge(r, { partySize: 2, picks: [{ id: "still-water", total: "190.00" }, { id: "gp:ChIJsd2", total: "240.00" }] });
+    verifyConcierge(r, { partySize: 2, picks: [{ id: "hugh-spa", total: "190.00" }, { id: "gp:ChIJsd2", total: "240.00" }] });
     expect(r.options.map((o) => o.kind)).toEqual(["partner", "live"]);
   });
 
   it("a live id the model never searched for is dropped (no invented venues)", async () => {
-    const { model } = createScriptedModel([present([{ experienceId: "gp:ChIJfake", why: "x" }, { experienceId: "marea", why: "y" }])]);
-    verifyConcierge(await runConcierge(input(), { model, searchLive: async () => sd }), { partySize: 2, picks: [{ id: "marea", total: "180.00" }] });
+    const { model } = createScriptedModel([present([{ experienceId: "gp:ChIJfake", why: "x" }, { experienceId: "carasau-pasta-bar", why: "y" }])]);
+    verifyConcierge(await runConcierge(input(), { model, searchLive: async () => sd }), { partySize: 2, picks: [{ id: "carasau-pasta-bar", total: "180.00" }] });
   });
 
   it("duplicate live picks are dropped", async () => {
@@ -190,10 +190,10 @@ describe("live search (Google Places)", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { model, prompts } = createScriptedModel([
       { tool: "search_live_places", args: { query: "spa in Boise" } },
-      present([{ experienceId: "still-water", why: "Partner instead." }]),
+      present([{ experienceId: "hugh-spa", why: "Partner instead." }]),
     ]);
     const r = await runConcierge(input(), { model, searchLive: async () => { throw new Error("PERMISSION_DENIED"); } });
-    verifyConcierge(r, { partySize: 2, picks: [{ id: "still-water", total: "190.00" }] });
+    verifyConcierge(r, { partySize: 2, picks: [{ id: "hugh-spa", total: "190.00" }] });
     const toolMsg = (prompts[1] as { role: string; content: { result: { error: string } }[] }[]).at(-1)!;
     expect(toolMsg.content[0].result.error).toMatch(/unavailable/);
     expect(spy).toHaveBeenCalled();
@@ -203,7 +203,7 @@ describe("live search (Google Places)", () => {
   it("the prompt explains live booking only when live search is on", () => {
     expect(systemPrompt(input(), { live: true })).toContain("request to book");
     const off = systemPrompt(input());
-    expect(off).toContain("Miami");
+    expect(off).toContain("Los Angeles and its beach towns");
     expect(off).not.toContain("search_live_places");
     expect(off).toContain("doesn't have partners there yet");
   });

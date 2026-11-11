@@ -115,3 +115,6 @@ a:hover { color: var(--navy-deep); }
 .tag { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; border: 1px solid var(--blue); border-radius: 999px; padding: 4px 10px; color: var(--navy); }
 
 .stamp-wide { width: auto; min-width: 58px; padding: 0 8px; }
+
+.photo-credit { position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 8px; font-size: 10px; letter-spacing: 0; text-transform: none; text-align: left; color: #fff; background: linear-gradient(transparent, rgba(11,21,48,.7)); }
+.photo-credit a { color: #fff; }

@@ -23,11 +23,11 @@ async function confirmed(o: Parameters<typeof createNewBooking>[0] = {}) {
 }
 
 describe("venue facts are stored with the booking", () => {
-  it("partner booking: tags, city, neighborhood, cuisine and Miami local hour", async () => {
+  it("partner booking: tags, city, neighborhood, cuisine and Los Angeles local hour", async () => {
     mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
-    const b = await placeBooking({ orderId: "O1", kind: "partner", itemId: "marea", partySize: 2, startsAt: START.toISOString(), userId: U, now: new Date(START.getTime() - 48 * HOUR) });
-    expect(b.facts).toEqual({ tags: ["restaurant", "italian", "waterfront", "romantic"], city: "Miami", country: "US", neighborhood: "Coconut Grove", cuisine: "italian", localHour: 21 });
-    expect((await getBooking(b.id))!.facts.localHour).toBe(21);
+    const b = await placeBooking({ orderId: "O1", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: START.toISOString(), userId: U, now: new Date(START.getTime() - 48 * HOUR) });
+    expect(b.facts).toEqual({ tags: ["restaurant", "italian", "romantic"], city: "Los Angeles", country: "US", neighborhood: "Mid-City", cuisine: "italian", localHour: 18 });
+    expect((await getBooking(b.id))!.facts.localHour).toBe(18);
   });
   it("live booking: Google's city/country and the venue's local hour", async () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "g");

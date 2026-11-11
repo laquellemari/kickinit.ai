@@ -5,13 +5,13 @@ import { partnerPick, livePick } from "../../helpers/factories";
 
 describe("PickCard", () => {
   it("partner: instant-book stamp, fixed total, link to details with party size", () => {
-    render(<PickCard pick={partnerPick("marea", 2, "Terrace over the bay.")} partySize={2} />);
-    const card = screen.getByRole("article", { name: "Ristorante Marea" });
+    render(<PickCard pick={partnerPick("carasau-pasta-bar", 2, "Terrace over the bay.")} partySize={2} />);
+    const card = screen.getByRole("article", { name: "Carasau Pasta Bar" });
     expect(within(card).getByText("INSTANT BOOK")).toBeInTheDocument();
-    expect(within(card).getByText("Coconut Grove, Miami")).toBeInTheDocument();
+    expect(within(card).getByText("Mid-City, Los Angeles")).toBeInTheDocument();
     expect(within(card).getByText("Terrace over the bay.")).toBeInTheDocument();
     expect(within(card).getByText("$180")).toBeInTheDocument();
-    expect(within(card).getByRole("link", { name: "See details" })).toHaveAttribute("href", "/experience/marea?party=2");
+    expect(within(card).getByRole("link", { name: "See details" })).toHaveAttribute("href", "/experience/carasau-pasta-bar?party=2");
   });
   it("live: request stamp, estimated hold, request-to-book link, and Google Maps in a new tab", () => {
     render(<PickCard pick={livePick({}, 3)} partySize={3} />);
@@ -27,8 +27,8 @@ describe("PickCard", () => {
     expect(within(card).queryByText("INSTANT BOOK")).toBeNull();
   });
   it("gift mode: partner cards offer Gift this instead of details", () => {
-    render(<PickCard pick={partnerPick("still-water", 2)} partySize={2} gift />);
-    expect(screen.getByRole("link", { name: "Gift this" })).toHaveAttribute("href", "/gift/new?experience=still-water&party=2");
+    render(<PickCard pick={partnerPick("hugh-spa", 2)} partySize={2} gift />);
+    expect(screen.getByRole("link", { name: "Gift this" })).toHaveAttribute("href", "/gift/new?experience=hugh-spa&party=2");
     expect(screen.queryByRole("link", { name: "See details" })).toBeNull();
   });
   it("boundary: 1 guest is singular", () => {

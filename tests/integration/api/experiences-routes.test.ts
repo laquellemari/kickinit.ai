@@ -19,11 +19,11 @@ describe("GET /api/experiences", () => {
   it("filters by category, tags, text, party and budget together", async () => {
     await verifyList(await get("?category=culinary&tags=italian,mexican&q=italian&partySize=2&maxTotal=200"), {
       status: 200,
-      check: (r) => { expect(r.map((x) => x.id)).toEqual(["osteria-lume", "marea"]); expect(r[1].total).toBe("180.00"); },
+      check: (r) => { expect(r.map((x) => x.id).sort()).toEqual(["carasau-pasta-bar", "trattoria-daly"]); expect(r.find((x) => x.id === "carasau-pasta-bar")!.total).toBe("180.00"); },
     });
   });
-  it("geo search near Brickell within 3 km, nearest first", async () => {
-    await verifyList(await get("?lat=25.765&lng=-80.193&radiusKm=3"), {
+  it("geo search near downtown LA within 3 km, nearest first", async () => {
+    await verifyList(await get("?lat=34.0522&lng=-118.2437&radiusKm=3"), {
       status: 200,
       check: (r) => { expect(r.length).toBeGreaterThan(0); expect(r.every((x) => x.distanceKm! <= 3)).toBe(true); expect(r[0].distanceKm).toBeLessThanOrEqual(r[r.length - 1].distanceKm!); },
     });
@@ -47,9 +47,9 @@ describe("GET /api/experiences", () => {
 
 describe("GET /api/experiences/:id", () => {
   it("returns the experience", async () => {
-    const res = await one(new Request("http://localhost"), { params: Promise.resolve({ id: "blue-room" }) });
+    const res = await one(new Request("http://localhost"), { params: Promise.resolve({ id: "vibrato-grill-jazz" }) });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: "blue-room", name: "The Blue Room", category: "nightlife" });
+    expect(await res.json()).toMatchObject({ id: "vibrato-grill-jazz", name: "Vibrato Grill Jazz", category: "nightlife" });
   });
   it("404 for an unknown id", async () => {
     const res = await one(new Request("http://localhost"), { params: Promise.resolve({ id: "nope" }) });

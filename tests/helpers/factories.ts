@@ -3,7 +3,7 @@ import type { Slide } from "@/components/Carousel";
 export const createSlide = (overrides: Partial<Slide> = {}): Slide => ({
   title: "Dinner on the bay",
   where: "Coconut Grove",
-  photo: "waterfront dinner",
+  placeId: "ChIJslide",
   stamp: "DINING",
   bg: "#D7E6F2",
   ...overrides,
@@ -68,7 +68,7 @@ export const createExperience = (overrides: Partial<Experience> = {}): Experienc
   id: "exp-test", name: "Test Dinner", category: "culinary", tags: ["restaurant", "italian"],
   city: "Miami", country: "US", neighborhood: "Brickell", lat: 25.765, lng: -80.193,
   price: "50.00", currency: "USD", pricing: "per_person", durationMinutes: 90, partyMin: 1, partyMax: 8,
-  description: "A test dinner by the water.", photo: "test", bg: "#fff", ...overrides,
+  description: "A test dinner by the water.", placeId: "ChIJtest", bg: "#fff", ...overrides,
 });
 
 import { MockLanguageModelV1 } from "ai/test";
@@ -119,14 +119,14 @@ export const livePick = (overrides: Partial<LivePlace> = {}, partySize = 2, why 
   return { kind: "live", place, why, quote: quoteLive(place, partySize) };
 };
 export const createConciergeResult = (o: Partial<ConciergeResult> = {}): ConciergeResult => ({
-  reply: "Here are two good ones.", partySize: 2, options: [partnerPick("marea"), livePick()], ...o,
+  reply: "Here are two good ones.", partySize: 2, options: [partnerPick("carasau-pasta-bar"), livePick()], ...o,
 });
 
 import type { NewBooking } from "@/lib/bookings/repo";
 
 let orderSeq = 0;
 export const createNewBooking = (overrides: Partial<NewBooking> = {}): NewBooking => ({
-  userId: "user-1", kind: "partner", itemId: "marea", name: "Ristorante Marea", partySize: 2,
+  userId: "user-1", kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", partySize: 2,
   startsAt: new Date("2026-11-14T19:30:00Z"), amount: "180.00", currency: "USD",
   paypalOrderId: `ORDER${++orderSeq}`, authorizationId: `AUTH${orderSeq}`, holdExpiresAt: new Date("2026-12-13T00:00:00Z"),
   facts: { tags: ["restaurant", "italian", "waterfront", "romantic"], city: "Miami", country: "US", neighborhood: "Coconut Grove", cuisine: "italian", localHour: 19 },
@@ -136,7 +136,7 @@ export const createNewBooking = (overrides: Partial<NewBooking> = {}): NewBookin
 import type { NewGift, NewContribution } from "@/lib/gifts/repo";
 
 export const createNewGift = (overrides: Partial<NewGift> = {}): NewGift => ({
-  organizerId: "org-1", organizerName: "Kavon", experienceId: "still-water", name: "Still Water Bathhouse", partySize: 2,
+  organizerId: "org-1", organizerName: "Kavon", experienceId: "hugh-spa", name: "Hugh Spa", partySize: 2,
   amountCents: 19000, currency: "USD", recipientName: "Mom", note: "Happy 60th!", mode: "pool",
   deadline: new Date("2026-11-20T00:00:00Z"), ...overrides,
 });

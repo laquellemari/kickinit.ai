@@ -14,12 +14,12 @@ const pending = () => vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})))
 
 describe("gift pages", () => {
   it("/gift/new shows the experience and the setup form", async () => {
-    render(await NewGiftPage({ searchParams: Promise.resolve({ experience: "still-water", party: ["3"] }) }));
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Gift Still Water Bathhouse.");
+    render(await NewGiftPage({ searchParams: Promise.resolve({ experience: "hugh-spa", party: ["3"] }) }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Gift Hugh Spa.");
     expect(screen.getByLabelText("Guests")).toHaveValue("3");
   });
   it("/gift/new defaults to 2 guests", async () => {
-    render(await NewGiftPage({ searchParams: Promise.resolve({ experience: "still-water" }) }));
+    render(await NewGiftPage({ searchParams: Promise.resolve({ experience: "hugh-spa" }) }));
     expect(screen.getByLabelText("Guests")).toHaveValue("2");
   });
   it("/gift/new 404s for an unknown experience", async () => {

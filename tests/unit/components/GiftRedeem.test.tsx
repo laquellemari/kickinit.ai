@@ -4,7 +4,7 @@ import { GiftRedeem } from "@/components/GiftRedeem";
 import { routerPush } from "../../helpers/setup";
 
 const NOW = new Date(2026, 10, 11, 12, 0);
-const g = (o: Record<string, unknown> = {}) => ({ name: "Still Water Bathhouse", experienceId: "still-water", partySize: 2, status: "funded", recipientName: "Mom", organizerName: "Kavon", note: "Happy 60th", bookingId: null, ...o });
+const g = (o: Record<string, unknown> = {}) => ({ name: "Hugh Spa", experienceId: "hugh-spa", partySize: 2, status: "funded", recipientName: "Mom", organizerName: "Kavon", note: "Happy 60th", bookingId: null, ...o });
 type Reply = { status: number; body: unknown };
 function mockApi(...replies: Reply[]) {
   const f = vi.fn(async () => { const r = replies.shift()!; return new Response(JSON.stringify(r.body), { status: r.status }); });

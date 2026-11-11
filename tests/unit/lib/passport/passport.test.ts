@@ -44,7 +44,7 @@ describe("questBooking", () => {
 describe("giftAsBooking", () => {
   it("funded or redeemed gifts count as sent gifts with the experience's tags plus 'gift'", async () => {
     const g = (await transitionGift((await insertGift(createNewGift())).id, ["open"], "funded"))!;
-    expect(giftAsBooking(g)).toMatchObject({ isGift: true, status: "captured", tags: ["wellness", "spa", "bathhouse", "sauna", "cold_plunge", "gift"], city: "Miami" });
+    expect(giftAsBooking(g)).toMatchObject({ isGift: true, status: "captured", tags: ["wellness", "spa", "bathhouse", "sauna", "korean_spa", "gift"], city: "Los Angeles" });
     expect(giftAsBooking((await transitionGift(g.id, ["funded"], "redeemed"))!)).not.toBeNull();
   });
   it("open or expired gifts don't count", async () => {
@@ -109,7 +109,7 @@ describe("computePassport", () => {
 
 describe("profile", () => {
   it("defaults for a new visitor", async () => {
-    expect(await getProfile(U)).toEqual({ userId: U, displayName: "", homeCity: "Miami", homeCountry: "US", avatar: null });
+    expect(await getProfile(U)).toEqual({ userId: U, displayName: "", homeCity: "Los Angeles", homeCountry: "US", avatar: null });
   });
   it("saves only the fields given, trims text, uppercases country", async () => {
     await saveProfile(U, { displayName: " Kavon ", homeCity: " San Diego ", homeCountry: "us" });
@@ -154,7 +154,7 @@ describe("routes", () => {
   it("GET/PUT /api/profile", async () => {
     const put = await putProfileRoute(req({ method: "PUT", body: { displayName: "Kavon" } }));
     expect(put.status).toBe(200);
-    expect(await (await getProfileRoute(req())).json()).toMatchObject({ displayName: "Kavon", homeCity: "Miami" });
+    expect(await (await getProfileRoute(req())).json()).toMatchObject({ displayName: "Kavon", homeCity: "Los Angeles" });
     expect((await putProfileRoute(req({ method: "PUT", body: { homeCity: "" } }))).status).toBe(400);
   });
   it.each([["passport", () => passportRoute(req({ cookie: false }))], ["profile GET", () => getProfileRoute(req({ cookie: false }))], ["profile PUT", () => putProfileRoute(req({ method: "PUT", cookie: false, body: {} }))]])("%s: 401 without a visitor", async (_l, call) => {

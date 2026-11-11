@@ -5,7 +5,7 @@ import { CheckoutPanel, type CheckoutItem } from "@/components/CheckoutPanel";
 import { routerPush } from "../../helpers/setup";
 
 const NOW = new Date(2026, 10, 11, 12, 0);
-const partner: CheckoutItem = { kind: "partner", itemId: "marea", name: "Ristorante Marea", unitPrice: "90.00", perGroup: false, partyMin: 1, partyMax: 8 };
+const partner: CheckoutItem = { kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", unitPrice: "90.00", perGroup: false, partyMin: 1, partyMax: 8 };
 const live: CheckoutItem = { kind: "live", itemId: "gp:ChIJ1", name: "Barbusa", unitPrice: "60.00", perGroup: false, partyMin: 1, partyMax: 20 };
 
 type Reply = { status: number; body: unknown };
@@ -41,8 +41,8 @@ describe("CheckoutPanel", () => {
       pick();
       fireEvent.click(screen.getByRole("button", { name: "PayPal" }));
       await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/booking/bk-1"));
-      expect(call(f, 0)).toEqual({ url: "/api/paypal/orders", body: { kind: "partner", itemId: "marea", partySize: 2 } });
-      expect(call(f, 1)).toEqual({ url: "/api/bookings", body: { orderId: "ORDER-9", kind: "partner", itemId: "marea", partySize: 2, startsAt: new Date(2026, 10, 14, 19, 30).toISOString() } });
+      expect(call(f, 0)).toEqual({ url: "/api/paypal/orders", body: { kind: "partner", itemId: "carasau-pasta-bar", partySize: 2 } });
+      expect(call(f, 1)).toEqual({ url: "/api/bookings", body: { orderId: "ORDER-9", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: new Date(2026, 10, 14, 19, 30).toISOString() } });
       expect(paypalReact.options).toEqual({ clientId: "client-123", intent: "authorize", currency: "USD" });
     });
     it("live: labelled as a request with an estimate, and the copy explains the hold", () => {

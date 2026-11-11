@@ -10,7 +10,7 @@ const { ProfileView, toAvatarDataUrl, CalendarLoading } = await import("@/compon
 
 const NOW = new Date("2026-11-11T20:00:00Z");
 const passport = () => JSON.parse(JSON.stringify(computePassport({ bookings: [], ctx: HOME, questProgress: [], counters: { poolsFundedAsOrganizer: 0, poolContributions: 0, giftsRedeemed: 0, referralsConverted: 0, reviews: 0 } })));
-const bk = (o: Record<string, unknown>) => ({ id: "b", kind: "partner", itemId: "marea", name: "Marea", partySize: 2, startsAt: "2026-11-15T02:30:00.000Z", amount: "180.00", currency: "USD", status: "confirmed", paypalOrderId: "O", holdExpiresAt: null, createdAt: "x", checkedInAt: null, city: "Miami", ...o });
+const bk = (o: Record<string, unknown>) => ({ id: "b", kind: "partner", itemId: "carasau-pasta-bar", name: "Marea", partySize: 2, startsAt: "2026-11-15T02:30:00.000Z", amount: "180.00", currency: "USD", status: "confirmed", paypalOrderId: "O", holdExpiresAt: null, createdAt: "x", checkedInAt: null, city: "Miami", ...o });
 const profile = (o: Record<string, unknown> = {}) => ({ userId: "u", displayName: "", homeCity: "Miami", homeCountry: "US", avatar: null, ...o });
 
 function server(o: { profile?: unknown; bookings?: unknown[]; put?: { status: number; body: unknown }[]; fail?: boolean } = {}) {

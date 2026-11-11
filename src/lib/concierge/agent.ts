@@ -13,7 +13,7 @@ export type PlanPick =
   | { kind: "partner"; experience: SearchResult; why: string; quote: Quote }
   | { kind: "live"; place: LivePlace; why: string; quote: Quote };
 export type SearchLive = (query: string) => Promise<LivePlace[]>;
-export const PARTNER_CITIES = "Miami (most), plus Islamorada, Austin, Mexico City and Tulum";
+export const PARTNER_CITIES = "Los Angeles and its beach towns (most), plus getaways in Palm Springs, Ojai, Malibu and Santa Barbara";
 export type ConciergeResult = { reply: string; partySize: number | null; options: PlanPick[] };
 
 export const LIMITS = { message: 1000, historyItems: 20, historyContent: 4000, picks: 4 } as const;
@@ -41,7 +41,7 @@ export function systemPrompt(input: ConciergeInput, opts: { live?: boolean } = {
   return [
     "You are the kickinit concierge. You find bookable experiences (restaurants, spas, classes, nights out, outdoors, getaways) from kickinit's partner catalog and hold them with PayPal while the user decides.",
     who,
-    `Today is ${today}. The user's area: ${input.where?.trim() || "Miami"}.`,
+    `Today is ${today}. The user's area: ${input.where?.trim() || "Los Angeles"}.`,
     "Rules:",
     `- kickinit partners (search_experiences) are in ${PARTNER_CITIES}. They book instantly at a fixed price; prefer them when they fit.`,
     opts.live

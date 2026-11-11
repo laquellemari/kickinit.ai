@@ -3,6 +3,7 @@ import { Nav } from "@/components/Nav";
 import { CheckoutPanel } from "@/components/CheckoutPanel";
 import { getExperience } from "@/lib/catalog/catalog";
 import { duration, guests, money } from "@/lib/format";
+import { VenuePhoto } from "@/components/VenuePhoto";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -29,11 +30,11 @@ export default async function ExperiencePage({ params, searchParams }: Props) {
       <main className="plan-main">
         <div className="detail-grid">
           <article className="concierge-card" style={{ gap: 20 }}>
-            <div className="postcard-photo" style={{ height: 320, background: e.bg }}>
-              [Photo: {e.photo}]
+            <VenuePhoto placeId={e.placeId} alt={e.name} height={320} bg={e.bg}>
               <span className="stamp stamp-wide">{e.category.toUpperCase()}</span>
-            </div>
+            </VenuePhoto>
             <p className="concierge-reply">{e.description}</p>
+            <p className="pick-meta" style={{ margin: 0 }}>Demo partner: a real venue, shown with its Google photo. kickinit has no partnership with it; prices are illustrative and bookings run in the PayPal sandbox.</p>
             <dl className="fact-list">
               <div><dt>Price</dt><dd>{money(e.price)} {e.pricing === "per_group" ? "per group" : "per person"}</dd></div>
               <div><dt>Length</dt><dd>{duration(e.durationMinutes)}</dd></div>

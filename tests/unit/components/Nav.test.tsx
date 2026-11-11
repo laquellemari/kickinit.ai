@@ -19,7 +19,7 @@ describe("Nav", () => {
 
   it("shows the default region when none is given", () => {
     render(<Nav active="explore" />);
-    expect(screen.getByRole("button", { name: "Miami · 10 mi" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Los Angeles · 10 mi" })).toBeInTheDocument();
   });
 
   it("shows a custom region", () => {
