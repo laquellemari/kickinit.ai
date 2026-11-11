@@ -104,16 +104,16 @@ export const createLivePlace = (overrides: Partial<LivePlace> = {}): LivePlace =
   };
 };
 
-import type { ConciergeResult, Pick } from "@/lib/concierge/agent";
+import type { ConciergeResult, PlanPick } from "@/lib/concierge/agent";
 import { quote as quotePartner } from "@/lib/catalog/catalog";
 import { getExperience } from "@/lib/catalog/catalog";
 import { quoteLive } from "@/lib/places/quote";
 
-export const partnerPick = (id: string, partySize = 2, why = "Because."): Pick => {
+export const partnerPick = (id: string, partySize = 2, why = "Because."): PlanPick => {
   const q = quotePartner(id, partySize);
   return { kind: "partner", experience: { ...getExperience(id)!, total: q.total }, why, quote: q };
 };
-export const livePick = (overrides: Partial<LivePlace> = {}, partySize = 2, why = "Live pick."): Pick => {
+export const livePick = (overrides: Partial<LivePlace> = {}, partySize = 2, why = "Live pick."): PlanPick => {
   const place = createLivePlace(overrides);
   return { kind: "live", place, why, quote: quoteLive(place, partySize) };
 };

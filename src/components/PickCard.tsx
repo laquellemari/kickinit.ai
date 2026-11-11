@@ -1,8 +1,8 @@
 import Link from "next/link";
-import type { Pick } from "@/lib/concierge/agent";
+import type { PlanPick } from "@/lib/concierge/agent";
 import { guests, money } from "@/lib/format";
 
-export function PickCard({ pick, partySize }: { pick: Pick; partySize: number }) {
+export function PickCard({ pick, partySize }: { pick: PlanPick; partySize: number }) {
   if (pick.kind === "partner") {
     const e = pick.experience;
     return (

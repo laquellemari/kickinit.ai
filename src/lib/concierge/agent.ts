@@ -9,12 +9,12 @@ export type Mode = "you" | "them";
 export type HistoryItem = { role: "user" | "assistant"; content: string };
 export type ConciergeInput = { message: string; mode: Mode; where?: string; history?: HistoryItem[]; today?: Date };
 /** Partner experiences book instantly at a fixed price; live venues are a request, held at an estimate. */
-export type Pick =
+export type PlanPick =
   | { kind: "partner"; experience: SearchResult; why: string; quote: Quote }
   | { kind: "live"; place: LivePlace; why: string; quote: Quote };
 export type SearchLive = (query: string) => Promise<LivePlace[]>;
 export const PARTNER_CITIES = "Miami (most), plus Islamorada, Austin, Mexico City and Tulum";
-export type ConciergeResult = { reply: string; partySize: number | null; options: Pick[] };
+export type ConciergeResult = { reply: string; partySize: number | null; options: PlanPick[] };
 
 export const LIMITS = { message: 1000, historyItems: 20, historyContent: 4000, picks: 4 } as const;
 
@@ -105,9 +105,9 @@ function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, L
 }
 
 /** Keeps only picks that exist and can be booked for the party, priced by the server. */
-export function resolvePicks(picks: { experienceId: string; why: string }[], partySize: number, liveCache: Map<string, LivePlace> = new Map()): Pick[] {
+export function resolvePicks(picks: { experienceId: string; why: string }[], partySize: number, liveCache: Map<string, LivePlace> = new Map()): PlanPick[] {
   const seen = new Set<string>();
-  const out: Pick[] = [];
+  const out: PlanPick[] = [];
   for (const p of picks) {
     if (seen.has(p.experienceId)) continue;
     const live = liveCache.get(p.experienceId);
