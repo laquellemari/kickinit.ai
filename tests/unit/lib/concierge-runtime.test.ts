@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { conciergeModel, paypalTools, liveSearch, DEFAULT_MODEL } from "@/lib/concierge/runtime";
+import { generateText } from "ai";
 import { searchLivePlaces } from "@/lib/places/client";
 import { createLimiter, clientKey } from "@/lib/concierge/rate-limit";
 
@@ -17,6 +18,31 @@ describe("conciergeModel", () => {
     expect(conciergeModel().modelId).toBe(DEFAULT_MODEL);
     vi.stubEnv("CONCIERGE_MODEL", "claude-haiku-5-5");
     expect(conciergeModel().modelId).toBe("claude-haiku-5-5");
+  });
+});
+
+describe("the request actually sent to Anthropic", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("never includes temperature (current Claude models reject it), even when a caller sets one", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+    vi.stubEnv("CONCIERGE_MODEL", "");
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(init.body as string));
+      return new Response(JSON.stringify({
+        id: "msg_1", type: "message", role: "assistant", model: DEFAULT_MODEL,
+        content: [{ type: "text", text: "hi" }], stop_reason: "end_turn", stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }));
+    const r1 = await generateText({ model: conciergeModel(), prompt: "hello" });
+    await generateText({ model: conciergeModel(), prompt: "hello", temperature: 0.7 });
+    expect(r1.text).toBe("hi");
+    expect(bodies).toHaveLength(2);
+    for (const b of bodies) {
+      expect(b).not.toHaveProperty("temperature");
+      expect(b.model).toBe(DEFAULT_MODEL);
+    }
   });
 });
 
