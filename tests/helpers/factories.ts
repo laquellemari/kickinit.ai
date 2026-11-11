@@ -70,3 +70,24 @@ export const createExperience = (overrides: Partial<Experience> = {}): Experienc
   price: "50.00", currency: "USD", pricing: "per_person", durationMinutes: 90, partyMin: 1, partyMax: 8,
   description: "A test dinner by the water.", photo: "test", bg: "#fff", ...overrides,
 });
+
+import { MockLanguageModelV1 } from "ai/test";
+
+type ScriptedCall = { tool: string; args: Record<string, unknown> } | { text: string };
+
+/** A fake Claude that plays back one tool call (or text) per step, and records every prompt it was given. */
+export function createScriptedModel(steps: ScriptedCall[]) {
+  const prompts: unknown[] = [];
+  let i = 0;
+  const model = new MockLanguageModelV1({
+    doGenerate: async (opts) => {
+      prompts.push(opts.prompt);
+      const s = steps[i++];
+      if (!s) throw new Error("Model called more times than scripted");
+      const base = { rawCall: { rawPrompt: null, rawSettings: {} }, usage: { promptTokens: 10, completionTokens: 10 } };
+      if ("text" in s) return { ...base, finishReason: "stop" as const, text: s.text };
+      return { ...base, finishReason: "tool-calls" as const, toolCalls: [{ toolCallType: "function" as const, toolCallId: `c${i}`, toolName: s.tool, args: JSON.stringify(s.args) }] };
+    },
+  });
+  return { model, prompts };
+}

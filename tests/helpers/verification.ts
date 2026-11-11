@@ -58,3 +58,17 @@ export function verifyQuote(q: Quote, expected: Partial<Quote>) {
 export function verifyResultIds(results: SearchResult[], ids: string[]) {
   expect(results.map((r) => r.id)).toEqual(ids);
 }
+
+import type { ConciergeResult } from "@/lib/concierge/agent";
+
+/** Checks the concierge reply, party size and the server-priced picks in order. */
+export function verifyConcierge(r: ConciergeResult, expected: { reply?: string | RegExp; partySize: number | null; picks: { id: string; total: string }[] }) {
+  if (expected.reply instanceof RegExp) expect(r.reply).toMatch(expected.reply);
+  else if (expected.reply !== undefined) expect(r.reply).toBe(expected.reply);
+  expect(r.partySize).toBe(expected.partySize);
+  expect(r.options.map((o) => ({ id: o.experience.id, total: o.quote.total }))).toEqual(expected.picks);
+  for (const o of r.options) {
+    expect(o.experience.total).toBe(o.quote.total);
+    expect(o.quote.partySize).toBe(expected.partySize);
+  }
+}

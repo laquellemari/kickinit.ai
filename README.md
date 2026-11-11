@@ -15,7 +15,9 @@ Built for the PayPal AI Hackathon 2026.
 | Paying hosts | Payouts |
 | Status updates | Webhooks (`PAYMENT.CAPTURE.COMPLETED`, etc.) |
 
-The agent calls PayPal through the [PayPal Agent Toolkit](https://github.com/paypal/agent-toolkit).
+## The concierge agent
+
+`POST /api/concierge` runs Claude (via the Vercel AI SDK) with three tools: `search_experiences` (the partner catalog), `present_options` (structured picks), and the [PayPal Agent Toolkit](https://github.com/paypal/agent-toolkit)'s `get_order`, so it can answer "did my booking go through?". Every pick is re-checked against the catalog and re-priced on the server, so the agent can't invent a venue or a price. Requests are rate-limited to 20 per minute per visitor.
 
 ## Stack
 
