@@ -27,6 +27,8 @@ type GPlace = {
   businessStatus?: string;
   addressComponents?: { longText: string; shortText: string; types: string[] }[];
   utcOffsetMinutes?: number;
+  rating?: number;
+  userRatingCount?: number;
 };
 
 /** Rough per-person spend by venue type, used only to size the PayPal hold. The venue confirms the real amount. */
@@ -55,7 +57,9 @@ function apiKey(): string {
 }
 
 async function call(url: string, init: RequestInit, mask: string): Promise<unknown> {
-  const res = await fetch(url, { ...init, headers: { "content-type": "application/json", "x-goog-api-key": apiKey(), "x-goog-fieldmask": mask } });
+  const headers: Record<string, string> = { "content-type": "application/json", "x-goog-api-key": apiKey() };
+  if (mask) headers["x-goog-fieldmask"] = mask;
+  const res = await fetch(url, { ...init, headers });
   const text = await res.text();
   const json = text ? JSON.parse(text) : null;
   if (!res.ok) {
@@ -103,4 +107,52 @@ export async function getLivePlace(placeId: string): Promise<LivePlace> {
   const p = (await call(`${BASE}/places/${placeId}`, { method: "GET" }, FIELD_MASK.replaceAll("places.", ""))) as GPlace;
   if (!isOpen(p)) throw new Error("This place is closed");
   return toLivePlace(p);
+}
+
+/** A venue with its Google rating, used to pick the demo partner catalog. Rating fields are Enterprise-priced, so this is not used per visitor. */
+export type RatedPlace = {
+  placeId: string; name: string; address: string; lat: number; lng: number; primaryType: string | null; typeLabel: string;
+  neighborhood: string; city: string; country: string; rating: number | null; ratingCount: number; mapsUrl: string;
+};
+export const RATED_MASK = `${FIELD_MASK},places.rating,places.userRatingCount`;
+
+/** Top-rated open venues for a query, best first (rating, then number of ratings). */
+export async function searchRatedPlaces(query: string): Promise<RatedPlace[]> {
+  const q = query.trim();
+  if (!q) throw new Error("Search text is required");
+  if (q.length > 200) throw new Error("Search text cannot exceed 200 characters");
+  const body = (await call(`${BASE}/places:searchText`, { method: "POST", body: JSON.stringify({ textQuery: q, pageSize: 20 }) }, RATED_MASK)) as { places?: GPlace[] };
+  return (body.places ?? []).filter(isOpen).map((p) => {
+    const l = toLivePlace(p);
+    return {
+      placeId: p.id, name: l.name, address: l.address, lat: l.lat, lng: l.lng, primaryType: l.primaryType, typeLabel: l.typeLabel,
+      neighborhood: component(p, "neighborhood") || component(p, "sublocality_level_1") || component(p, "sublocality"),
+      city: l.city, country: l.country, rating: p.rating ?? null, ratingCount: p.userRatingCount ?? 0, mapsUrl: l.mapsUrl,
+    };
+  }).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.ratingCount - a.ratingCount);
+}
+
+/** A venue photo and the credit Google requires us to show with it. */
+export type PlacePhoto = { uri: string; author: string | null; authorUri: string | null };
+const PHOTO_TTL_MS = 12 * 60 * 60 * 1000;
+const photoCache = new Map<string, { at: number; photo: PlacePhoto | null }>();
+export const clearPhotoCache = () => photoCache.clear();
+
+/** The venue's first Google photo (800px wide), or null if it has none. Cached per place for 12 hours. */
+export async function getPlacePhoto(placeId: string, now = Date.now()): Promise<PlacePhoto | null> {
+  if (!ID_RE.test(placeId)) throw new Error("Place id has invalid characters");
+  const hit = photoCache.get(placeId);
+  if (hit && now - hit.at < PHOTO_TTL_MS) return hit.photo;
+  const details = (await call(`${BASE}/places/${placeId}`, { method: "GET" }, "photos")) as {
+    photos?: { name: string; authorAttributions?: { displayName?: string; uri?: string }[] }[];
+  };
+  const first = details.photos?.[0];
+  let photo: PlacePhoto | null = null;
+  if (first) {
+    const media = (await call(`${BASE}/${first.name}/media?maxWidthPx=800&skipHttpRedirect=true`, { method: "GET" }, "")) as { photoUri?: string };
+    const by = first.authorAttributions?.[0];
+    if (media.photoUri) photo = { uri: media.photoUri, author: by?.displayName ?? null, authorUri: by?.uri ?? null };
+  }
+  photoCache.set(placeId, { at: now, photo });
+  return photo;
 }
