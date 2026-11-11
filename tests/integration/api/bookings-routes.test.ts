@@ -84,7 +84,7 @@ describe("GET /api/bookings (mine)", () => {
 describe("GET /api/bookings/:id", () => {
   it("the owner can see it", async () => {
     const b = await insertBooking(createNewBooking({ userId: ME }));
-    await verifyRes(await one(req(), p(b.id)), { status: 200, body: { id: b.id, status: "held", holdExpiresAt: "2026-12-13T00:00:00.000Z" } });
+    await verifyRes(await one(req(), p(b.id)), { status: 200, body: { id: b.id, status: "held", holdExpiresAt: "2026-12-13T00:00:00.000Z", checkedInAt: null, city: "Miami" } });
   });
   it("a booking with no hold expiry shows null", async () => {
     const b = await insertBooking(createNewBooking({ userId: ME, holdExpiresAt: null }));

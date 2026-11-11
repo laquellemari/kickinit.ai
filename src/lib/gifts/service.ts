@@ -1,5 +1,6 @@
 import { insertBooking, transition, type Booking } from "@/lib/bookings/repo";
 import { BookingError, parseStartsAt } from "@/lib/bookings/service";
+import { partnerFacts } from "@/lib/bookings/venue";
 import { quote } from "@/lib/catalog/catalog";
 import { authorizeOrder, captureAuthorization, voidAuthorization } from "@/lib/paypal/client";
 import {
@@ -170,6 +171,7 @@ export async function redeemGift(input: { code: string; userId: string; startsAt
   const held = await insertBooking({
     userId: input.userId, kind: "partner", itemId: g.experienceId, name: g.name, partySize: g.partySize, startsAt,
     amount: fromCents(g.amountCents), currency: g.currency, paypalOrderId: `gift:${g.id}`, authorizationId: `gift:${g.id}`, holdExpiresAt: null,
+    facts: partnerFacts(g.experienceId, startsAt),
   });
   const booking = (await transition(held.id, ["held"], "confirmed", `gift:${g.id}`))!;
   const gift = (await transitionGift(g.id, ["redeemed"], "redeemed", booking.id))!;

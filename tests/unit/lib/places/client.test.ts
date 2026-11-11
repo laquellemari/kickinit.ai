@@ -31,6 +31,25 @@ describe("searchLivePlaces", () => {
     expect(h.get("x-goog-fieldmask")).toBe(FIELD_MASK);
     expect(JSON.parse(init.body as string)).toEqual({ textQuery: "romantic italian dinner in San Diego", pageSize: 6 });
   });
+  it("reads city, country code and UTC offset from Pro-tier fields", async () => {
+    mockFetch({ status: 200, body: { places: [gPlace({
+      addressComponents: [
+        { longText: "San Diego", shortText: "San Diego", types: ["locality", "political"] },
+        { longText: "United States", shortText: "US", types: ["country", "political"] },
+      ],
+      utcOffsetMinutes: -480,
+    })] } });
+    expect((await searchLivePlaces("x"))[0]).toMatchObject({ city: "San Diego", country: "US", utcOffsetMinutes: -480, primaryType: "italian_restaurant" });
+  });
+  it("UK-style addresses use postal_town; missing parts become empty/null", async () => {
+    mockFetch({ status: 200, body: { places: [
+      gPlace({ addressComponents: [{ longText: "London", shortText: "London", types: ["postal_town"] }, { longText: "United Kingdom", shortText: "GB", types: ["country"] }] }),
+      gPlace({ id: "Z", primaryType: undefined }),
+    ] } });
+    const [uk, bare] = await searchLivePlaces("x");
+    expect(uk).toMatchObject({ city: "London", country: "GB" });
+    expect(bare).toMatchObject({ city: "", country: "", utcOffsetMinutes: null, primaryType: null });
+  });
   it("the field mask never includes Enterprise-priced fields", () => {
     for (const f of ["rating", "priceLevel", "userRatingCount", "websiteUri", "regularOpeningHours", "reviews"]) expect(FIELD_MASK).not.toContain(f);
   });
