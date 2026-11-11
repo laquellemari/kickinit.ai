@@ -1,5 +1,5 @@
-import { authorizeOrder, captureAuthorization, chargeSavedPayPal, voidAuthorization, MAX_AMOUNT } from "@/lib/paypal/client";
-import { getBooking, getBookingByOrder, insertBooking, markCheckedIn, settleBooking, transition, type Booking, type OverageStatus } from "./repo";
+import { authorizeOrder, captureAuthorization, chargeSavedPayPal, reauthorizeAuthorization, voidAuthorization, MAX_AMOUNT } from "@/lib/paypal/client";
+import { getBooking, getBookingByOrder, insertBooking, markCheckedIn, setReauthorized, settleBooking, transition, type Booking, type OverageStatus } from "./repo";
 import { priceFor } from "./pricing";
 
 const HOUR = 3_600_000;
@@ -13,6 +13,11 @@ export class BookingError extends Error {
 }
 
 export type PlaceBookingInput = { orderId: string; kind: unknown; itemId: unknown; partySize: number; startsAt: unknown; userId: string; now?: Date };
+
+/** PayPal holds can be captured up to day 29, so request-to-book dates stay inside that window. */
+export const LIVE_MAX_DAYS = 28;
+/** PayPal guarantees an authorization's funds for 3 days. */
+export const HONOR_DAYS = 3;
 
 export function parseStartsAt(value: unknown, now: Date): Date {
   const d = typeof value === "string" ? new Date(value) : null;
@@ -43,6 +48,9 @@ export async function placeBooking(input: PlaceBookingInput): Promise<Booking> {
   } catch (err) {
     const msg = (err as Error).message;
     throw new BookingError(msg.startsWith("Experience not found") ? 404 : 400, msg);
+  }
+  if (priced.kind === "live" && startsAt.getTime() > now.getTime() + LIVE_MAX_DAYS * DAY) {
+    throw new BookingError(400, `Request-to-book dates open up to ${LIVE_MAX_DAYS} days ahead`);
   }
 
   const auth = await authorizeOrder(input.orderId, `authorize-${input.orderId}`);
@@ -149,7 +157,8 @@ export async function closeBill(input: { id: string; billTotal: unknown; now?: D
   const hold = cents(b.amount);
   const fromHold = Math.min(due, hold);
   const overage = due - fromHold;
-  const cap = await captureAuthorization(b.authorizationId, `settle-${b.id}`, { value: dollars(fromHold), currency: b.currency });
+  const authId = await freshAuthorization(b, now);
+  const cap = await captureAuthorization(authId, `settle-${b.id}`, { value: dollars(fromHold), currency: b.currency });
 
   let overageStatus: OverageStatus = "none";
   let overageCaptureId: string | null = null;
@@ -171,4 +180,20 @@ export async function closeBill(input: { id: string; billTotal: unknown; now?: D
   const settled = await settleBooking(b.id, { billTotal: dollars(cents(bill)), capturedTotal: dollars(fromHold), overage: dollars(overage), overageStatus, overageCaptureId }, cap.captureId, now);
   if (!settled) throw new BookingError(409, "Booking changed while closing the bill");
   return settled;
+}
+
+/**
+ * Past PayPal's 3-day guarantee, renew the hold once before capturing. If renewal isn't possible,
+ * fall back to capturing the original hold (still valid until day 29).
+ */
+async function freshAuthorization(b: Booking, now: Date): Promise<string> {
+  if (b.reauthorizedAt || now.getTime() - b.createdAt.getTime() < HONOR_DAYS * DAY) return b.authorizationId;
+  try {
+    const r = await reauthorizeAuthorization(b.authorizationId, `reauth-${b.id}`, { value: b.amount, currency: b.currency });
+    await setReauthorized(b.id, r.authorizationId, r.expiresAt ? new Date(r.expiresAt) : null, now);
+    return r.authorizationId;
+  } catch (err) {
+    console.warn("Renewing the PayPal hold failed; capturing the original hold:", err);
+    return b.authorizationId;
+  }
 }

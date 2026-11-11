@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   createHoldOrder, authorizeOrder, captureAuthorization, voidAuthorization, getAccessToken, resetTokenCache, PayPalError, MAX_AMOUNT,
-  chargeSavedPayPal, getIdToken,
+  chargeSavedPayPal, getIdToken, reauthorizeAuthorization,
 } from "@/lib/paypal/client";
 import { mockPayPal, pp, setPayPalEnv, verifyPayPalCall } from "../../../helpers/paypal";
 
@@ -302,5 +302,35 @@ describe("getIdToken", () => {
   it("not configured", async () => {
     setPayPalEnv({ PAYPAL_CLIENT_SECRET: undefined });
     await expect(getIdToken()).rejects.toThrow("PayPal credentials are not configured");
+  });
+});
+
+describe("reauthorizeAuthorization (renew a hold after its 3-day guarantee)", () => {
+  it("happy: posts the amount, returns PayPal's new authorization id and expiry", async () => {
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: { id: "AUTH-NEW", status: "CREATED", expiration_time: "2026-12-09T12:00:00Z" } });
+    expect(await reauthorizeAuthorization("AUTH-OLD", "reauth-b1", { value: "112.00", currency: "USD" })).toEqual({ authorizationId: "AUTH-NEW", status: "CREATED", expiresAt: "2026-12-09T12:00:00Z" });
+    verifyPayPalCall(f, 1, { method: "POST", url: `${SANDBOX}/v2/payments/authorizations/AUTH-OLD/reauthorize`, auth: "bearer", requestId: "reauth-b1", body: { amount: { currency_code: "USD", value: "112.00" } } });
+  });
+  it("no expiry in the reply", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: { id: "A2", status: "CREATED" } });
+    expect((await reauthorizeAuthorization("A1", "r", { value: "1.00", currency: "USD" })).expiresAt).toBeNull();
+  });
+  it("an empty reply is an error", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 204 });
+    await expect(reauthorizeAuthorization("A1", "r", { value: "1.00", currency: "USD" })).rejects.toThrow("PayPal didn't return the renewed hold");
+  });
+  it("too soon (inside the honor period) surfaces PayPal's issue", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 422, body: { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "REAUTHORIZATION_TOO_SOON" }], message: "x" } });
+    await expect(reauthorizeAuthorization("A1", "r", { value: "1.00", currency: "USD" })).rejects.toMatchObject({ issue: "REAUTHORIZATION_TOO_SOON" });
+  });
+  it.each([
+    ["bad id", "a b", "r", "1.00", "USD", "Authorization id"],
+    ["no request id", "A1", "", "1.00", "USD", "Request id is required for idempotency"],
+    ["zero amount", "A1", "r", "0.00", "USD", "Amount must be greater than zero"],
+    ["bad currency", "A1", "r", "1.00", "us", "Currency must be a 3-letter code like USD"],
+  ])("rejects %s without calling PayPal", async (_l, id, req, value, currency, msg) => {
+    const f = mockPayPal();
+    await expect(reauthorizeAuthorization(id, req, { value, currency })).rejects.toThrow(msg);
+    expect(f).not.toHaveBeenCalled();
   });
 });

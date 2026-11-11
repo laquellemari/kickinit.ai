@@ -95,6 +95,10 @@ describe("CheckoutPanel", () => {
       fireEvent.change(screen.getByLabelText("Time"), { target: { value: "19:30" } });
       expect(screen.getByRole("button", { name: "PayPal" })).toBeInTheDocument();
     });
+    it("request-to-book dates stop at 27 days out (inside PayPal's hold window)", () => {
+      panel(live);
+      expect(screen.getByLabelText("Date")).toHaveAttribute("max", "2026-12-08");
+    });
     it("the date picker allows today through 89 days out", () => {
       panel();
       expect(screen.getByLabelText("Date")).toHaveAttribute("min", "2026-11-11");

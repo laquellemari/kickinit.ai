@@ -40,6 +40,7 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS overage TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS overage_status TEXT CHECK (overage_status IN ('none', 'charged', 'pay_at_table'));
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS overage_capture_id TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reauthorized_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS bookings_user ON bookings (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS bookings_status ON bookings (status, created_at DESC);
 
