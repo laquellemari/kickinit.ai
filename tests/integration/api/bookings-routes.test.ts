@@ -1,0 +1,154 @@
+// @vitest-environment node
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
+import { POST as create, GET as mine } from "@/app/api/bookings/route";
+import { GET as one } from "@/app/api/bookings/[id]/route";
+import { POST as confirm } from "@/app/api/bookings/[id]/confirm/route";
+import { POST as decline } from "@/app/api/bookings/[id]/decline/route";
+import { GET as adminList } from "@/app/api/admin/bookings/route";
+import { insertBooking } from "@/lib/bookings/repo";
+import { resetTokenCache } from "@/lib/paypal/client";
+import { setDb } from "@/lib/db";
+import { useTestDb } from "../../helpers/db";
+import { createNewBooking } from "../../helpers/factories";
+import { mockPayPal, pp, setPayPalEnv } from "../../helpers/paypal";
+
+const ME = "11111111-1111-4111-8111-111111111111";
+const THEM = "22222222-2222-4222-8222-222222222222";
+const ADMIN = "admin-secret";
+const FUTURE = new Date(Date.now() + 3 * 86_400_000).toISOString();
+
+const req = (o: { method?: string; body?: unknown; visitor?: string | null; admin?: string; url?: string } = {}) => {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (o.visitor !== null) headers.cookie = `theme=dark; kid=${o.visitor ?? ME}`;
+  if (o.admin) headers["x-admin-key"] = o.admin;
+  return new Request(o.url ?? "http://localhost/api/bookings", { method: o.method ?? "GET", headers, body: o.body === undefined ? undefined : JSON.stringify(o.body) });
+};
+const p = (id: string) => ({ params: Promise.resolve({ id }) });
+async function verifyRes(res: Response, expected: { status: number; body?: Record<string, unknown> }) {
+  expect(res.status).toBe(expected.status);
+  const json = await res.json();
+  if (expected.body) expect(json).toMatchObject(expected.body);
+  return json;
+}
+
+let t: Awaited<ReturnType<typeof useTestDb>>;
+beforeAll(async () => { t = await useTestDb(); });
+beforeEach(async () => { await t.reset(); setPayPalEnv(); vi.stubEnv("ADMIN_API_KEY", ADMIN); resetTokenCache(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+
+describe("POST /api/bookings", () => {
+  it("happy: partner booking is placed, charged and returned without private fields", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
+    const body = await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "marea", partySize: "2", startsAt: FUTURE } })), {
+      status: 201, body: { kind: "partner", itemId: "marea", name: "Ristorante Marea", partySize: 2, amount: "180.00", status: "confirmed", paypalOrderId: "O1", startsAt: FUTURE },
+    });
+    expect(body).not.toHaveProperty("userId");
+    expect(body).not.toHaveProperty("authorizationId");
+  });
+  it("400 on validation, before PayPal", async () => {
+    const f = mockPayPal();
+    await verifyRes(await create(req({ method: "POST", body: { orderId: 7, kind: "partner", itemId: "marea", partySize: 2, startsAt: FUTURE } })), { status: 400, body: { error: "Order id is required" } });
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("404 for an unknown experience", async () => {
+    await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "nope", partySize: 2, startsAt: FUTURE } })), { status: 404, body: { error: "Experience not found: nope" } });
+  });
+  describe("access control", () => {
+    it("401 without a visitor cookie", async () => {
+      await verifyRes(await create(req({ method: "POST", visitor: null, body: {} })), { status: 401, body: { error: /couldn't identify your browser/ } as never });
+    });
+    it("401 with a malformed visitor cookie", async () => {
+      await verifyRes(await create(req({ method: "POST", visitor: "not-a-uuid", body: {} })), { status: 401 });
+    });
+  });
+  it("503 when the database isn't configured", async () => {
+    setDb(null);
+    vi.stubEnv("DATABASE_URL", "");
+    await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "marea", partySize: 2, startsAt: FUTURE } })), { status: 503, body: { error: "Database is not configured" } });
+    await t.reset();
+  });
+});
+
+describe("GET /api/bookings (mine)", () => {
+  it("lists only my bookings", async () => {
+    const a = await insertBooking(createNewBooking({ userId: ME }));
+    await insertBooking(createNewBooking({ userId: THEM }));
+    const body = await verifyRes(await mine(req()), { status: 200 });
+    expect(body.bookings.map((b: { id: string }) => b.id)).toEqual([a.id]);
+  });
+  it("401 without a visitor cookie", async () => {
+    await verifyRes(await mine(req({ visitor: null })), { status: 401 });
+  });
+});
+
+describe("GET /api/bookings/:id", () => {
+  it("the owner can see it", async () => {
+    const b = await insertBooking(createNewBooking({ userId: ME }));
+    await verifyRes(await one(req(), p(b.id)), { status: 200, body: { id: b.id, status: "held", holdExpiresAt: "2026-12-13T00:00:00.000Z" } });
+  });
+  it("a booking with no hold expiry shows null", async () => {
+    const b = await insertBooking(createNewBooking({ userId: ME, holdExpiresAt: null }));
+    await verifyRes(await one(req(), p(b.id)), { status: 200, body: { holdExpiresAt: null } });
+  });
+  describe("access control", () => {
+    it("another visitor gets 404 (not 403, so ids don't leak)", async () => {
+      const b = await insertBooking(createNewBooking({ userId: THEM }));
+      await verifyRes(await one(req(), p(b.id)), { status: 404, body: { error: "Booking not found" } });
+    });
+    it("an admin can see anyone's, even without a visitor cookie", async () => {
+      const b = await insertBooking(createNewBooking({ userId: THEM }));
+      await verifyRes(await one(req({ visitor: null, admin: ADMIN }), p(b.id)), { status: 200, body: { id: b.id } });
+    });
+    it("a wrong admin key is treated as a normal visitor", async () => {
+      const b = await insertBooking(createNewBooking({ userId: THEM }));
+      await verifyRes(await one(req({ admin: "wrong" }), p(b.id)), { status: 404 });
+    });
+  });
+  it("a non-UUID id is 404 without touching the database", async () => {
+    await verifyRes(await one(req(), p("../x")), { status: 404 });
+  });
+  it("401 without a cookie when not admin", async () => {
+    await verifyRes(await one(req({ visitor: null }), p("00000000-0000-0000-0000-000000000000")), { status: 401 });
+  });
+});
+
+describe.each([
+  ["confirm", confirm, { status: 201, body: pp.capture() }, "confirmed"],
+  ["decline", decline, { status: 204 }, "declined"],
+] as const)("POST /api/bookings/:id/%s", (action, handler, paypalReply, finalStatus) => {
+  it(`admin can ${action} a held booking`, async () => {
+    const b = await insertBooking(createNewBooking({ kind: "live" }));
+    mockPayPal({ status: 200, body: pp.token() }, paypalReply);
+    await verifyRes(await handler(req({ method: "POST", admin: ADMIN }), p(b.id)), { status: 200, body: { id: b.id, status: finalStatus } });
+  });
+  it("401 without the admin key (the booking's owner can't do it either)", async () => {
+    const b = await insertBooking(createNewBooking({ userId: ME }));
+    const f = mockPayPal();
+    await verifyRes(await handler(req({ method: "POST" }), p(b.id)), { status: 401, body: { error: "Admin key required" } });
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("404 for a bad id", async () => {
+    await verifyRes(await handler(req({ method: "POST", admin: ADMIN }), p("x")), { status: 404 });
+  });
+  it("409 when already final", async () => {
+    const b = await insertBooking(createNewBooking());
+    mockPayPal({ status: 200, body: pp.token() }, paypalReply);
+    await handler(req({ method: "POST", admin: ADMIN }), p(b.id));
+    await verifyRes(await handler(req({ method: "POST", admin: ADMIN }), p(b.id)), { status: 409, body: { error: `Booking is already ${finalStatus}` } });
+  });
+});
+
+describe("GET /api/admin/bookings", () => {
+  it("lists everyone's bookings, filterable by status", async () => {
+    await insertBooking(createNewBooking({ userId: ME }));
+    await insertBooking(createNewBooking({ userId: THEM }));
+    expect((await verifyRes(await adminList(req({ admin: ADMIN, url: "http://x/api/admin/bookings" })), { status: 200 })).bookings).toHaveLength(2);
+    expect((await verifyRes(await adminList(req({ admin: ADMIN, url: "http://x/api/admin/bookings?status=confirmed" })), { status: 200 })).bookings).toHaveLength(0);
+  });
+  it("400 for an unknown status", async () => {
+    await verifyRes(await adminList(req({ admin: ADMIN, url: "http://x/api/admin/bookings?status=paid" })), { status: 400, body: { error: "Status must be one of held, confirmed, declined, failed" } });
+  });
+  it("401 without the admin key", async () => {
+    await verifyRes(await adminList(req({ url: "http://x/api/admin/bookings" })), { status: 401 });
+  });
+});

@@ -160,7 +160,7 @@ describe("confirmBooking / declineBooking (venue's answer)", () => {
       vi.stubGlobal("fetch", vi.fn(async (url: string) => {
         if (url.endsWith("/oauth2/token")) return new Response(JSON.stringify(pp.token()), { status: 200 });
         await transition(b.id, ["held"], "declined"); // someone else finishes first
-        return new Response(paypalReply.body ? JSON.stringify(paypalReply.body) : null, { status: paypalReply.status });
+        return new Response("body" in paypalReply ? JSON.stringify(paypalReply.body) : null, { status: paypalReply.status });
       }));
       await expect(fn(b.id)).rejects.toMatchObject({ status: 409, message: msg });
     },
