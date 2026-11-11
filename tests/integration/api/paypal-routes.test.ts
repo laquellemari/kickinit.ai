@@ -40,6 +40,29 @@ describe("POST /api/paypal/orders", () => {
     const key = new Headers((f.mock.calls[1] as unknown as [string, RequestInit])[1].headers).get("paypal-request-id");
     expect(key).toMatch(UUID);
   });
+  it("accepts the { kind, itemId } form for partners", async () => {
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
+    await verifyResponse(await createOrder(post({ kind: "partner", itemId: "blue-room", partySize: 2 })), { status: 201, body: { quote: { total: "70.00" } } });
+    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("70.00");
+  });
+  it("prices a live venue from Google on the server", async () => {
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "g");
+    const f = mockPayPal(
+      { status: 200, body: { id: "ChIJ1", displayName: { text: "Barbusa" }, primaryType: "italian_restaurant", location: { latitude: 1, longitude: 2 } } },
+      { status: 200, body: pp.token() },
+      { status: 201, body: pp.order() },
+    );
+    await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJ1", partySize: 3 })), { status: 201, body: { quote: { total: "180.00", description: "Barbusa · 3 guests (request)" } } });
+    expect(JSON.parse((f.mock.calls[2] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("180.00");
+  });
+  it("404 for a live venue Google doesn't know", async () => {
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "g");
+    mockPayPal({ status: 404, body: { error: { status: "NOT_FOUND", message: "x" } } });
+    await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJnope", partySize: 2 })), { status: 404, body: { error: "Place not found" } });
+  });
+  it("400 for an unknown kind", async () => {
+    await verifyResponse(await createOrder(post({ kind: "gift", itemId: "marea", partySize: 2 })), { status: 400, body: { error: "Kind must be partner or live" } });
+  });
   it("ignores an amount sent by the browser", async () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
     await createOrder(post({ ...goodOrder, amount: "0.01", currency: "EUR" }));

@@ -73,3 +73,14 @@ export function verifyConcierge(r: ConciergeResult, expected: { reply?: string |
     expect(o.quote.partySize).toBe(expected.partySize);
   }
 }
+
+import type { Booking as StoredBooking } from "@/lib/bookings/repo";
+
+/** Checks a booking's identity, money and state together. */
+export function verifyBooking(b: StoredBooking | null, expected: Partial<StoredBooking> & { status: StoredBooking["status"] }) {
+  expect(b).not.toBeNull();
+  expect(b!.id).toMatch(/^[0-9a-f-]{36}$/);
+  expect(b).toMatchObject(expected);
+  expect(b!.createdAt).toBeInstanceOf(Date);
+  expect(b!.updatedAt.getTime()).toBeGreaterThanOrEqual(b!.createdAt.getTime());
+}

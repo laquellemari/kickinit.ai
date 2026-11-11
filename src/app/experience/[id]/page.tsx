@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/Nav";
-import { BookPanel } from "@/components/BookPanel";
+import { CheckoutPanel } from "@/components/CheckoutPanel";
 import { getExperience } from "@/lib/catalog/catalog";
 import { duration, guests, money } from "@/lib/format";
 
@@ -44,7 +44,11 @@ export default async function ExperiencePage({ params, searchParams }: Props) {
               {e.tags.map((t) => <span key={t} className="tag">{t.replaceAll("_", " ")}</span>)}
             </div>
           </article>
-          <BookPanel experience={e} initialParty={party} />
+          <CheckoutPanel
+            item={{ kind: "partner", itemId: e.id, name: e.name, unitPrice: e.price, perGroup: e.pricing === "per_group", partyMin: e.partyMin, partyMax: e.partyMax }}
+            initialParty={party}
+            clientId={process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? ""}
+          />
         </div>
       </main>
     </div>

@@ -105,7 +105,9 @@ export async function createHoldOrder(input: HoldOrderInput): Promise<{ id: stri
 
 type AuthorizedOrder = {
   id: string;
-  purchase_units?: { payments?: { authorizations?: { id: string; status: string; expiration_time: string }[] } }[];
+  purchase_units?: {
+    payments?: { authorizations?: { id: string; status: string; expiration_time: string; amount?: { value: string; currency_code: string } }[] };
+  }[];
 };
 
 export async function authorizeOrder(orderId: string, requestId: string) {
@@ -114,7 +116,13 @@ export async function authorizeOrder(orderId: string, requestId: string) {
   const order = await call<AuthorizedOrder>(`/v2/checkout/orders/${orderId}/authorize`, requestId, {});
   const auth = order?.purchase_units?.[0]?.payments?.authorizations?.[0];
   if (!auth) throw new Error(`PayPal returned no authorization for order ${orderId}`);
-  return { orderId, authorizationId: auth.id, status: auth.status, expiresAt: auth.expiration_time };
+  return {
+    orderId,
+    authorizationId: auth.id,
+    status: auth.status,
+    expiresAt: auth.expiration_time,
+    amount: auth.amount ? { value: auth.amount.value, currency: auth.amount.currency_code } : null,
+  };
 }
 
 export async function captureAuthorization(authorizationId: string, requestId: string, amount?: Money) {

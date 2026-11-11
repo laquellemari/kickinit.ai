@@ -120,3 +120,12 @@ export const livePick = (overrides: Partial<LivePlace> = {}, partySize = 2, why 
 export const createConciergeResult = (o: Partial<ConciergeResult> = {}): ConciergeResult => ({
   reply: "Here are two good ones.", partySize: 2, options: [partnerPick("marea"), livePick()], ...o,
 });
+
+import type { NewBooking } from "@/lib/bookings/repo";
+
+let orderSeq = 0;
+export const createNewBooking = (overrides: Partial<NewBooking> = {}): NewBooking => ({
+  userId: "user-1", kind: "partner", itemId: "marea", name: "Ristorante Marea", partySize: 2,
+  startsAt: new Date("2026-11-14T19:30:00Z"), amount: "180.00", currency: "USD",
+  paypalOrderId: `ORDER${++orderSeq}`, authorizationId: `AUTH${orderSeq}`, holdExpiresAt: new Date("2026-12-13T00:00:00Z"), ...overrides,
+});

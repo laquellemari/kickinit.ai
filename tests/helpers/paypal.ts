@@ -7,7 +7,7 @@ export const pp = {
   authorizedOrder: (authOverrides: Record<string, unknown> = {}) => ({
     id: "5O190127TN364715T",
     status: "COMPLETED",
-    purchase_units: [{ payments: { authorizations: [{ id: "0AW2184448108334S", status: "CREATED", expiration_time: "2026-12-12T21:20:49Z", ...authOverrides }] } }],
+    purchase_units: [{ payments: { authorizations: [{ id: "0AW2184448108334S", status: "CREATED", expiration_time: "2026-12-12T21:20:49Z", amount: { value: "180.00", currency_code: "USD" }, ...authOverrides }] } }],
   }),
   capture: (overrides: Record<string, unknown> = {}) => ({ id: "7TK53561YB803214S", status: "COMPLETED", ...overrides }),
   error: (name: string, message: string, debug_id = "dbg123") => ({ name, message, debug_id }),

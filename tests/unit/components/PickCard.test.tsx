@@ -13,13 +13,14 @@ describe("PickCard", () => {
     expect(within(card).getByText("$180")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "See details" })).toHaveAttribute("href", "/experience/marea?party=2");
   });
-  it("live: request stamp, estimated hold, opens Google Maps in a new tab", () => {
+  it("live: request stamp, estimated hold, request-to-book link, and Google Maps in a new tab", () => {
     render(<PickCard pick={livePick({}, 3)} partySize={3} />);
     const card = screen.getByRole("article", { name: "Cucina Sorella" });
     expect(within(card).getByText("REQUEST")).toBeInTheDocument();
     expect(within(card).getByText("Est. hold · 3 guests")).toBeInTheDocument();
     expect(within(card).getByText("$180")).toBeInTheDocument();
-    const maps = within(card).getByRole("link", { name: "View on Google Maps" });
+    expect(within(card).getByRole("link", { name: "Request to book" })).toHaveAttribute("href", "/request/ChIJsd1?party=3");
+    const maps = within(card).getByRole("link", { name: "Map" });
     expect(maps).toHaveAttribute("href", "https://maps.google.com/?cid=1");
     expect(maps).toHaveAttribute("target", "_blank");
     expect(maps).toHaveAttribute("rel", "noopener noreferrer");

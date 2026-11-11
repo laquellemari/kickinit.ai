@@ -1,8 +1,15 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { BookingError } from "@/lib/bookings/service";
+import { PlacesError } from "@/lib/places/client";
 import { PayPalError } from "./client";
 
-const CONFIG_ERRORS = ["PayPal credentials are not configured", "PAYPAL_ENV must be sandbox or live"];
+const CONFIG_ERRORS = [
+  "PayPal credentials are not configured",
+  "PAYPAL_ENV must be sandbox or live",
+  "Database is not configured",
+  "Live search is not configured",
+];
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -31,7 +38,12 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
 }
 
 export function toResponse(err: unknown): NextResponse {
-  if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
+  if (err instanceof HttpError || err instanceof BookingError) return NextResponse.json({ error: err.message }, { status: err.status });
+  if (err instanceof PlacesError) {
+    return err.status === 404
+      ? NextResponse.json({ error: "Place not found" }, { status: 404 })
+      : NextResponse.json({ error: "Live venue lookup failed. Try again in a moment." }, { status: 502 });
+  }
   if (err instanceof PayPalError) {
     const status = err.status >= 500 ? 502 : err.status;
     return NextResponse.json({ error: err.message, issue: err.issue, debugId: err.debugId }, { status });
@@ -39,7 +51,9 @@ export function toResponse(err: unknown): NextResponse {
   const message = err instanceof Error ? err.message : "Unexpected error";
   if (CONFIG_ERRORS.includes(message)) return NextResponse.json({ error: message }, { status: 503 });
   if (message.startsWith("Experience not found")) return NextResponse.json({ error: message }, { status: 404 });
-  if (err instanceof Error && !(err instanceof TypeError)) return NextResponse.json({ error: message }, { status: 400 });
-  console.error("Unhandled PayPal route error:", err);
+  // Database driver errors carry a string `code`; never show their messages to users.
+  const isDbError = typeof (err as { code?: unknown })?.code === "string";
+  if (err instanceof Error && !(err instanceof TypeError) && !isDbError) return NextResponse.json({ error: message }, { status: 400 });
+  console.error("Unhandled route error:", err);
   return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
 }
