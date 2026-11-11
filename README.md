@@ -74,7 +74,7 @@ To deploy your own copy, create a Render Blueprint from this repo; `render.yaml`
 ## Tests
 
 ```bash
-npm test          # 897 unit + integration tests
+npm test          # 921 unit + integration tests
 npm run coverage  # 100% statements, branches, functions and lines
 npm run lint
 ```

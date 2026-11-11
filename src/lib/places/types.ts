@@ -13,6 +13,12 @@ export type LivePlace = {
   mapsUrl: string;
   /** Estimated price per person, used to size the PayPal hold. Decimal string. */
   estimatePerPerson: string;
+  /** Where the estimate came from, shown to the guest. */
+  estimateBasis: string;
+  /** Google's description of the venue (venue page only). */
+  summary: string | null;
+  rating: number | null;
+  ratingCount: number;
   city: string;
   /** ISO country code, e.g. "US". */
   country: string;

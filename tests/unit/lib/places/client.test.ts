@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { searchLivePlaces, getLivePlace, estimateFor, FIELD_MASK, PlacesError } from "@/lib/places/client";
+import { searchLivePlaces, getLivePlace, estimateFor, FIELD_MASK, DETAIL_MASK, PlacesError } from "@/lib/places/client";
 import { mockPayPal as mockFetch } from "../../../helpers/paypal";
 
 const gPlace = (o: Record<string, unknown> = {}) => ({
@@ -18,10 +18,10 @@ beforeEach(() => vi.stubEnv("GOOGLE_PLACES_API_KEY", "g-key"));
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 describe("searchLivePlaces", () => {
-  it("happy: POSTs a Text Search with the key and a Pro-only field mask", async () => {
+  it("happy: POSTs a Text Search with the key and the field mask", async () => {
     const f = mockFetch({ status: 200, body: { places: [gPlace()] } });
     const r = await searchLivePlaces("romantic italian dinner in San Diego");
-    verifyLivePlace(r[0], { name: "Cucina Sorella", category: "culinary", estimate: "60.00" });
+    verifyLivePlace(r[0], { name: "Cucina Sorella", category: "culinary", estimate: "40.00" });
     expect(r[0]).toMatchObject({ address: "1 Main St, San Diego, CA", lat: 32.7, lng: -117.16, typeLabel: "Italian restaurant", mapsUrl: "https://maps.google.com/?cid=1" });
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     const h = new Headers(init.headers);
@@ -50,8 +50,9 @@ describe("searchLivePlaces", () => {
     expect(uk).toMatchObject({ city: "London", country: "GB" });
     expect(bare).toMatchObject({ city: "", country: "", utcOffsetMinutes: null, primaryType: null });
   });
-  it("the field mask never includes Enterprise-priced fields", () => {
-    for (const f of ["rating", "priceLevel", "userRatingCount", "websiteUri", "regularOpeningHours", "reviews"]) expect(FIELD_MASK).not.toContain(f);
+  it("search asks for price data but not the per-venue extras (rating, reviews, hours, description)", () => {
+    for (const f of ["rating", "userRatingCount", "websiteUri", "regularOpeningHours", "reviews", "editorialSummary"]) expect(FIELD_MASK).not.toContain(f);
+    expect(FIELD_MASK).toContain("places.priceLevel");
   });
   it("drops closed businesses", async () => {
     mockFetch({ status: 200, body: { places: [gPlace({ businessStatus: "CLOSED_PERMANENTLY" }), gPlace({ id: "B", businessStatus: "CLOSED_TEMPORARILY" }), gPlace({ id: "C", businessStatus: undefined })] } });
@@ -98,13 +99,13 @@ describe("searchLivePlaces", () => {
 });
 
 describe("getLivePlace", () => {
-  it("fetches one place by id with the same field mask", async () => {
+  it("fetches one place by id with the detail field mask", async () => {
     const f = mockFetch({ status: 200, body: gPlace({ id: "ChIJabc" }) });
-    verifyLivePlace(await getLivePlace("ChIJabc"), { name: "Cucina Sorella", category: "culinary", estimate: "60.00" });
+    verifyLivePlace(await getLivePlace("ChIJabc"), { name: "Cucina Sorella", category: "culinary", estimate: "40.00" });
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://places.googleapis.com/v1/places/ChIJabc");
     expect(init.method).toBe("GET");
-    expect(new Headers(init.headers).get("x-goog-fieldmask")).toBe(FIELD_MASK.replaceAll("places.", ""));
+    expect(new Headers(init.headers).get("x-goog-fieldmask")).toBe(DETAIL_MASK);
   });
   it("rejects an unsafe id without calling Google", async () => {
     const f = mockFetch();
@@ -124,8 +125,8 @@ describe("getLivePlace", () => {
 
 describe("estimateFor", () => {
   it.each([
-    ["italian_restaurant", "culinary", "60.00"], ["restaurant", "culinary", "60.00"], ["cafe", "culinary", "20.00"], ["bakery", "culinary", "20.00"],
-    ["spa", "wellness", "120.00"], ["massage", "wellness", "120.00"], ["sauna", "wellness", "120.00"],
+    ["italian_restaurant", "culinary", "40.00"], ["restaurant", "culinary", "40.00"], ["cafe", "culinary", "20.00"], ["bakery", "culinary", "20.00"],
+    ["spa", "wellness", "100.00"], ["massage", "wellness", "100.00"], ["sauna", "wellness", "100.00"],
     ["gym", "movement", "35.00"], ["yoga_studio", "movement", "35.00"], ["fitness_center", "movement", "35.00"],
     ["museum", "culture", "30.00"], ["art_gallery", "culture", "30.00"], ["performing_arts_theater", "culture", "70.00"],
     ["night_club", "nightlife", "45.00"], ["bar", "nightlife", "45.00"], ["karaoke", "nightlife", "45.00"],

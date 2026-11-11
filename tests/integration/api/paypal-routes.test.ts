@@ -52,8 +52,8 @@ describe("POST /api/paypal/orders", () => {
       { status: 200, body: pp.token() },
       { status: 201, body: pp.order() },
     );
-    await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJ1", partySize: 3 })), { status: 201, body: { quote: { total: "180.00", description: "Barbusa · 3 guests (request)" } } });
-    expect(JSON.parse((f.mock.calls[2] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("180.00");
+    await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJ1", partySize: 3 })), { status: 201, body: { quote: { total: "120.00", description: "Barbusa · 3 guests (request)" } } });
+    expect(JSON.parse((f.mock.calls[2] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("120.00");
   });
   it("404 for a live venue Google doesn't know", async () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "g");
