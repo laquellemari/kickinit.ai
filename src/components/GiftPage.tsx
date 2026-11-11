@@ -4,6 +4,7 @@ import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { useCallback, useEffect, useState } from "react";
 import type { GiftView } from "@/lib/gifts/view";
 import { guests, money } from "@/lib/format";
+import { AddOns } from "./AddOns";
 
 function CopyBox({ label, url }: { label: string; url: string }) {
   const [copied, setCopied] = useState(false);
@@ -77,6 +78,7 @@ export function GiftPage({ id, clientId, origin }: { id: string; clientId: strin
   }
 
   return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
     <div className="detail-grid">
       <article className="concierge-card" aria-label="Gift" style={{ gap: 16 }}>
         <h2 className="display" style={{ margin: 0, fontSize: 40 }}>A gift for {g.recipientName}</h2>
@@ -139,6 +141,8 @@ export function GiftPage({ id, clientId, origin }: { id: string; clientId: strin
           </p>
         </aside>
       )}
+    </div>
+    {g.status !== "expired" && <AddOns experienceId={g.experienceId} recipientName={g.recipientName} />}
     </div>
   );
 }

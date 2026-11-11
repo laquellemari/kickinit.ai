@@ -10,10 +10,15 @@ const view = (o: Record<string, unknown> = {}) => ({
   contributors: [{ name: "Ana", amount: "50.00" }], isOrganizer: false, redeemCode: null, ...o,
 });
 type Reply = { status: number; body: unknown };
+/** Replies in order for app calls; /api/addons always answers with none (covered in AddOns tests). */
 function mockApi(...replies: Reply[]) {
-  const f = vi.fn(async () => { const r = replies.shift()!; return new Response(JSON.stringify(r.body), { status: r.status }); });
-  vi.stubGlobal("fetch", f);
-  return f;
+  const all = vi.fn(async (url: string) => {
+    if (url.startsWith("/api/addons")) return new Response(JSON.stringify({ addOns: [] }));
+    const r = replies.shift()!;
+    return new Response(JSON.stringify(r.body), { status: r.status });
+  });
+  vi.stubGlobal("fetch", all);
+  return { mock: { get calls() { return all.mock.calls.filter((c) => !(c[0] as string).startsWith("/api/addons")); } } } as unknown as ReturnType<typeof vi.fn>;
 }
 const call = (f: ReturnType<typeof vi.fn>, n: number) => {
   const [url, init] = f.mock.calls[n] as unknown as [string, RequestInit | undefined];
@@ -214,10 +219,12 @@ describe("GiftPage", () => {
   });
   it("shows progress while adding your share", async () => {
     let release!: (r: Response) => void;
-    vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify(view()), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "O" }), { status: 201 }))
-      .mockReturnValueOnce(new Promise<Response>((r) => { release = r; })));
+    const queue: (() => Promise<Response>)[] = [
+      async () => new Response(JSON.stringify(view()), { status: 200 }),
+      async () => new Response(JSON.stringify({ id: "O" }), { status: 201 }),
+      () => new Promise<Response>((r) => { release = r; }),
+    ];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.startsWith("/api/addons") ? new Response(JSON.stringify({ addOns: [] })) : queue.shift()!())));
     page();
     await screen.findByLabelText("Your name");
     chipIn();
