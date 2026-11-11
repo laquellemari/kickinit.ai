@@ -1,14 +1,22 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { PayPalAgentToolkit } from "@paypal/agent-toolkit/ai-sdk";
-import type { ToolSet } from "ai";
+import { wrapLanguageModel, type LanguageModelV1Middleware, type ToolSet } from "ai";
 import { searchLivePlaces } from "@/lib/places/client";
 import type { SearchLive } from "./agent";
 
 export const DEFAULT_MODEL = "claude-sonnet-5-5";
 
+/**
+ * AI SDK v4 always sends temperature (defaulting to 0), but current Claude models reject it.
+ * Strip it so the request uses the model's default.
+ */
+export const stripTemperature: LanguageModelV1Middleware = {
+  transformParams: async ({ params }) => ({ ...params, temperature: undefined }),
+};
+
 export function conciergeModel() {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("Concierge is not configured");
-  return anthropic(process.env.CONCIERGE_MODEL || DEFAULT_MODEL);
+  return wrapLanguageModel({ model: anthropic(process.env.CONCIERGE_MODEL || DEFAULT_MODEL), middleware: stripTemperature });
 }
 
 /** PayPal Agent Toolkit tools for the concierge: read-only order lookup. Empty when PayPal isn't configured. */
