@@ -66,9 +66,10 @@ export function verifyConcierge(r: ConciergeResult, expected: { reply?: string |
   if (expected.reply instanceof RegExp) expect(r.reply).toMatch(expected.reply);
   else if (expected.reply !== undefined) expect(r.reply).toBe(expected.reply);
   expect(r.partySize).toBe(expected.partySize);
-  expect(r.options.map((o) => ({ id: o.experience.id, total: o.quote.total }))).toEqual(expected.picks);
+  expect(r.options.map((o) => ({ id: o.kind === "partner" ? o.experience.id : o.place.id, total: o.quote.total }))).toEqual(expected.picks);
   for (const o of r.options) {
-    expect(o.experience.total).toBe(o.quote.total);
+    if (o.kind === "partner") expect(o.experience.total).toBe(o.quote.total);
+    else expect(o.quote.description).toMatch(/\(request\)$/);
     expect(o.quote.partySize).toBe(expected.partySize);
   }
 }
