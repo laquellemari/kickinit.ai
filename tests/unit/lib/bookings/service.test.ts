@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { placeBooking, confirmBooking, declineBooking, parseStartsAt, BookingError, type PlaceBookingInput } from "@/lib/bookings/service";
+import { placeBooking, confirmBooking, declineBooking, closeBill, parseStartsAt, BookingError, type PlaceBookingInput } from "@/lib/bookings/service";
 import { getBooking, getBookingByOrder, insertBooking, transition } from "@/lib/bookings/repo";
 import { resetTokenCache } from "@/lib/paypal/client";
 import { useTestDb } from "../../../helpers/db";
@@ -41,15 +41,15 @@ describe("placeBooking", () => {
       const f = mockPayPal(
         { status: 200, body: gPlace },
         { status: 200, body: pp.token() },
-        { status: 201, body: pp.authorizedOrder({ amount: { value: "80.00", currency_code: "USD" } }) },
+        { status: 201, body: pp.authorizedOrder({ amount: { value: "100.00", currency_code: "USD" } }) },
       );
       const b = await placeBooking(input({ kind: "live", itemId: "gp:ChIJ1" }));
-      verifyBooking(b, { status: "held", kind: "live", itemId: "gp:ChIJ1", name: "Barbusa", amount: "80.00", captureId: null });
+      verifyBooking(b, { status: "held", kind: "live", itemId: "gp:ChIJ1", name: "Barbusa", amount: "100.00", captureId: null });
       expect(urls(f).filter((u) => u.includes("capture"))).toEqual([]);
     });
 
     it("a hold with no expiry from PayPal is saved with a null expiry", async () => {
-      mockPayPal({ status: 200, body: gPlace }, { status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder({ amount: { value: "80.00", currency_code: "USD" }, expiration_time: undefined }) });
+      mockPayPal({ status: 200, body: gPlace }, { status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder({ amount: { value: "100.00", currency_code: "USD" }, expiration_time: undefined }) });
       verifyBooking(await placeBooking(input({ kind: "live", itemId: "gp:ChIJ1" })), { status: "held", holdExpiresAt: null });
     });
 
@@ -125,8 +125,25 @@ describe("parseStartsAt boundaries", () => {
 });
 
 describe("confirmBooking / declineBooking (venue's answer)", () => {
-  it("confirm: captures with a stable idempotency key → confirmed", async () => {
-    const b = await insertBooking(createNewBooking({ kind: "live", authorizationId: "AUTHX" }));
+  it("confirm a request-to-book: reserved, nothing charged (the hold waits for the bill)", async () => {
+    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1", authorizationId: "AUTHL", fee: "4.00" }));
+    const f = mockPayPal();
+    verifyBooking(await confirmBooking(b.id), { status: "confirmed", captureId: null });
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("confirm a request-to-book that changes mid-call → 409", async () => {
+    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1" }));
+    const { getDb } = await import("@/lib/db");
+    const db = await getDb();
+    const orig = db.query.bind(db);
+    vi.spyOn(db, "query").mockImplementation(async (...a: Parameters<typeof db.query>) => {
+      if (String(a[0]).includes("SET status")) await orig("UPDATE bookings SET status = 'declined' WHERE id = $1", [b.id]);
+      return orig(...a);
+    });
+    await expect(confirmBooking(b.id)).rejects.toMatchObject({ status: 409, message: "Booking changed while confirming" });
+  });
+  it("confirm a partner: captures with a stable idempotency key → confirmed", async () => {
+    const b = await insertBooking(createNewBooking({ kind: "partner", authorizationId: "AUTHX" }));
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture({ id: "CAPX" }) });
     verifyBooking(await confirmBooking(b.id), { status: "confirmed", captureId: "CAPX" });
     expect(new Headers((f.mock.calls[1] as unknown as [string, RequestInit])[1].headers).get("paypal-request-id")).toBe(`capture-${b.id}`);
@@ -167,5 +184,135 @@ describe("confirmBooking / declineBooking (venue's answer)", () => {
   );
   it("BookingError carries a status", () => {
     expect(new BookingError(418, "x")).toMatchObject({ name: "BookingError", status: 418, message: "x" });
+  });
+});
+
+describe("placeBooking stores the fee and the saved PayPal (option 3)", () => {
+  it("live with consent: fee from the quote, vault id from PayPal", async () => {
+    mockPayPal(
+      { status: 200, body: gPlace },
+      { status: 200, body: pp.token() },
+      { status: 201, body: { ...pp.authorizedOrder({ amount: { value: "100.00", currency_code: "USD" } }), payment_source: { paypal: { attributes: { vault: { id: "VLT1", status: "VAULTED" } } } } } },
+    );
+    const b = await placeBooking(input({ kind: "live", itemId: "gp:ChIJ1" }));
+    expect(b).toMatchObject({ fee: "4.00", vaultId: "VLT1", settlement: null });
+  });
+  it("partner: no fee, no saved PayPal", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
+    expect(await placeBooking(input())).toMatchObject({ fee: null, vaultId: null });
+  });
+});
+
+describe("closeBill (pay the venue's bill from the hold)", () => {
+  // Hold $100 = $80 estimated bill + $16 headroom + $4 fee.
+  const live = async (o: Parameters<typeof createNewBooking>[0] = {}) => {
+    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1", name: "Barbusa", amount: "100.00", fee: "4.00", authorizationId: "AUTHB", ...o }));
+    await transition(b.id, ["held"], "confirmed");
+    return b;
+  };
+  const captureBody = (f: ReturnType<typeof vi.fn>, n = 1) => JSON.parse((f.mock.calls[n] as unknown as [string, RequestInit])[1].body as string);
+  const reqId = (f: ReturnType<typeof vi.fn>, n: number) => new Headers((f.mock.calls[n] as unknown as [string, RequestInit])[1].headers).get("paypal-request-id");
+
+  it("bill under the hold: captures bill + fee, releases the rest, nothing owed", async () => {
+    const b = await live();
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture({ id: "CAP1" }) });
+    const s = await closeBill({ id: b.id, billTotal: "72.50", now: NOW });
+    expect(urls(f)[1]).toBe("/v2/payments/authorizations/AUTHB/capture");
+    expect(captureBody(f)).toEqual({ final_capture: true, amount: { value: "76.50", currency_code: "USD" } });
+    expect(reqId(f, 1)).toBe(`settle-${b.id}`);
+    expect(s).toMatchObject({ captureId: "CAP1", settlement: { billTotal: "72.50", capturedTotal: "76.50", overage: "0.00", overageStatus: "none", overageCaptureId: null, settledAt: NOW } });
+  });
+  it("boundary: bill + fee exactly equal to the hold is all captured, nothing over", async () => {
+    const b = await live();
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
+    expect((await closeBill({ id: b.id, billTotal: "96.00", now: NOW })).settlement).toMatchObject({ capturedTotal: "100.00", overage: "0.00", overageStatus: "none" });
+  });
+  it("over the hold with consent: whole hold captured, the rest charged to the saved PayPal", async () => {
+    const b = await live({ vaultId: "VLT1" });
+    const f = mockPayPal(
+      { status: 200, body: pp.token() },
+      { status: 201, body: pp.capture({ id: "CAP2" }) },
+      { status: 201, body: { id: "ORD2", status: "COMPLETED", purchase_units: [{ payments: { captures: [{ id: "OVR2", status: "COMPLETED" }] } }] } },
+    );
+    const s = await closeBill({ id: b.id, billTotal: "120.00", now: NOW });
+    expect(captureBody(f)).toEqual({ final_capture: true, amount: { value: "100.00", currency_code: "USD" } });
+    expect(captureBody(f, 2)).toMatchObject({ intent: "CAPTURE", payment_source: { paypal: { vault_id: "VLT1" } }, purchase_units: [{ amount: { value: "24.00" }, description: "Barbusa: bill above the hold", reference_id: b.id }] });
+    expect(reqId(f, 2)).toBe(`overage-${b.id}`);
+    expect(s.settlement).toMatchObject({ billTotal: "120.00", capturedTotal: "100.00", overage: "24.00", overageStatus: "charged", overageCaptureId: "OVR2" });
+  });
+  it("boundary: 1 cent over the hold is charged to the saved PayPal", async () => {
+    const b = await live({ vaultId: "VLT1" });
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() }, { status: 201, body: { id: "O", status: "COMPLETED", purchase_units: [{ payments: { captures: [{ id: "C", status: "COMPLETED" }] } }] } });
+    expect((await closeBill({ id: b.id, billTotal: "96.01", now: NOW })).settlement).toMatchObject({ overage: "0.01", overageStatus: "charged" });
+  });
+  it("over the hold without consent: the guest pays the difference at the table (option 4)", async () => {
+    const b = await live();
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
+    expect((await closeBill({ id: b.id, billTotal: "120.00", now: NOW })).settlement).toMatchObject({ overage: "24.00", overageStatus: "pay_at_table", overageCaptureId: null });
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+  it("saved PayPal declines: falls back to paying at the table, and logs why", async () => {
+    const b = await live({ vaultId: "VLT1" });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() }, { status: 422, body: { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "INSTRUMENT_DECLINED" }], message: "declined" } });
+    expect((await closeBill({ id: b.id, billTotal: "120.00", now: NOW })).settlement).toMatchObject({ overageStatus: "pay_at_table", overage: "24.00" });
+    expect(err.mock.calls[0][0]).toContain("pays the rest at the table");
+  });
+  it("accepts a number and a missing fee (counts as $0)", async () => {
+    const b = await live({ fee: null });
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
+    expect((await closeBill({ id: b.id, billTotal: 50, now: NOW })).settlement).toMatchObject({ billTotal: "50.00", capturedTotal: "50.00" });
+  });
+  it.each([
+    [undefined, "Enter the final bill, like 96.50"], ["", "Enter the final bill, like 96.50"], ["abc", "Enter the final bill, like 96.50"],
+    ["-5", "Enter the final bill, like 96.50"], ["0.00", "Enter the final bill, like 96.50"], ["10.123", "Enter the final bill, like 96.50"],
+    ["10000.01", "The bill can't be more than $10000.00"],
+  ])("rejects bill %j without touching PayPal", async (billTotal, msg) => {
+    const b = await live();
+    const f = mockPayPal();
+    await expect(closeBill({ id: b.id, billTotal })).rejects.toMatchObject({ status: 400, message: msg });
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("boundary: $0.01 and $10,000.00 bills are accepted", async () => {
+    for (const billTotal of ["0.01", "10000.00"]) {
+      const b = await live({ amount: "10000.00", fee: null });
+      mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
+      expect((await closeBill({ id: b.id, billTotal })).settlement!.billTotal).toBe(billTotal);
+      resetTokenCache();
+    }
+  });
+  it("unknown booking → 404", async () => {
+    await expect(closeBill({ id: "00000000-0000-0000-0000-000000000000", billTotal: "10" })).rejects.toMatchObject({ status: 404 });
+  });
+  it("partner bookings have no bill to close", async () => {
+    const b = await insertBooking(createNewBooking({ kind: "partner" }));
+    await expect(closeBill({ id: b.id, billTotal: "10" })).rejects.toMatchObject({ status: 409, message: "Only request-to-book bookings have a bill to close" });
+  });
+  it("not yet confirmed by the venue → 409", async () => {
+    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1" }));
+    await expect(closeBill({ id: b.id, billTotal: "10" })).rejects.toMatchObject({ status: 409, message: "The venue has to confirm the booking before the bill can be closed" });
+  });
+  it("closing twice → 409 the second time, PayPal not called again", async () => {
+    const b = await live();
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
+    await closeBill({ id: b.id, billTotal: "50" });
+    const f = mockPayPal();
+    await expect(closeBill({ id: b.id, billTotal: "50" })).rejects.toMatchObject({ status: 409, message: "This bill is already closed" });
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("capture fails (e.g. the hold expired): nothing recorded, can retry", async () => {
+    const b = await live();
+    mockPayPal({ status: 200, body: pp.token() }, { status: 422, body: pp.error("AUTHORIZATION_EXPIRED", "Expired") });
+    await expect(closeBill({ id: b.id, billTotal: "50" })).rejects.toMatchObject({ issue: "AUTHORIZATION_EXPIRED" });
+    expect((await getBooking(b.id))!.settlement).toBeNull();
+  });
+  it("a race where someone else closes it mid-call → 409", async () => {
+    const b = await live();
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.endsWith("/oauth2/token")) return new Response(JSON.stringify(pp.token()), { status: 200 });
+      await transition(b.id, ["confirmed"], "failed");
+      return new Response(JSON.stringify(pp.capture()), { status: 201 });
+    }));
+    await expect(closeBill({ id: b.id, billTotal: "50" })).rejects.toMatchObject({ status: 409, message: "Booking changed while closing the bill" });
   });
 });

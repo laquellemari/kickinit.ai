@@ -29,7 +29,7 @@ describe("/request/[placeId]", () => {
     expect(screen.getByText("1917 India St, San Diego")).toBeInTheDocument();
     expect(screen.getByText("Request to book")).toBeInTheDocument();
     expect((screen.getByLabelText("Guests") as HTMLSelectElement).value).toBe("3");
-    expect(screen.getByTestId("total")).toHaveTextContent("$180");
+    expect(screen.getByTestId("total")).toHaveTextContent("$220");
     expect(screen.getByRole("link", { name: "View on Google Maps" })).toHaveAttribute("href", "https://maps.google.com/x");
   });
   it("about: Google's description, rating and how the hold was estimated", async () => {

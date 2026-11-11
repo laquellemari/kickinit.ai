@@ -45,12 +45,16 @@ describe("CheckoutPanel", () => {
       expect(call(f, 1)).toEqual({ url: "/api/bookings", body: { orderId: "ORDER-9", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: new Date(2026, 10, 14, 19, 30).toISOString() } });
       expect(paypalReact.options).toEqual({ clientId: "client-123", intent: "authorize", currency: "USD" });
     });
-    it("live: labelled as a request with an estimate, and the copy explains the hold", () => {
+    it("live: shows what the hold is made of (bill + 20% + $4 fee) and when you're charged", () => {
       panel(live, { party: 3 });
       expect(screen.getByText("Request to book")).toBeInTheDocument();
-      expect(screen.getByText("Est. $60 × 3 guests")).toBeInTheDocument();
-      expect(screen.getByTestId("total")).toHaveTextContent("$180");
-      expect(screen.getByText(/only charged once the venue confirms/)).toBeInTheDocument();
+      const lines = screen.getByRole("group", { name: "What PayPal holds" });
+      expect(lines).toHaveTextContent("Est. bill ($60 × 3 guests)$180");
+      expect(lines).toHaveTextContent("Room for tip and extras (20%)$36");
+      expect(lines).toHaveTextContent("kickinit booking fee$4");
+      expect(screen.getByText("PayPal holds")).toBeInTheDocument();
+      expect(screen.getByTestId("total")).toHaveTextContent("$220");
+      expect(screen.getByText(/Nothing is charged until the venue confirms and the bill closes/)).toBeInTheDocument();
     });
     it("changing guests updates the total and what's ordered", async () => {
       const f = mockApi({ status: 201, body: { id: "O" } }, { status: 201, body: { id: "b" } });
@@ -161,5 +165,71 @@ describe("CheckoutPanel", () => {
   it("defaults now to the current time", () => {
     render(<CheckoutPanel item={partner} initialParty={2} clientId="c" />);
     expect(screen.getByLabelText("Date")).toHaveAttribute("min");
+  });
+
+  describe("charging a bill above the hold to saved PayPal (option 3)", () => {
+    const consent = () => screen.getByRole("checkbox", { name: /charge the difference to my PayPal/ });
+    it("off by default: nothing saved, no id token fetched, partners never see it", () => {
+      const f = mockApi();
+      const { unmount } = panel(live);
+      expect(consent()).not.toBeChecked();
+      expect(f).not.toHaveBeenCalled();
+      unmount();
+      panel(partner);
+      expect(screen.queryByRole("checkbox")).toBeNull();
+    });
+    it("ticked: fetches an id token, hands it to PayPal's script, and asks to save PayPal with the hold", async () => {
+      const f = mockApi({ status: 200, body: { idToken: "eyJ.tok" } }, { status: 201, body: { id: "O" } }, { status: 201, body: { id: "bk" } });
+      panel(live);
+      pick();
+      fireEvent.click(consent());
+      expect(screen.getByRole("status")).toHaveTextContent("Setting up PayPal");
+      fireEvent.click(await screen.findByRole("button", { name: "PayPal" }));
+      await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/booking/bk"));
+      expect((f.mock.calls[0] as unknown as [string])[0]).toBe("/api/paypal/id-token");
+      expect(call(f, 1).body).toEqual({ kind: "live", itemId: "gp:ChIJ1", partySize: 2, savePayPal: true });
+      expect(paypalReact.options).toEqual({ clientId: "client-123", intent: "authorize", currency: "USD", dataUserIdToken: "eyJ.tok" });
+    });
+    it("unticking again books without saving (token kept for later)", async () => {
+      const f = mockApi({ status: 200, body: { idToken: "t" } }, { status: 201, body: { id: "O" } }, { status: 201, body: { id: "bk" } });
+      panel(live);
+      pick();
+      fireEvent.click(consent());
+      await screen.findByRole("button", { name: "PayPal" });
+      fireEvent.click(consent());
+      fireEvent.click(screen.getByRole("button", { name: "PayPal" }));
+      await waitFor(() => expect(routerPush).toHaveBeenCalled());
+      expect(call(f, 1).body).toEqual({ kind: "live", itemId: "gp:ChIJ1", partySize: 2 });
+      expect(paypalReact.options).toEqual({ clientId: "client-123", intent: "authorize", currency: "USD" });
+    });
+    it.each([[{ status: 500, body: { error: "PayPal id token failed" } }], [{ status: 429, body: {} }]])("token can't be fetched: unticks and explains (%j)", async (reply) => {
+      mockApi(reply);
+      panel(live);
+      pick();
+      fireEvent.click(consent());
+      expect(await screen.findByRole("alert")).toHaveTextContent("You can still book; any difference is paid at the table.");
+      expect(consent()).not.toBeChecked();
+      expect(screen.getByRole("button", { name: "PayPal" })).toBeInTheDocument();
+      fireEvent.click(consent());
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+    it("a token that arrives after leaving the page is ignored", async () => {
+      let release!: (r: Response) => void;
+      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { release = r; })));
+      const { unmount } = panel(live);
+      fireEvent.click(consent());
+      unmount();
+      release(new Response(JSON.stringify({ idToken: "late" }), { status: 200 }));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    it("a failure that arrives after leaving the page is ignored", async () => {
+      let release!: (r: Response) => void;
+      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { release = r; })));
+      const { unmount } = panel(live);
+      fireEvent.click(consent());
+      unmount();
+      release(new Response("{}", { status: 500 }));
+      await new Promise((r) => setTimeout(r, 0));
+    });
   });
 });

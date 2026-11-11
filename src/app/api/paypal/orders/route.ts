@@ -9,7 +9,7 @@ import { readJson, toResponse } from "@/lib/paypal/http";
 
 /**
  * Create a PayPal order that will hold (not charge) the buyer's funds.
- * Body: { kind: "partner" | "live", itemId, partySize } (or the older { experienceId, partySize }),
+ * Body: { kind: "partner" | "live", itemId, partySize, savePayPal? } (or the older { experienceId, partySize }),
  * or { kind: "gift", giftId, amount } to chip in to a gift.
  * The price is looked up on the server; any amount sent is ignored.
  */
@@ -19,13 +19,16 @@ export async function POST(req: Request) {
     if (body.kind === "gift") return NextResponse.json(await giftOrder(body), { status: 201 });
     const legacy = body.kind === undefined;
     if (legacy && (typeof body.experienceId !== "string" || !body.experienceId)) throw new Error("Experience id is required");
-    const { quote: q } = await priceFor(legacy ? "partner" : body.kind, legacy ? body.experienceId : body.itemId, Number(body.partySize));
+    const { kind, quote: q } = await priceFor(legacy ? "partner" : body.kind, legacy ? body.experienceId : body.itemId, Number(body.partySize));
+    // Request-to-book with the guest's OK: save their PayPal so a bill above the hold can go on it (option 3).
+    const back = `${new URL(req.url).origin}/request/${q.experienceId.slice(3)}`;
     const order = await createHoldOrder({
       amount: q.total,
       currency: q.currency,
       description: q.description,
       referenceId: `${q.experienceId}:${randomUUID()}`,
       requestId: randomUUID(),
+      ...(kind === "live" && body.savePayPal === true && { savePayPal: { returnUrl: back, cancelUrl: back } }),
     });
     return NextResponse.json({ ...order, quote: q }, { status: 201 });
   } catch (err) {

@@ -161,7 +161,7 @@ describe("live search (Google Places)", () => {
     ]);
     const r = await runConcierge(input({ where: "San Diego" }), { model, searchLive: async (q) => { asked = q; return sd; } });
     expect(asked).toBe("romantic italian dinner in San Diego");
-    verifyConcierge(r, { reply: "Two lovely options.", partySize: 2, picks: [{ id: "gp:ChIJsd1", total: "120.00" }, { id: "gp:ChIJsd2", total: "240.00" }] });
+    verifyConcierge(r, { reply: "Two lovely options.", partySize: 2, picks: [{ id: "gp:ChIJsd1", total: "148.00" }, { id: "gp:ChIJsd2", total: "292.00" }] });
     expect(r.options.every((o) => o.kind === "live")).toBe(true);
     const toolMsg = (prompts[1] as { role: string; content: { result: unknown }[] }[]).at(-1)!;
     expect(toolMsg.content[0].result).toEqual([
@@ -176,7 +176,7 @@ describe("live search (Google Places)", () => {
       present([{ experienceId: "hugh-spa", why: "Partner." }, { experienceId: "gp:ChIJsd2", why: "Live." }]),
     ]);
     const r = await runConcierge(input(), { model, searchLive: async () => sd });
-    verifyConcierge(r, { partySize: 2, picks: [{ id: "hugh-spa", total: "190.00" }, { id: "gp:ChIJsd2", total: "240.00" }] });
+    verifyConcierge(r, { partySize: 2, picks: [{ id: "hugh-spa", total: "190.00" }, { id: "gp:ChIJsd2", total: "292.00" }] });
     expect(r.options.slice(0, 2).map((o) => o.kind)).toEqual(["partner", "live"]);
   });
 
@@ -192,7 +192,7 @@ describe("live search (Google Places)", () => {
       { tool: "search_live_places", args: { query: "x in y" } },
       present([{ experienceId: "gp:ChIJsd1", why: "a" }, { experienceId: "gp:ChIJsd1", why: "b" }]),
     ]);
-    verifyConcierge(await runConcierge(input(), { model, searchLive: async () => sd }), { partySize: 2, picks: [{ id: "gp:ChIJsd1", total: "120.00" }] });
+    verifyConcierge(await runConcierge(input(), { model, searchLive: async () => sd }), { partySize: 2, picks: [{ id: "gp:ChIJsd1", total: "148.00" }] });
   });
 
   it("a live search failure is told to the model, logged, and doesn't crash", async () => {

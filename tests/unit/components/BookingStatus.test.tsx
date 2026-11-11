@@ -74,4 +74,22 @@ describe("BookingStatus", () => {
     render(<BookingStatus id="x" />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load this booking.");
   });
+
+  it("request-to-book shows its own copy, and pay-at-table is an alert with an outlined stamp", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(booking({ kind: "live", status: "confirmed", fee: "4.00", overageConsent: false,
+      settlement: { billTotal: "120.00", capturedTotal: "100.00", overage: "24.00", overageStatus: "pay_at_table", settledAt: "x" }, amount: "100.00" })))));
+    render(<BookingStatus id="b1" />);
+    expect(await screen.findByRole("heading", { name: "Almost done." })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Please pay the remaining $24 at the table.");
+    expect(screen.getByText("PAY AT TABLE")).toHaveClass("stamp-live");
+    expect(screen.getByText("Charged")).toBeInTheDocument();
+  });
+  it("a paid request-to-book bill has a filled stamp and no alert", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(booking({ kind: "live", status: "confirmed", fee: "4.00", overageConsent: true,
+      settlement: { billTotal: "80.00", capturedTotal: "84.00", overage: "0.00", overageStatus: "none", settledAt: "x" }, amount: "100.00" })))));
+    render(<BookingStatus id="b1" />);
+    expect(await screen.findByRole("heading", { name: "Bill paid." })).toBeInTheDocument();
+    expect(screen.getByText("PAID")).not.toHaveClass("stamp-live");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });

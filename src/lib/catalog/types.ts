@@ -37,4 +37,8 @@ export type SearchParams = {
 
 export type SearchResult = Experience & { distanceKm?: number; total: string };
 
-export type Quote = { experienceId: string; partySize: number; unitPrice: string; total: string; currency: string; description: string };
+export type Quote = {
+  experienceId: string; partySize: number; unitPrice: string; total: string; currency: string; description: string;
+  /** Request-to-book only: what the hold is made of. */
+  breakdown?: { billEstimate: string; headroom: string; fee: string };
+};

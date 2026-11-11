@@ -1,5 +1,5 @@
-import { authorizeOrder, captureAuthorization, voidAuthorization } from "@/lib/paypal/client";
-import { getBooking, getBookingByOrder, insertBooking, markCheckedIn, transition, type Booking } from "./repo";
+import { authorizeOrder, captureAuthorization, chargeSavedPayPal, voidAuthorization, MAX_AMOUNT } from "@/lib/paypal/client";
+import { getBooking, getBookingByOrder, insertBooking, markCheckedIn, settleBooking, transition, type Booking, type OverageStatus } from "./repo";
 import { priceFor } from "./pricing";
 
 const HOUR = 3_600_000;
@@ -64,6 +64,8 @@ export async function placeBooking(input: PlaceBookingInput): Promise<Booking> {
     authorizationId: auth.authorizationId,
     holdExpiresAt: auth.expiresAt ? new Date(auth.expiresAt) : null,
     facts: priced.factsAt(startsAt),
+    fee: priced.quote.breakdown?.fee ?? null,
+    vaultId: auth.vaultId ?? null,
   });
 
   if (booking.kind !== "partner") return booking;
@@ -75,11 +77,19 @@ export async function placeBooking(input: PlaceBookingInput): Promise<Booking> {
   }
 }
 
-/** Venue confirmed: charge the hold. */
+/**
+ * Venue confirmed. A partner's fixed price is charged now. A request-to-book booking keeps its hold:
+ * nothing is charged until the venue closes the bill (closeBill).
+ */
 export async function confirmBooking(id: string): Promise<Booking> {
   const b = await getBooking(id);
   if (!b) throw new BookingError(404, "Booking not found");
   if (b.status !== "held") throw new BookingError(409, `Booking is already ${b.status}`);
+  if (b.kind === "live") {
+    const reserved = await transition(b.id, ["held"], "confirmed");
+    if (!reserved) throw new BookingError(409, "Booking changed while confirming");
+    return reserved;
+  }
   const cap = await captureAuthorization(b.authorizationId, `capture-${b.id}`);
   const done = await transition(b.id, ["held"], "confirmed", cap.captureId);
   if (!done) throw new BookingError(409, "Booking changed while confirming");
@@ -113,4 +123,52 @@ export async function checkIn(input: { id: string; userId: string | null; admin:
     if (now.getTime() > t + DAY) throw new BookingError(409, "Check-in closed 24 hours after your booking");
   }
   return (await markCheckedIn(b.id, now)) ?? (await getBooking(b.id))!;
+}
+
+const AMOUNT = /^\d+(\.\d{1,2})?$/;
+const cents = (v: string) => Math.round(Number(v) * 100);
+const dollars = (c: number) => (c / 100).toFixed(2);
+
+/**
+ * The venue closes the bill (tip included). We capture bill + booking fee from the hold and release the rest.
+ * If that's more than the hold, the difference goes on the guest's saved PayPal (if they agreed at booking);
+ * otherwise, or if that charge fails, they pay the difference at the table.
+ */
+export async function closeBill(input: { id: string; billTotal: unknown; now?: Date }): Promise<Booking> {
+  const now = input.now ?? new Date();
+  const bill = typeof input.billTotal === "string" ? input.billTotal.trim() : typeof input.billTotal === "number" ? input.billTotal.toFixed(2) : "";
+  if (!AMOUNT.test(bill) || cents(bill) <= 0) throw new BookingError(400, "Enter the final bill, like 96.50");
+  if (cents(bill) > cents(MAX_AMOUNT)) throw new BookingError(400, `The bill can't be more than $${MAX_AMOUNT}`);
+  const b = await getBooking(input.id);
+  if (!b) throw new BookingError(404, "Booking not found");
+  if (b.kind !== "live") throw new BookingError(409, "Only request-to-book bookings have a bill to close");
+  if (b.settlement) throw new BookingError(409, "This bill is already closed");
+  if (b.status !== "confirmed") throw new BookingError(409, "The venue has to confirm the booking before the bill can be closed");
+
+  const due = cents(bill) + cents(b.fee ?? "0");
+  const hold = cents(b.amount);
+  const fromHold = Math.min(due, hold);
+  const overage = due - fromHold;
+  const cap = await captureAuthorization(b.authorizationId, `settle-${b.id}`, { value: dollars(fromHold), currency: b.currency });
+
+  let overageStatus: OverageStatus = "none";
+  let overageCaptureId: string | null = null;
+  if (overage > 0) {
+    overageStatus = "pay_at_table";
+    if (b.vaultId) {
+      try {
+        const extra = await chargeSavedPayPal({
+          vaultId: b.vaultId, amount: dollars(overage), currency: b.currency, referenceId: b.id, requestId: `overage-${b.id}`,
+          description: `${b.name}: bill above the hold`.slice(0, 127),
+        });
+        overageStatus = "charged";
+        overageCaptureId = extra.captureId;
+      } catch (err) {
+        console.error("Charging the saved PayPal failed; the guest pays the rest at the table:", err);
+      }
+    }
+  }
+  const settled = await settleBooking(b.id, { billTotal: dollars(cents(bill)), capturedTotal: dollars(fromHold), overage: dollars(overage), overageStatus, overageCaptureId }, cap.captureId, now);
+  if (!settled) throw new BookingError(409, "Booking changed while closing the bill");
+  return settled;
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { liveCopy } from "@/lib/bookings/bill-copy";
 import type { PublicBooking } from "@/lib/bookings/public";
 import { guests, money } from "@/lib/format";
 
@@ -38,22 +39,24 @@ export function BookingStatus({ id }: { id: string }) {
     setB(body);
   }
 
-  const c = COPY[b.status];
+  const base = COPY[b.status];
+  const live = liveCopy(b);
+  const c = live ?? { ...base, body: base.body(b), amountLabel: b.status === "confirmed" ? "Paid" : "Amount", amount: b.amount, alert: false };
   const when = new Date(b.startsAt).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
     <article className="concierge-card" aria-label="Booking" style={{ gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
         <div>
           <h2 className="display" style={{ margin: 0, fontSize: 40 }}>{c.title}</h2>
-          <p className="concierge-reply" style={{ marginTop: 8 }}>{c.body(b)}</p>
+          <p className="concierge-reply" style={{ marginTop: 8 }} role={c.alert ? "alert" : undefined}>{c.body}</p>
         </div>
-        <span className={`stamp stamp-wide ${b.status === "confirmed" ? "" : "stamp-live"}`} style={{ position: "static", height: 64 }}>{c.stamp}</span>
+        <span className={`stamp stamp-wide ${b.status === "confirmed" && !c.alert ? "" : "stamp-live"}`} style={{ position: "static", height: 64 }}>{c.stamp}</span>
       </div>
       <dl className="fact-list">
         <div><dt>Where</dt><dd>{b.name}</dd></div>
         <div><dt>When</dt><dd>{when}</dd></div>
         <div><dt>Party</dt><dd>{guests(b.partySize)}</dd></div>
-        <div><dt>{b.status === "confirmed" ? "Paid" : "Amount"}</dt><dd>{money(b.amount)}</dd></div>
+        <div><dt>{c.amountLabel}</dt><dd>{money(c.amount)}</dd></div>
         <div><dt>PayPal order</dt><dd style={{ fontSize: 14 }}>{b.paypalOrderId}</dd></div>
       </dl>
       {b.status === "confirmed" && !b.checkedInAt && (

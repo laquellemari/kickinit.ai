@@ -13,11 +13,11 @@ describe("PickCard", () => {
     expect(within(card).getByText("$180")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "See details" })).toHaveAttribute("href", "/experience/carasau-pasta-bar?party=2");
   });
-  it("live: request stamp, estimated hold, request-to-book link, and Google Maps in a new tab", () => {
+  it("live: request stamp, estimated bill (not the hold), request-to-book link, and Google Maps in a new tab", () => {
     render(<PickCard pick={livePick({}, 3)} partySize={3} />);
     const card = screen.getByRole("article", { name: "Cucina Sorella" });
     expect(within(card).getByText("REQUEST")).toBeInTheDocument();
-    expect(within(card).getByText("Est. hold · 3 guests")).toBeInTheDocument();
+    expect(within(card).getByText("Est. bill · 3 guests")).toBeInTheDocument();
     expect(within(card).getByText("$180")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "Request to book" })).toHaveAttribute("href", "/request/ChIJsd1?party=3");
     const maps = within(card).getByRole("link", { name: "Map" });
@@ -31,8 +31,13 @@ describe("PickCard", () => {
     expect(screen.getByRole("link", { name: "Gift this" })).toHaveAttribute("href", "/gift/new?experience=hugh-spa&party=2");
     expect(screen.queryByRole("link", { name: "See details" })).toBeNull();
   });
+  it("a live quote without a breakdown falls back to its total", () => {
+    const p = livePick({}, 2);
+    render(<PickCard pick={{ ...p, quote: { ...p.quote, breakdown: undefined, total: "99.00" } }} partySize={2} />);
+    expect(screen.getByText("$99")).toBeInTheDocument();
+  });
   it("boundary: 1 guest is singular", () => {
     render(<PickCard pick={livePick({}, 1)} partySize={1} />);
-    expect(screen.getByText("Est. hold · 1 guest")).toBeInTheDocument();
+    expect(screen.getByText("Est. bill · 1 guest")).toBeInTheDocument();
   });
 });

@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   createHoldOrder, authorizeOrder, captureAuthorization, voidAuthorization, getAccessToken, resetTokenCache, PayPalError, MAX_AMOUNT,
+  chargeSavedPayPal, getIdToken,
 } from "@/lib/paypal/client";
 import { mockPayPal, pp, setPayPalEnv, verifyPayPalCall } from "../../../helpers/paypal";
 
@@ -130,7 +131,7 @@ describe("authorizeOrder", () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() });
     expect(await authorizeOrder("5O190127TN364715T", "req-2")).toEqual({
       orderId: "5O190127TN364715T", authorizationId: "0AW2184448108334S", status: "CREATED", expiresAt: "2026-12-12T21:20:49Z",
-      amount: { value: "180.00", currency: "USD" },
+      amount: { value: "180.00", currency: "USD" }, vaultId: null,
     });
     verifyPayPalCall(f, 1, { method: "POST", url: `${SANDBOX}/v2/checkout/orders/5O190127TN364715T/authorize`, auth: "bearer", requestId: "req-2", body: {} });
   });
@@ -202,5 +203,104 @@ describe("voidAuthorization", () => {
   it("surfaces an already-captured authorization", async () => {
     mockPayPal({ status: 200, body: pp.token() }, { status: 422, body: pp.error("CANNOT_BE_VOIDED", "A reauthorization cannot be voided.") });
     await expect(voidAuthorization("AUTH1", "r")).rejects.toMatchObject({ status: 422, issue: "CANNOT_BE_VOIDED" });
+  });
+});
+
+describe("saving PayPal with the hold (option 3)", () => {
+  it("asks PayPal to save the buyer's account on success, for merchant use", async () => {
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order({ status: "PAYER_ACTION_REQUIRED" }) });
+    await createHoldOrder(hold({ savePayPal: { returnUrl: "https://k/ok", cancelUrl: "https://k/no" } }));
+    verifyPayPalCall(f, 1, {
+      method: "POST", url: `${SANDBOX}/v2/checkout/orders`, auth: "bearer", requestId: "req-1",
+      body: {
+        intent: "AUTHORIZE",
+        purchase_units: [{ reference_id: "booking-1", description: "Dinner for 2 at Marea", amount: { currency_code: "USD", value: "180.00" } }],
+        payment_source: { paypal: {
+          attributes: { vault: { store_in_vault: "ON_SUCCESS", usage_type: "MERCHANT", customer_type: "CONSUMER" } },
+          experience_context: { return_url: "https://k/ok", cancel_url: "https://k/no" },
+        } },
+      },
+    });
+  });
+  it("authorize returns the saved account id when PayPal VAULTED it", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: { ...pp.authorizedOrder(), payment_source: { paypal: { attributes: { vault: { id: "8kk8451t", status: "VAULTED" } } } } } });
+    expect((await authorizeOrder("5O190127TN364715T", "a1")).vaultId).toBe("8kk8451t");
+  });
+  it.each([
+    ["APPROVED (paid but not saved)", { paypal: { attributes: { vault: { status: "APPROVED" } } } }],
+    ["VAULTED without an id", { paypal: { attributes: { vault: { status: "VAULTED" } } } }],
+    ["no vault block", { paypal: {} }],
+    ["no payment source", undefined],
+  ])("no saved account when %s", async (_l, source) => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: { ...pp.authorizedOrder(), payment_source: source } });
+    expect((await authorizeOrder("5O190127TN364715T", "a1")).vaultId).toBeNull();
+  });
+});
+
+describe("chargeSavedPayPal", () => {
+  const charge = (o: Partial<Parameters<typeof chargeSavedPayPal>[0]> = {}) =>
+    ({ vaultId: "8kk8451t", amount: "23.50", currency: "USD", description: "Izakaya Gazen: rest of the bill", referenceId: "bk-1", requestId: "overage-bk-1", ...o });
+  it("happy: a CAPTURE order on the saved account completes without the buyer", async () => {
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: { id: "ORD9", status: "COMPLETED", purchase_units: [{ payments: { captures: [{ id: "CAP9", status: "COMPLETED" }] } }] } });
+    expect(await chargeSavedPayPal(charge())).toEqual({ orderId: "ORD9", captureId: "CAP9" });
+    verifyPayPalCall(f, 1, {
+      method: "POST", url: `${SANDBOX}/v2/checkout/orders`, auth: "bearer", requestId: "overage-bk-1",
+      body: { intent: "CAPTURE", purchase_units: [{ reference_id: "bk-1", description: "Izakaya Gazen: rest of the bill", amount: { currency_code: "USD", value: "23.50" } }], payment_source: { paypal: { vault_id: "8kk8451t" } } },
+    });
+  });
+  it.each([
+    [{ status: "PAYER_ACTION_REQUIRED" }, "status PAYER_ACTION_REQUIRED"],
+    [{ status: "COMPLETED", purchase_units: [{ payments: {} }] }, "status COMPLETED"],
+  ])("not completed is an error (%j)", async (body, msg) => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: { id: "O", ...body } });
+    const err = await chargeSavedPayPal(charge()).catch((e) => e);
+    expect(err).toBeInstanceOf(PayPalError);
+    expect(err.message).toContain(msg);
+  });
+  it("an empty response is an error", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201 });
+    await expect(chargeSavedPayPal(charge())).rejects.toThrow("status none");
+  });
+  it("a declined saved account surfaces PayPal's issue", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 422, body: { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "PAYER_ACTION_REQUIRED" }], message: "x" } });
+    await expect(chargeSavedPayPal(charge())).rejects.toMatchObject({ issue: "PAYER_ACTION_REQUIRED" });
+  });
+  it.each([
+    [{ vaultId: "" }, "Saved PayPal id is missing or invalid"],
+    [{ vaultId: "bad id!" }, "Saved PayPal id is missing or invalid"],
+    [{ amount: "0.00" }, "Amount must be greater than zero"],
+    [{ currency: "usd" }, "Currency must be a 3-letter code like USD"],
+    [{ description: " " }, "Description must be 1 to 127 characters"],
+    [{ description: "x".repeat(128) }, "Description must be 1 to 127 characters"],
+    [{ requestId: "" }, "Request id is required for idempotency"],
+  ])("validation %j", async (o, msg) => {
+    const f = mockPayPal();
+    await expect(chargeSavedPayPal(charge(o))).rejects.toThrow(msg);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("boundary: a 127-character description and a 1-cent overage are fine", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: { id: "O", status: "COMPLETED", purchase_units: [{ payments: { captures: [{ id: "C", status: "COMPLETED" }] } }] } });
+    await expect(chargeSavedPayPal(charge({ description: "x".repeat(127), amount: "0.01" }))).resolves.toEqual({ orderId: "O", captureId: "C" });
+  });
+});
+
+describe("getIdToken", () => {
+  it("happy: client credentials with response_type=id_token", async () => {
+    const f = mockPayPal({ status: 200, body: { ...pp.token(), id_token: "eyJ.id" } });
+    expect(await getIdToken()).toBe("eyJ.id");
+    verifyPayPalCall(f, 0, { method: "POST", url: `${SANDBOX}/v1/oauth2/token`, auth: "basic" });
+    expect((f.mock.calls[0] as unknown as [string, RequestInit])[1].body).toBe("grant_type=client_credentials&response_type=id_token");
+  });
+  it("no id_token in the reply is an error", async () => {
+    mockPayPal({ status: 200, body: pp.token() });
+    await expect(getIdToken()).rejects.toThrow("PayPal id token failed: no id_token returned");
+  });
+  it("rejected credentials", async () => {
+    mockPayPal({ status: 401, body: { error: "invalid_client", error_description: "Client Authentication failed" } });
+    await expect(getIdToken()).rejects.toMatchObject({ status: 401, issue: "invalid_client", message: "PayPal id token failed: Client Authentication failed" });
+  });
+  it("not configured", async () => {
+    setPayPalEnv({ PAYPAL_CLIENT_SECRET: undefined });
+    await expect(getIdToken()).rejects.toThrow("PayPal credentials are not configured");
   });
 });
