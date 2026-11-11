@@ -34,7 +34,7 @@ export function Carousel({ slides }: { slides: Slide[] }) {
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
         <button type="button" aria-label="Previous" className="round-btn" onClick={() => setI((i + n - 1) % n)}
-          style={{ border: "1px solid var(--sun)", background: "transparent", color: "var(--sun)" }}>‹</button>
+          style={{ border: "1px solid var(--accent-text)", background: "transparent", color: "var(--accent-text)" }}>‹</button>
         <span style={{ fontSize: 13, color: "var(--on-navy)", letterSpacing: "0.14em" }}>
           {String(i + 1).padStart(2, "0")} / {String(n).padStart(2, "0")}
         </span>

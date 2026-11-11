@@ -98,7 +98,7 @@ export async function searchLivePlaces(query: string): Promise<LivePlace[]> {
   const q = query.trim();
   if (!q) throw new Error("Search text is required");
   if (q.length > 200) throw new Error("Search text cannot exceed 200 characters");
-  const body = (await call(`${BASE}/places:searchText`, { method: "POST", body: JSON.stringify({ textQuery: q, pageSize: 6 }) }, FIELD_MASK)) as { places?: GPlace[] };
+  const body = (await call(`${BASE}/places:searchText`, { method: "POST", body: JSON.stringify({ textQuery: q, pageSize: 20 }) }, FIELD_MASK)) as { places?: GPlace[] };
   return (body.places ?? []).filter(isOpen).map(toLivePlace);
 }
 

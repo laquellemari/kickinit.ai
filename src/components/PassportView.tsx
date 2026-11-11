@@ -20,7 +20,7 @@ export function PassportView() {
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <section className="passport" aria-label="Level">
         <div style={{ flex: "1 1 260px" }}>
-          <h2 className="display" style={{ margin: 0, fontSize: 44, color: "var(--sun)" }}>{lvl.title}</h2>
+          <h2 className="display" style={{ margin: 0, fontSize: 44, color: "var(--accent-text)" }}>{lvl.title}</h2>
           <div style={{ color: "var(--on-navy)", marginTop: 4 }}>Level {lvl.level} · {lvl.xp.toLocaleString()} XP</div>
           <div role="progressbar" aria-label="Progress to next level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(lvl.progressToNext * 100)} style={{ height: 10, background: "rgba(255,255,255,.15)", borderRadius: 999, overflow: "hidden", marginTop: 12, maxWidth: 420 }}>
             <div style={{ width: `${Math.round(lvl.progressToNext * 100)}%`, height: "100%", background: "var(--sun)" }} />

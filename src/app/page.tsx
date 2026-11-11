@@ -47,7 +47,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<Re
       </section>
 
       <main style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px 64px", display: "flex", flexDirection: "column", gap: 56 }}>
-        <SearchCard region={REGION} initialMode={forThem ? "them" : "you"} />
+        <SearchCard initialMode={forThem ? "them" : "you"} />
 
         <section>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22, flexWrap: "wrap", gap: 8 }}>

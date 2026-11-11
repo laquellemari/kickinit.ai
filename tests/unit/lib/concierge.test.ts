@@ -1,11 +1,13 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from "vitest";
-import { runConcierge, validateInput, systemPrompt, resolvePicks, LIMITS, type ConciergeInput } from "@/lib/concierge/agent";
+import { runConcierge, validateInput, systemPrompt, resolvePicks, withMoreOptions, LIMITS, type ConciergeInput, type PlanPick } from "@/lib/concierge/agent";
+import { searchExperiences } from "@/lib/catalog/catalog";
 import { tool } from "ai";
 import { z } from "zod";
 import { createScriptedModel, createLivePlace } from "../../helpers/factories";
 import { verifyConcierge } from "../../helpers/verification";
 
+const ids = (r: { options: { kind: string; experience?: { id: string }; place?: { id: string } }[] }) => r.options.map((o) => (o.kind === "partner" ? o.experience!.id : o.place!.id));
 const input = (o: Partial<ConciergeInput> = {}): ConciergeInput => ({ message: "romantic italian dinner for 2 by the water", mode: "you", ...o });
 const present = (picks: { experienceId: string; why: string }[], partySize = 2, intro = "Two lovely options.") =>
   ({ tool: "present_options", args: { intro, partySize, picks } });
@@ -66,11 +68,15 @@ describe("runConcierge", () => {
   describe("the server checks every pick", () => {
     it("drops invented ids", async () => {
       const { model } = createScriptedModel([present([{ experienceId: "made-up", why: "x" }, { experienceId: "carasau-pasta-bar", why: "y" }])]);
-      verifyConcierge(await runConcierge(input(), { model }), { partySize: 2, picks: [{ id: "carasau-pasta-bar", total: "180.00" }] });
+      const r = await runConcierge(input(), { model });
+      verifyConcierge(r, { partySize: 2, picks: [{ id: "carasau-pasta-bar", total: "180.00" }] });
+      expect(ids(r)).not.toContain("made-up");
     });
-    it("drops picks that can't take the party", async () => {
+    it("drops picks that can't take the party (and never adds them back as extra options)", async () => {
       const { model } = createScriptedModel([present([{ experienceId: "desuar-hollywood-spa", why: "x" }, { experienceId: "hugh-spa", why: "y" }], 3)]);
-      verifyConcierge(await runConcierge(input(), { model }), { partySize: 3, picks: [{ id: "hugh-spa", total: "285.00" }] });
+      const r = await runConcierge(input(), { model });
+      verifyConcierge(r, { partySize: 3, picks: [{ id: "hugh-spa", total: "285.00" }] });
+      expect(ids(r)).not.toContain("desuar-hollywood-spa");
     });
     it("drops duplicates", async () => {
       const { model } = createScriptedModel([present([{ experienceId: "carasau-pasta-bar", why: "x" }, { experienceId: "carasau-pasta-bar", why: "again" }])]);
@@ -126,9 +132,10 @@ describe("validateInput", () => {
 });
 
 describe("resolvePicks", () => {
-  it("caps at 4 picks", () => {
-    const ids = ["carasau-pasta-bar", "trattoria-daly", "n-naka", "bacari-silver-lake", "tacos-y-birria-la-unica"];
-    expect(resolvePicks(ids.map((experienceId) => ({ experienceId, why: "" })), 2)).toHaveLength(4);
+  it("caps the model's picks at 8 (boundary: 9 in, 8 out)", () => {
+    const nine = ["carasau-pasta-bar", "trattoria-daly", "n-naka", "mutsu", "sushi-gen", "bacari-silver-lake", "tacos-y-birria-la-unica", "71above", "gritz-n-wafflez"];
+    expect(LIMITS.picks).toBe(8);
+    expect(resolvePicks(nine.map((experienceId) => ({ experienceId, why: "" })), 2).map((p) => (p as { experience: { id: string } }).experience.id)).toEqual(nine.slice(0, 8));
   });
   it("0 picks gives an empty list", () => expect(resolvePicks([], 2)).toEqual([]));
 });
@@ -170,12 +177,14 @@ describe("live search (Google Places)", () => {
     ]);
     const r = await runConcierge(input(), { model, searchLive: async () => sd });
     verifyConcierge(r, { partySize: 2, picks: [{ id: "hugh-spa", total: "190.00" }, { id: "gp:ChIJsd2", total: "240.00" }] });
-    expect(r.options.map((o) => o.kind)).toEqual(["partner", "live"]);
+    expect(r.options.slice(0, 2).map((o) => o.kind)).toEqual(["partner", "live"]);
   });
 
   it("a live id the model never searched for is dropped (no invented venues)", async () => {
     const { model } = createScriptedModel([present([{ experienceId: "gp:ChIJfake", why: "x" }, { experienceId: "carasau-pasta-bar", why: "y" }])]);
-    verifyConcierge(await runConcierge(input(), { model, searchLive: async () => sd }), { partySize: 2, picks: [{ id: "carasau-pasta-bar", total: "180.00" }] });
+    const r = await runConcierge(input(), { model, searchLive: async () => sd });
+    verifyConcierge(r, { partySize: 2, picks: [{ id: "carasau-pasta-bar", total: "180.00" }] });
+    expect(ids(r)).not.toContain("gp:ChIJfake");
   });
 
   it("duplicate live picks are dropped", async () => {
@@ -206,5 +215,61 @@ describe("live search (Google Places)", () => {
     expect(off).toContain("Los Angeles and its beach towns");
     expect(off).not.toContain("search_live_places");
     expect(off).toContain("doesn't have partners there yet");
+  });
+});
+
+describe("withMoreOptions (the server tops up the model's picks)", () => {
+  const live = (n: number) => Array.from({ length: n }, (_, i) => createLivePlace({ placeId: `L${i}`, name: `Live ${i}` }));
+  const cacheOf = (ps: ReturnType<typeof live>) => new Map(ps.map((p) => [p.id, p]));
+  const pick = (id: string, why = "Picked.") => resolvePicks([{ experienceId: id, why }], 2);
+  const idsOf = (o: PlanPick[]) => o.map((p) => (p.kind === "partner" ? p.experience.id : p.place.id));
+
+  it("keeps the picks first, then everything the searches found (deduped), with a factual reason", () => {
+    const ps = live(2);
+    const out = withMoreOptions(pick("carasau-pasta-bar"), ["carasau-pasta-bar", "gp:L0", "trattoria-daly", "gp:L0", "gp:L1"], 2, cacheOf(ps));
+    expect(idsOf(out).slice(0, 4)).toEqual(["carasau-pasta-bar", "gp:L0", "trattoria-daly", "gp:L1"]);
+    expect(out[0].why).toBe("Picked.");
+    expect(out[1].why).toBe(`${ps[0].typeLabel} · ${ps[0].address}`);
+    expect(out[2].why).toBe("A neighborhood Italian table on the Eastside.");
+    expect(new Set(idsOf(out)).size).toBe(out.length);
+  });
+  it("under 20: fills with similar partners from the picks' categories that fit the party", () => {
+    const out = withMoreOptions(resolvePicks([{ experienceId: "hugh-spa", why: "x" }], 3), [], 3, new Map());
+    const spas = searchExperiences({ category: "wellness", partySize: 3, limit: 50 }).map((e) => e.id);
+    expect(new Set(idsOf(out))).toEqual(new Set(spas));
+    expect(idsOf(out)).not.toContain("desuar-hollywood-spa"); // max 2 guests
+    expect(out.every((p) => p.kind === "partner" && p.experience.category === "wellness")).toBe(true);
+  });
+  it("20 or more already: no similar fill", () => {
+    const ps = live(19);
+    const out = withMoreOptions(pick("hugh-spa"), ps.map((p) => p.id), 2, cacheOf(ps));
+    expect(out).toHaveLength(20);
+    expect(idsOf(out).filter((id) => !id.startsWith("gp:"))).toEqual(["hugh-spa"]);
+  });
+  it("boundary: 19 shows the similar fill", () => {
+    const ps = live(18);
+    expect(withMoreOptions(pick("hugh-spa"), ps.map((p) => p.id), 2, cacheOf(ps)).length).toBeGreaterThan(19);
+  });
+  it("only live picks and few results: no partner categories to fill from", () => {
+    const ps = live(3);
+    expect(idsOf(withMoreOptions([], ps.map((p) => p.id), 2, cacheOf(ps)))).toEqual(["gp:L0", "gp:L1", "gp:L2"]);
+  });
+  it("caps at 30 (boundary: 35 found, 30 shown, picks still first)", () => {
+    const ps = live(35);
+    const out = withMoreOptions(pick("carasau-pasta-bar"), ps.map((p) => p.id), 2, cacheOf(ps));
+    expect(LIMITS.options).toBe(30);
+    expect(out).toHaveLength(30);
+    expect(idsOf(out)[0]).toBe("carasau-pasta-bar");
+  });
+  it("runConcierge returns the picks plus the rest of what it searched", async () => {
+    const { model } = createScriptedModel([
+      { tool: "search_experiences", args: { category: "culinary", partySize: 2 } },
+      present([{ experienceId: "n-naka", why: "Best." }]),
+    ]);
+    const r = await runConcierge(input(), { model });
+    const culinary = searchExperiences({ category: "culinary", partySize: 2, limit: 50 }).map((e) => e.id);
+    expect(ids(r)[0]).toBe("n-naka");
+    expect(new Set(ids(r))).toEqual(new Set(culinary));
+    expect(culinary.length).toBeGreaterThan(8);
   });
 });

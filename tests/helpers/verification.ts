@@ -66,7 +66,11 @@ export function verifyConcierge(r: ConciergeResult, expected: { reply?: string |
   if (expected.reply instanceof RegExp) expect(r.reply).toMatch(expected.reply);
   else if (expected.reply !== undefined) expect(r.reply).toBe(expected.reply);
   expect(r.partySize).toBe(expected.partySize);
-  expect(r.options.map((o) => ({ id: o.kind === "partner" ? o.experience.id : o.place.id, total: o.quote.total }))).toEqual(expected.picks);
+  // The model's picks lead, in order; the server may add more matches after them.
+  const got = r.options.map((o) => ({ id: o.kind === "partner" ? o.experience.id : o.place.id, total: o.quote.total }));
+  expect(got.slice(0, expected.picks.length)).toEqual(expected.picks);
+  if (!expected.picks.length) expect(got).toEqual([]);
+  expect(new Set(got.map((g) => g.id)).size).toBe(got.length);
   for (const o of r.options) {
     if (o.kind === "partner") expect(o.experience.total).toBe(o.quote.total);
     else expect(o.quote.description).toMatch(/\(request\)$/);

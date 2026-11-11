@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("@/components/VenuePhoto", () => ({ VenuePhoto: ({ children }: { children?: React.ReactNode }) => <div>{children}</div> }));
 import { PlanView } from "@/components/PlanView";
-import { createConciergeResult } from "../../helpers/factories";
+import { createConciergeResult, livePick } from "../../helpers/factories";
 
 type Reply = { status: number; body: unknown };
 function mockConcierge(...replies: Reply[]) {
@@ -108,6 +108,50 @@ describe("PlanView", () => {
       vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("offline"); }));
       render(<PlanView q="x" mode="you" where="Miami" />);
       expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong finding options.");
+    });
+  });
+
+  describe("2 rows of 4, then Show more", () => {
+    const many = (n: number) => createConciergeResult({ options: Array.from({ length: n }, (_, i) => livePick({ placeId: `P${i}`, name: `Venue ${i}` })) });
+    const cards = () => screen.queryAllByRole("article").length;
+    it("20 options: 8, then 16, then all 20 and the button goes away", async () => {
+      mockConcierge({ status: 200, body: many(20) });
+      render(<PlanView q="x" mode="you" where="Los Angeles, CA" />);
+      await screen.findByText("Here are two good ones.");
+      expect(cards()).toBe(8);
+      expect(screen.getByText("Showing 8 of 20 options")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+      expect(cards()).toBe(16);
+      fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+      expect(cards()).toBe(20);
+      expect(screen.getByText("Showing 20 of 20 options")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+    });
+    it("boundary: exactly 8 options has no Show more", async () => {
+      mockConcierge({ status: 200, body: many(8) });
+      render(<PlanView q="x" mode="you" where="LA" />);
+      await screen.findByText("Here are two good ones.");
+      expect(cards()).toBe(8);
+      expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+    });
+    it("boundary: 9 options shows the button once, then the 9th", async () => {
+      mockConcierge({ status: 200, body: many(9) });
+      render(<PlanView q="x" mode="you" where="LA" />);
+      await screen.findByText("Here are two good ones.");
+      fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+      expect(cards()).toBe(9);
+      expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+    });
+    it("a new answer starts again at 8", async () => {
+      mockConcierge({ status: 200, body: many(20) }, { status: 200, body: { ...many(12), reply: "Fresh." } });
+      render(<PlanView q="x" mode="you" where="LA" />);
+      await screen.findByText("Here are two good ones.");
+      fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+      fireEvent.change(screen.getByLabelText("Refine it:"), { target: { value: "more" } });
+      fireEvent.click(screen.getByRole("button", { name: "Update →" }));
+      await screen.findByText("Fresh.");
+      expect(cards()).toBe(8);
+      expect(screen.getByText("Showing 8 of 12 options")).toBeInTheDocument();
     });
   });
 });

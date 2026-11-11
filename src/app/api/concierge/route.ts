@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { runConcierge, validateInput, type ConciergeInput } from "@/lib/concierge/agent";
 import { clientKey, createLimiter } from "@/lib/concierge/rate-limit";
 import { conciergeModel, liveSearch, paypalTools } from "@/lib/concierge/runtime";
+import { recordSearch } from "@/lib/ideas/repo";
 import { HttpError, readJson } from "@/lib/paypal/http";
+import { visitorId } from "@/lib/visitor";
 
 const limiter = createLimiter({ limit: 20, windowMs: 60_000 });
 
@@ -21,6 +23,11 @@ export async function POST(req: Request) {
       validateInput(input);
     } catch (err) {
       throw new HttpError(400, (err as Error).message);
+    }
+    try {
+      await recordSearch(visitorId(req), { text: input.message, mode: input.mode, where: input.where });
+    } catch {
+      // No visitor cookie, or the history store is down: searching still works, it just isn't remembered.
     }
     let model;
     try {
