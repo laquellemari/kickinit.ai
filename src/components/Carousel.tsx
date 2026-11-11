@@ -10,9 +10,12 @@ export function Carousel({ slides }: { slides: Slide[] }) {
   const s = slides[i];
 
   useEffect(() => {
+    if (n === 0) return;
     const t = setInterval(() => setI((x) => (x + 1) % n), 6000);
     return () => clearInterval(t);
   }, [n]);
+
+  if (n === 0) return null;
 
   return (
     <div className="carousel" aria-roledescription="carousel" aria-label="This week's experiences">
