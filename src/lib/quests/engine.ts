@@ -9,12 +9,12 @@ const MONDAY_EPOCH = Date.UTC(1970, 0, 5);
 export const ALL_QUESTS: readonly Quest[] = questData.quests as Quest[];
 
 /** A booking counts toward the user's own quests only once it was paid, attended and booked in the app. */
-function countsForSelf(b: Booking): boolean {
+export function countsForSelf(b: Booking): boolean {
   return b.status === "captured" && b.checkedIn && b.source === "in_app" && !b.isGift;
 }
 
 /** A gift counts toward the giver once it was paid in the app; the recipient's check-in isn't required. */
-function countsAsGift(b: Booking): boolean {
+export function countsAsGift(b: Booking): boolean {
   return b.status === "captured" && b.source === "in_app" && b.isGift;
 }
 
@@ -55,7 +55,7 @@ function bestWindow(bookings: Booking[], days: number): number {
   return best;
 }
 
-function longestWeeklyStreak(bookings: Booking[]): number {
+export function longestWeeklyStreak(bookings: Booking[]): number {
   const weeks = [...new Set(bookings.map((b) => Math.floor((b.startsAt.getTime() - MONDAY_EPOCH) / (7 * DAY_MS))))].sort((a, b) => a - b);
   let best = 0;
   let run = 0;

@@ -50,3 +50,14 @@ export const createQuest = (req: Partial<Requirement> = {}, overrides: Partial<Q
 });
 
 export const HOME: UserContext = { homeCity: "Miami", homeCountry: "US" };
+
+import type { Achievement, AchievementRule, Counters } from "@/lib/quests/types";
+
+export const createCounters = (overrides: Partial<Counters> = {}): Counters => ({
+  poolsFundedAsOrganizer: 0, poolContributions: 0, giftsRedeemed: 0, referralsConverted: 0, reviews: 0, ...overrides,
+});
+
+export const createAchievement = (rule: Partial<AchievementRule> & Pick<AchievementRule, "type">, overrides: Partial<Achievement> = {}): Achievement => ({
+  id: "ach-test", name: "Test", emoji: "", description: "", tier: "bronze", xp: 250, group: "test",
+  rule: { count: 1, ...rule } as AchievementRule, ...overrides,
+});

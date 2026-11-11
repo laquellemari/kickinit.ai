@@ -34,3 +34,15 @@ export function verifyQuestProgress(quest: Quest, bookings: Booking[], ctx: User
   expect(r.progress).toBeCloseTo(expected.current / target, 5);
   return r;
 }
+
+import { evaluateAchievement, type ActivityInput } from "@/lib/quests/achievements";
+import type { Achievement } from "@/lib/quests/types";
+
+export function verifyAchievement(a: Achievement, input: ActivityInput, expected: { current: number; unlocked: boolean }) {
+  const r = evaluateAchievement(a, input);
+  expect(r.achievementId).toBe(a.id);
+  expect(r.target).toBe(a.rule.count);
+  expect(r.current).toBe(expected.current);
+  expect(r.unlocked).toBe(expected.unlocked);
+  return r;
+}

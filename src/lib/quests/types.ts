@@ -46,3 +46,32 @@ export type Quest = {
 };
 
 export type QuestProgress = { questId: string; current: number; target: number; complete: boolean; progress: number };
+
+export type AchievementRule = {
+  type:
+    | "quests_in_category" | "quests" | "categories_with_quest" | "min_quests_per_category" | "quests_by_difficulty"
+    | "bookings" | "gifts_sent" | "pools_funded_as_organizer" | "pool_contributions" | "gifts_redeemed"
+    | "referrals_converted" | "reviews" | "weekly_streak" | "distinct_cities" | "distinct_countries"
+    | "same_companion" | "party_size_bookings" | "bookings_filter";
+  count: number;
+  category?: string;
+  difficulty?: Quest["difficulty"];
+  min_party?: number;
+  filter?: string;
+};
+
+export type Achievement = {
+  id: string; name: string; emoji: string; description: string;
+  rule: AchievementRule; tier: string; xp: number; group: string;
+};
+
+/** Activity that isn't visible from bookings alone. */
+export type Counters = {
+  poolsFundedAsOrganizer: number;
+  poolContributions: number;
+  giftsRedeemed: number;
+  referralsConverted: number;
+  reviews: number;
+};
+
+export type AchievementProgress = { achievementId: string; current: number; target: number; unlocked: boolean };
