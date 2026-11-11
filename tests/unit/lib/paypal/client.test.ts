@@ -130,8 +130,13 @@ describe("authorizeOrder", () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() });
     expect(await authorizeOrder("5O190127TN364715T", "req-2")).toEqual({
       orderId: "5O190127TN364715T", authorizationId: "0AW2184448108334S", status: "CREATED", expiresAt: "2026-12-12T21:20:49Z",
+      amount: { value: "180.00", currency: "USD" },
     });
     verifyPayPalCall(f, 1, { method: "POST", url: `${SANDBOX}/v2/checkout/orders/5O190127TN364715T/authorize`, auth: "bearer", requestId: "req-2", body: {} });
+  });
+  it("returns a null amount when PayPal omits it", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder({ amount: undefined }) });
+    expect((await authorizeOrder("X", "r")).amount).toBeNull();
   });
   it("validation: rejects an empty order id", async () => {
     await expect(authorizeOrder("", "r")).rejects.toThrow("Order id is required");
