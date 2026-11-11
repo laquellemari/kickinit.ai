@@ -39,7 +39,7 @@ describe("POST /api/concierge", () => {
     runtime.model = model;
     const body = await (await post({ message: "italian dinner for 2", where: "San Diego" })).json();
     expect(toolNames[0]).toContain("search_live_places");
-    expect(body.options[0]).toMatchObject({ kind: "live", place: { name: "Sorella" }, quote: { total: "120.00" } });
+    expect(body.options[0]).toMatchObject({ kind: "live", place: { name: "Sorella" }, quote: { total: "148.00" } });
   });
   it("defaults mode to 'you'", async () => {
     const { model, prompts } = createScriptedModel([{ text: "ok" }]);

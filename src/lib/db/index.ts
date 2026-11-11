@@ -32,6 +32,14 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS neighborhood TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cuisine TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS local_hour INTEGER NOT NULL DEFAULT 12;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS fee TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vault_id TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS bill_total TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS captured_total TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS overage TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS overage_status TEXT CHECK (overage_status IN ('none', 'charged', 'pay_at_table'));
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS overage_capture_id TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS bookings_user ON bookings (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS bookings_status ON bookings (status, created_at DESC);
 

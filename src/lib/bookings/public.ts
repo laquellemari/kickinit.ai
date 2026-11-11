@@ -7,6 +7,11 @@ export function publicBooking(b: Booking) {
     amount: b.amount, currency: b.currency, status: b.status, paypalOrderId: b.paypalOrderId,
     holdExpiresAt: b.holdExpiresAt?.toISOString() ?? null, createdAt: b.createdAt.toISOString(),
     checkedInAt: b.checkedInAt?.toISOString() ?? null, city: b.facts.city,
+    fee: b.fee, overageConsent: b.vaultId !== null,
+    settlement: b.settlement && {
+      billTotal: b.settlement.billTotal, capturedTotal: b.settlement.capturedTotal, overage: b.settlement.overage,
+      overageStatus: b.settlement.overageStatus, settledAt: b.settlement.settledAt.toISOString(),
+    },
   };
 }
 export type PublicBooking = ReturnType<typeof publicBooking>;

@@ -47,7 +47,7 @@ describe("AdminBookings", () => {
     );
     render(<AdminBookings />);
     login();
-    fireEvent.click(within(await screen.findByLabelText("Barbusa")).getByRole("button", { name: "Confirm & charge" }));
+    fireEvent.click(within(await screen.findByLabelText("Barbusa")).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByText(/No requests waiting/)).toBeInTheDocument();
     expect(req(f, 1)).toEqual({ url: "/api/bookings/b1/confirm", method: "POST", key: "secret" });
   });
@@ -63,7 +63,7 @@ describe("AdminBookings", () => {
     mockApi({ status: 200, body: { bookings: [held("b1", "Barbusa")] } }, { status: 409, body: { error: "Booking is already confirmed" } });
     render(<AdminBookings />);
     login();
-    fireEvent.click(within(await screen.findByLabelText("Barbusa")).getByRole("button", { name: "Confirm & charge" }));
+    fireEvent.click(within(await screen.findByLabelText("Barbusa")).getByRole("button", { name: "Confirm" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Booking is already confirmed");
     expect(screen.getByLabelText("Barbusa")).toBeInTheDocument();
   });
@@ -115,5 +115,70 @@ describe("AdminBookings", () => {
     login();
     expect(await screen.findByText(/No requests waiting/)).toBeInTheDocument();
     get.mockRestore(); set.mockRestore();
+  });
+
+  it("a held partner booking says it will be charged on confirm; a request-to-book doesn't", async () => {
+    mockApi({ status: 200, body: { bookings: [{ ...held("p1", "Partner Spa"), kind: "partner" }, held("l1", "Barbusa")] } });
+    render(<AdminBookings />);
+    login();
+    expect(within(await screen.findByLabelText("Partner Spa")).getByRole("button", { name: "Confirm & charge" })).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Barbusa")).getByRole("button", { name: "Confirm" })).toBeInTheDocument();
+  });
+  describe("open bills", () => {
+    const conf = (id: string, name: string, o: Record<string, unknown> = {}) => ({ ...held(id, name), status: "confirmed", checkedInAt: "2026-11-15T03:40:00.000Z", fee: "4.00", overageConsent: false, settlement: null, ...o });
+    const settled = (b: Record<string, unknown>, s: Record<string, unknown>) => ({ ...b, settlement: { billTotal: "130.00", capturedTotal: "120.00", overage: "14.00", overageStatus: "none", settledAt: "x", ...s } });
+    function api(confirmed: unknown[], closeReply: Reply) {
+      const f = vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.endsWith("status=held")) return new Response(JSON.stringify({ bookings: [] }));
+        if (url.endsWith("status=confirmed")) return new Response(JSON.stringify({ bookings: confirmed }));
+        if (url.includes("/close-bill")) return new Response(JSON.stringify(closeReply.body), { status: closeReply.status });
+        throw new Error(`unexpected ${url} ${init?.method}`);
+      });
+      vi.stubGlobal("fetch", f);
+      return f;
+    }
+    it("lists confirmed request-to-book bookings without a closed bill (not partners, not settled)", async () => {
+      api([conf("b1", "Barbusa", { overageConsent: true }), conf("b2", "Bencotto"), conf("b3", "Partner", { kind: "partner" }), settled(conf("b4", "Done"), {})], { status: 200, body: {} });
+      render(<AdminBookings />);
+      login();
+      const bills = await screen.findByRole("region", { name: "Open bills" });
+      expect(within(bills).getByLabelText("Bill: Barbusa")).toHaveTextContent("$120 on hold · saved PayPal for overage");
+      expect(within(bills).getByLabelText("Bill: Bencotto")).toHaveTextContent("overage paid at table");
+      expect(within(bills).queryByLabelText("Bill: Partner")).toBeNull();
+      expect(within(bills).queryByLabelText("Bill: Done")).toBeNull();
+    });
+    it.each([
+      ["none", "Barbusa: $120 captured from the hold."],
+      ["charged", "Barbusa: $120 captured from the hold. $14 charged to the guest's saved PayPal."],
+      ["pay_at_table", "Barbusa: $120 captured from the hold. Collect $14 from the guest at the table."],
+    ])("closing a bill (%s) posts the amount and says what happened", async (overageStatus, msg) => {
+      const b = conf("b1", "Barbusa");
+      const f = api([b], { status: 200, body: settled(b, { overageStatus }) });
+      render(<AdminBookings />);
+      login();
+      const row = await screen.findByLabelText("Bill: Barbusa");
+      fireEvent.change(within(row).getByLabelText(/Final bill/), { target: { value: "130.00" } });
+      fireEvent.click(within(row).getByRole("button", { name: "Close bill" }));
+      expect(await screen.findByText(msg)).toBeInTheDocument();
+      const call = f.mock.calls.find((c) => (c[0] as string).includes("close-bill")) as unknown as [string, RequestInit];
+      expect(call[0]).toBe("/api/bookings/b1/close-bill");
+      expect(JSON.parse(call[1].body as string)).toEqual({ billTotal: "130.00" });
+      expect(new Headers(call[1].headers).get("x-admin-key")).toBe("secret");
+    });
+    it("an empty amount is sent as empty and the server's error is shown", async () => {
+      const f = api([conf("b1", "Barbusa")], { status: 400, body: { error: "Enter the final bill, like 96.50" } });
+      render(<AdminBookings />);
+      login();
+      fireEvent.click(within(await screen.findByLabelText("Bill: Barbusa")).getByRole("button", { name: "Close bill" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Enter the final bill, like 96.50");
+      const call = f.mock.calls.find((c) => (c[0] as string).includes("close-bill")) as unknown as [string, RequestInit];
+      expect(JSON.parse(call[1].body as string)).toEqual({ billTotal: "" });
+    });
+    it("no open bills", async () => {
+      api([], { status: 200, body: {} });
+      render(<AdminBookings />);
+      login();
+      expect(await screen.findByText("No open bills.")).toBeInTheDocument();
+    });
   });
 });

@@ -144,3 +144,9 @@ a:hover { color: var(--navy-deep); }
 .recs-card { scroll-snap-align: start; text-decoration: none; color: var(--navy); }
 .google-about { margin: 0; font-size: 17px; line-height: 1.55; color: var(--navy); }
 .google-meta { margin: 0; font-size: 14px; color: var(--muted); }
+
+.hold-lines { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+.hold-lines div { display: flex; justify-content: space-between; gap: 12px; }
+.hold-lines dd { margin: 0; color: var(--navy); }
+.consent { flex-direction: row !important; align-items: flex-start; gap: 10px !important; font-size: 14px !important; letter-spacing: normal !important; text-transform: none !important; color: var(--navy) !important; cursor: pointer; }
+.consent input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; }

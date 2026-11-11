@@ -11,8 +11,8 @@ Nothing to install and no sign-up: the site gives each browser an anonymous visi
 You'll need a **PayPal sandbox personal (buyer) account** to approve payments. Every PayPal developer account comes with one: developer.paypal.com > Testing Tools > Sandbox Accounts. The PayPal window also offers *Debit or Credit Card* with a test card from PayPal's [card generator](https://developer.paypal.com/tools/sandbox/card-testing/).
 
 1. **Instant booking (partner venue).** On the home page, type *"jazz tonight for two"* in **Or just say it** and press **Make it happen**. Pick **Vibrato Grill Jazz**, choose a time, and pay with PayPal. The money is authorized, the server checks the amount against its own price, then captures it. Your booking page shows **Confirmed** and "You're booked."
-2. **Request to book (any real venue, anywhere).** Ask for something outside Los Angeles, for example *"sushi in San Diego Friday"*. Results marked **Request to book** come from Google Places. Paying for one only places a **hold**: PayPal authorizes the money but nothing is charged. The booking page shows **On hold**: "PayPal is holding $… You'll be charged only if the venue confirms."
-3. **The venue confirms or declines.** Open **/admin** (the venue desk) and enter the **Admin key** from the Devpost testing instructions. **Confirm** captures the hold; **Decline** voids it, so the guest is never charged.
+2. **Request to book (any real venue, anywhere).** Ask for something outside Los Angeles, for example *"sushi in San Diego Friday"*. Results marked **Request to book** come from Google Places. The page shows the venue's photo, Google's description and how the hold was estimated (Google's own price range for that venue when it has one). PayPal **holds** the estimated bill + 20% for tip + a $4 booking fee; nothing is charged yet. Tick the box to let a bill above the hold go on your saved PayPal.
+3. **The venue confirms, then closes the bill.** Open **/admin** (the venue desk) and enter the **Admin key** from the Devpost testing instructions. **Decline** voids the hold, so the guest is never charged. **Confirm** reserves the table (still nothing charged). Under **Open bills**, enter the final bill: we capture bill + fee from the hold and release the rest. If the bill is higher than the hold, the difference is charged to the guest's saved PayPal (if they ticked the box) or they pay it at the table; the booking page tells them which.
 4. **Gift it, with a group pool.** Choose **For them** on the home page, describe who it's for, and on a pick choose **Gift this**, then **Start a group pool, friends chip in**. Share the gift link; each person who chips in places their own PayPal hold. When the total is reached every hold is captured at once; if the deadline passes first, every hold is voided. The gift page also suggests a small add-on under $75, found live through Channel3.
 5. **Redeem and check in.** The recipient opens the redeem link and books a time; the gift pays for it. On the booking page, **I'm here: check in** works from 2 hours before the booking until 24 hours after (the venue desk can also check guests in from **Arrivals**).
 6. **See it count.** **/passport** shows your level, XP, stamps by category, quests in progress and badges. **/profile** shows your upcoming plans on a calendar, plus your name, photo and home city. **/gifts** lists gifts you started and chipped in to.
@@ -26,7 +26,7 @@ Only paid, checked-in bookings count toward quests, so a booking that's cancelle
 | Checkout | JavaScript SDK Buttons (`@paypal/react-paypal-js`) with `intent=authorize` |
 | You approve | Orders v2: create order (`intent=AUTHORIZE`), then authorize. The server compares the authorized amount with its own price and voids it on any mismatch |
 | Partner venue | Capture the authorization right away |
-| Request-to-book venue | Keep the authorization as a hold; capture when the venue confirms, void if it declines |
+| Request-to-book venue | Hold = estimated bill + 20% + $4 fee, optionally saving the guest's PayPal (vault with purchase). Venue confirms: still held. Bill closes: partial capture of bill + fee, rest released; anything above the hold is a merchant-initiated charge on the saved PayPal (`payment_source.paypal.vault_id`), or paid at the table. Declined: void |
 | Group gift pool | One authorization per contributor; all captured when the pool is funded, all voided at the deadline (a Render cron job checks every 15 minutes) |
 | Concierge | [PayPal Agent Toolkit](https://github.com/paypal/agent-toolkit) `get_order`, so the agent can answer "did my booking go through?" |
 
@@ -74,7 +74,7 @@ To deploy your own copy, create a Render Blueprint from this repo; `render.yaml`
 ## Tests
 
 ```bash
-npm test          # 921 unit + integration tests
+npm test          # 1007 unit + integration tests
 npm run coverage  # 100% statements, branches, functions and lines
 npm run lint
 ```

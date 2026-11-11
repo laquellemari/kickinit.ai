@@ -39,8 +39,8 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
       <span className="pick-meta">{p.address}</span>
       <p className="pick-why">{pick.why}</p>
       <div className="pick-price">
-        <span className="pick-meta">Est. hold · {guests(partySize)}</span>
-        <strong>{money(pick.quote.total)}</strong>
+        <span className="pick-meta">Est. bill · {guests(partySize)}</span>
+        <strong>{money(pick.quote.breakdown?.billEstimate ?? pick.quote.total)}</strong>
       </div>
       <div className="pick-actions">
         <Link className="btn-navy" href={`/request/${p.placeId}?party=${partySize}`}>Request to book</Link>

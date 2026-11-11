@@ -18,7 +18,11 @@ export class PayPalError extends Error {
 }
 
 export type Money = { value: string; currency: string };
-export type HoldOrderInput = { amount: string; currency: string; description: string; referenceId: string; requestId: string };
+export type HoldOrderInput = {
+  amount: string; currency: string; description: string; referenceId: string; requestId: string;
+  /** Save the buyer's PayPal with this hold so we can charge any amount above it later (they agreed at checkout). */
+  savePayPal?: { returnUrl: string; cancelUrl: string };
+};
 
 function config() {
   const clientId = process.env.PAYPAL_CLIENT_ID;
@@ -99,12 +103,21 @@ export async function createHoldOrder(input: HoldOrderInput): Promise<{ id: stri
     purchase_units: [
       { reference_id: input.referenceId, description: input.description, amount: { currency_code: input.currency, value: input.amount } },
     ],
+    ...(input.savePayPal && {
+      payment_source: {
+        paypal: {
+          attributes: { vault: { store_in_vault: "ON_SUCCESS", usage_type: "MERCHANT", customer_type: "CONSUMER" } },
+          experience_context: { return_url: input.savePayPal.returnUrl, cancel_url: input.savePayPal.cancelUrl },
+        },
+      },
+    }),
   });
   return { id: order!.id, status: order!.status };
 }
 
 type AuthorizedOrder = {
   id: string;
+  payment_source?: { paypal?: { attributes?: { vault?: { id?: string; status?: string } } } };
   purchase_units?: {
     payments?: { authorizations?: { id: string; status: string; expiration_time: string; amount?: { value: string; currency_code: string } }[] };
   }[];
@@ -122,7 +135,50 @@ export async function authorizeOrder(orderId: string, requestId: string) {
     status: auth.status,
     expiresAt: auth.expiration_time,
     amount: auth.amount ? { value: auth.amount.value, currency: auth.amount.currency_code } : null,
+    /** Set only when PayPal saved the buyer's account (status VAULTED); "APPROVED" means it wasn't saved. */
+    vaultId: savedVaultId(order),
   };
+}
+
+function savedVaultId(order: AuthorizedOrder | null): string | null {
+  const v = order?.payment_source?.paypal?.attributes?.vault;
+  return v?.status === "VAULTED" && v.id ? v.id : null;
+}
+
+export type SavedChargeInput = { vaultId: string; amount: string; currency: string; description: string; referenceId: string; requestId: string };
+
+/** Charge a buyer's saved PayPal without them present (they agreed when booking). Returns the capture id. */
+export async function chargeSavedPayPal(input: SavedChargeInput): Promise<{ orderId: string; captureId: string }> {
+  if (!input.vaultId || !ID_RE.test(input.vaultId)) throw new Error("Saved PayPal id is missing or invalid");
+  checkAmount(input.amount);
+  checkCurrency(input.currency);
+  if (!input.description.trim() || input.description.length > 127) throw new Error("Description must be 1 to 127 characters");
+  checkRequestId(input.requestId);
+  const order = await call<{ id: string; status: string; purchase_units?: { payments?: { captures?: { id: string; status: string }[] } }[] }>(
+    "/v2/checkout/orders",
+    input.requestId,
+    {
+      intent: "CAPTURE",
+      purchase_units: [{ reference_id: input.referenceId, description: input.description, amount: { currency_code: input.currency, value: input.amount } }],
+      payment_source: { paypal: { vault_id: input.vaultId } },
+    },
+  );
+  const capture = order?.purchase_units?.[0]?.payments?.captures?.[0];
+  if (order?.status !== "COMPLETED" || !capture) throw new PayPalError(422, "NOT_COMPLETED", `PayPal didn't complete the charge (status ${order?.status ?? "none"})`);
+  return { orderId: order.id, captureId: capture.id };
+}
+
+/** A short-lived id token the JS SDK needs (data-user-id-token) to save a buyer's PayPal during checkout. */
+export async function getIdToken(): Promise<string> {
+  const { clientId, secret, baseUrl } = config();
+  const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
+    method: "POST",
+    headers: { authorization: `Basic ${btoa(`${clientId}:${secret}`)}`, "content-type": "application/x-www-form-urlencoded" },
+    body: "grant_type=client_credentials&response_type=id_token",
+  });
+  const body = await res.json();
+  if (!res.ok || !body.id_token) throw new PayPalError(res.status, body.error ?? "NO_ID_TOKEN", `PayPal id token failed: ${body.error_description ?? "no id_token returned"}`);
+  return body.id_token;
 }
 
 export async function captureAuthorization(authorizationId: string, requestId: string, amount?: Money) {

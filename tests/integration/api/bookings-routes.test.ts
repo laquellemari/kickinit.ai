@@ -4,8 +4,9 @@ import { POST as create, GET as mine } from "@/app/api/bookings/route";
 import { GET as one } from "@/app/api/bookings/[id]/route";
 import { POST as confirm } from "@/app/api/bookings/[id]/confirm/route";
 import { POST as decline } from "@/app/api/bookings/[id]/decline/route";
+import { POST as closeBillRoute } from "@/app/api/bookings/[id]/close-bill/route";
 import { GET as adminList } from "@/app/api/admin/bookings/route";
-import { insertBooking } from "@/lib/bookings/repo";
+import { insertBooking, transition } from "@/lib/bookings/repo";
 import { resetTokenCache } from "@/lib/paypal/client";
 import { setDb } from "@/lib/db";
 import { useTestDb } from "../../helpers/db";
@@ -150,5 +151,35 @@ describe("GET /api/admin/bookings", () => {
   });
   it("401 without the admin key", async () => {
     await verifyRes(await adminList(req({ url: "http://x/api/admin/bookings" })), { status: 401 });
+  });
+});
+
+describe("POST /api/bookings/:id/close-bill", () => {
+  const confirmedLive = async (o: Parameters<typeof createNewBooking>[0] = {}) => {
+    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1", amount: "100.00", fee: "4.00", ...o }));
+    await transition(b.id, ["held"], "confirmed");
+    return b;
+  };
+  it("admin closes the bill: settled from the hold; the response never shows the saved PayPal or capture ids", async () => {
+    const b = await confirmedLive({ vaultId: "VLT-SECRET" });
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture({ id: "CAP-SECRET" }) });
+    const json = await verifyRes(await closeBillRoute(req({ method: "POST", admin: ADMIN, body: { billTotal: "80.00" } }), p(b.id)), {
+      status: 200, body: { id: b.id, fee: "4.00", overageConsent: true, settlement: { billTotal: "80.00", capturedTotal: "84.00", overage: "0.00", overageStatus: "none" } },
+    });
+    expect(JSON.stringify(json)).not.toMatch(/VLT-SECRET|CAP-SECRET|authorizationId|userId/);
+    expect(typeof json.settlement.settledAt).toBe("string");
+  });
+  it("401 without the admin key, even for the guest", async () => {
+    const b = await confirmedLive({ userId: ME });
+    const f = mockPayPal();
+    await verifyRes(await closeBillRoute(req({ method: "POST", body: { billTotal: "80" } }), p(b.id)), { status: 401 });
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("404 for a bad id", async () => {
+    await verifyRes(await closeBillRoute(req({ method: "POST", admin: ADMIN, body: { billTotal: "80" } }), p("x")), { status: 404 });
+  });
+  it("400 for a bad amount", async () => {
+    const b = await confirmedLive();
+    await verifyRes(await closeBillRoute(req({ method: "POST", admin: ADMIN, body: { billTotal: "lots" } }), p(b.id)), { status: 400, body: { error: "Enter the final bill, like 96.50" } });
   });
 });
