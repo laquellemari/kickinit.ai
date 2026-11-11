@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { runConcierge, validateInput, systemPrompt, resolvePicks, withMoreOptions, LIMITS, type ConciergeInput, type PlanPick } from "@/lib/concierge/agent";
-import { searchExperiences } from "@/lib/catalog/catalog";
+import { searchExperiences, getExperience, getExperienceByPlaceId } from "@/lib/catalog/catalog";
 import { tool } from "ai";
 import { z } from "zod";
 import { createScriptedModel, createLivePlace } from "../../helpers/factories";
@@ -273,3 +273,34 @@ describe("withMoreOptions (the server tops up the model's picks)", () => {
     expect(culinary.length).toBeGreaterThan(8);
   });
 });
+
+describe("a Google result that is one of our partners", () => {
+  const carasau = getExperience("carasau-pasta-bar")!;
+  const dupe = createLivePlace({ placeId: carasau.placeId, name: "Carasau Pasta Bar" });
+  const cache = new Map([[dupe.id, dupe]]);
+  const idsOf = (o: PlanPick[]) => o.map((p) => `${p.kind}:${p.kind === "partner" ? p.experience.id : p.place.id}`);
+  it("books as the partner, keeping the model's reason", () => {
+    const out = resolvePicks([{ experienceId: dupe.id, why: "Handmade pasta." }], 2, cache);
+    expect(idsOf(out)).toEqual(["partner:carasau-pasta-bar"]);
+    expect(out[0].why).toBe("Handmade pasta.");
+    expect(out[0].quote.total).toBe("180.00");
+  });
+  it("is shown once when the model picks both the partner and its Google listing", () => {
+    expect(idsOf(resolvePicks([{ experienceId: "carasau-pasta-bar", why: "a" }, { experienceId: dupe.id, why: "b" }], 2, cache))).toEqual(["partner:carasau-pasta-bar"]);
+    expect(idsOf(resolvePicks([{ experienceId: dupe.id, why: "b" }, { experienceId: "carasau-pasta-bar", why: "a" }], 2, cache))).toEqual(["partner:carasau-pasta-bar"]);
+  });
+  it("and isn't added back by the top-up", () => {
+    const out = withMoreOptions(resolvePicks([{ experienceId: "carasau-pasta-bar", why: "a" }], 2), [dupe.id, "carasau-pasta-bar"], 2, cache);
+    expect(idsOf(out).filter((i) => i.endsWith("carasau-pasta-bar") || i.endsWith(dupe.id))).toEqual(["partner:carasau-pasta-bar"]);
+  });
+  it("too big a party for the partner: dropped, not shown as a request instead", () => {
+    const spa = getExperience("desuar-hollywood-spa")!;
+    const d = createLivePlace({ placeId: spa.placeId });
+    expect(resolvePicks([{ experienceId: d.id, why: "x" }], 4, new Map([[d.id, d]]))).toEqual([]);
+  });
+  it("getExperienceByPlaceId finds partners by Google id, or nothing", () => {
+    expect(getExperienceByPlaceId(carasau.placeId)?.id).toBe("carasau-pasta-bar");
+    expect(getExperienceByPlaceId("ChIJnot-ours")).toBeUndefined();
+  });
+});
+

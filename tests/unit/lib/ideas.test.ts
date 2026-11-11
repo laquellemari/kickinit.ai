@@ -27,6 +27,9 @@ describe("parseIdeas", () => {
   it("strips bullets, numbers and quotes; drops duplicates and blank lines; keeps 3", () => {
     expect(parseIdeas('Here you go\n1. "Sunset sail Saturday"\n- Jazz Friday night\n\n• jazz friday night\n2) Pottery class for 2\n* Extra one')).toEqual(["Here you go", "Sunset sail Saturday", "Jazz Friday night"]);
   });
+  it("markdown bold is removed", () => {
+    expect(parseIdeas("1. **Sunset sail** for two\n- **Jazz brunch Sunday**")).toEqual(["Sunset sail for two", "Jazz brunch Sunday"]);
+  });
   it("a duplicate (any case) before the third idea is skipped", () => {
     expect(parseIdeas("Jazz Friday\n- jazz friday\nSauna Sunday\nPottery for 2")).toEqual(["Jazz Friday", "Sauna Sunday", "Pottery for 2"]);
   });
@@ -42,6 +45,7 @@ describe("suggestIdeas", () => {
   const ctx = { mode: "you" as const, where: "LA", searches: ["jazz tonight"], booked: [] };
   it("happy: Claude's ideas, marked personalized when there's history; the prompt is what it saw", async () => {
     const { model, prompts } = createScriptedModel([{ text: "A blues bar crawl Friday\nVinyl listening bar for 2\nJazz brunch Sunday" }]);
+    // enough room for the model to answer (300 was too little in production)
     expect(await suggestIdeas(ctx, model)).toEqual({ ideas: ["A blues bar crawl Friday", "Vinyl listening bar for 2", "Jazz brunch Sunday"], personalized: true });
     expect(JSON.stringify(prompts[0])).toContain("jazz tonight");
   });

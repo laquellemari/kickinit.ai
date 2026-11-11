@@ -1,6 +1,6 @@
 import { generateText, tool, type CoreMessage, type LanguageModelV1, type ToolSet } from "ai";
 import { z } from "zod";
-import { getExperience, quote, searchExperiences } from "@/lib/catalog/catalog";
+import { getExperience, getExperienceByPlaceId, quote, searchExperiences } from "@/lib/catalog/catalog";
 import { CATEGORIES, type Quote, type SearchResult } from "@/lib/catalog/types";
 import { quoteLive } from "@/lib/places/quote";
 import type { LivePlace } from "@/lib/places/types";
@@ -115,7 +115,13 @@ export function resolvePicks(picks: { experienceId: string; why: string }[], par
   for (const p of picks) {
     if (seen.has(p.experienceId)) continue;
     const live = liveCache.get(p.experienceId);
-    if (live) {
+    // A Google result that is one of our partners books as the partner (instant, fixed price), shown once.
+    const partner = live && getExperienceByPlaceId(live.placeId);
+    if (partner) {
+      out.push(...resolvePicks([{ experienceId: partner.id, why: p.why }], partySize, new Map(), 1).filter((x) => !seen.has(idOf(x))));
+      seen.add(live.id);
+      for (const x of out) seen.add(idOf(x));
+    } else if (live) {
       seen.add(live.id);
       out.push({ kind: "live", place: live, why: p.why, quote: quoteLive(live, partySize) });
     } else {
@@ -144,7 +150,8 @@ export function withMoreOptions(picks: PlanPick[], found: string[], partySize: n
   };
   const extra = (ids: string[]) => {
     const fresh = [...new Set(ids)].filter((id) => !shown.has(id));
-    const more = resolvePicks(fresh.map((id) => ({ experienceId: id, why: reason(id) })), partySize, liveCache, LIMITS.options - picks.length);
+    const more = resolvePicks(fresh.map((id) => ({ experienceId: id, why: reason(id) })), partySize, liveCache, LIMITS.options - picks.length)
+      .filter((m) => !shown.has(idOf(m))); // a Google listing of a partner already shown
     for (const m of more) shown.add(idOf(m));
     return more;
   };
