@@ -12,6 +12,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/lib/**", "src/components/**", "src/app/api/**"],
+      exclude: ["**/types.ts"],
       thresholds: {
         "src/lib/**": { statements: 90, branches: 90, functions: 90, lines: 90 },
         "src/app/api/**": { statements: 85, branches: 85, functions: 85, lines: 85 },
