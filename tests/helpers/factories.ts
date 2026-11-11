@@ -100,7 +100,8 @@ export const createLivePlace = (overrides: Partial<LivePlace> = {}): LivePlace =
   const placeId = overrides.placeId ?? "ChIJsd1";
   return {
     id: `gp:${placeId}`, placeId, name: "Cucina Sorella", address: "1 Main St, San Diego, CA", lat: 32.7, lng: -117.16,
-    category: "culinary", typeLabel: "Italian restaurant", mapsUrl: "https://maps.google.com/?cid=1", estimatePerPerson: "60.00", ...overrides,
+    category: "culinary", typeLabel: "Italian restaurant", mapsUrl: "https://maps.google.com/?cid=1", estimatePerPerson: "60.00",
+    city: "San Diego", country: "US", utcOffsetMinutes: -480, primaryType: "italian_restaurant", ...overrides,
   };
 };
 
@@ -127,7 +128,9 @@ let orderSeq = 0;
 export const createNewBooking = (overrides: Partial<NewBooking> = {}): NewBooking => ({
   userId: "user-1", kind: "partner", itemId: "marea", name: "Ristorante Marea", partySize: 2,
   startsAt: new Date("2026-11-14T19:30:00Z"), amount: "180.00", currency: "USD",
-  paypalOrderId: `ORDER${++orderSeq}`, authorizationId: `AUTH${orderSeq}`, holdExpiresAt: new Date("2026-12-13T00:00:00Z"), ...overrides,
+  paypalOrderId: `ORDER${++orderSeq}`, authorizationId: `AUTH${orderSeq}`, holdExpiresAt: new Date("2026-12-13T00:00:00Z"),
+  facts: { tags: ["restaurant", "italian", "waterfront", "romantic"], city: "Miami", country: "US", neighborhood: "Coconut Grove", cuisine: "italian", localHour: 19 },
+  ...overrides,
 });
 
 import type { NewGift, NewContribution } from "@/lib/gifts/repo";

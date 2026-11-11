@@ -5,9 +5,9 @@ import { useState } from "react";
 
 type Mode = "you" | "them";
 
-export function SearchCard({ region }: { region: string }) {
+export function SearchCard({ region, initialMode = "you" }: { region: string; initialMode?: Mode }) {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("you");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [what, setWhat] = useState("Dinner");
   const [where, setWhere] = useState(region);
   const [when, setWhen] = useState("Sat · evening");

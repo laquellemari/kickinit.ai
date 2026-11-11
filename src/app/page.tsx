@@ -28,7 +28,8 @@ const stamps = [
   { t: "Circle of Calm", p: "2 of 4", rot: "4deg", done: false },
 ];
 
-export default function Home() {
+export default async function Home({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const forThem = (await searchParams)?.for === "them";
   return (
     <div style={{ minHeight: "100vh" }}>
       <section className="hero">
@@ -44,7 +45,7 @@ export default function Home() {
       </section>
 
       <main style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px 64px", display: "flex", flexDirection: "column", gap: 56 }}>
-        <SearchCard region={REGION} />
+        <SearchCard region={REGION} initialMode={forThem ? "them" : "you"} />
 
         <section>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22, flexWrap: "wrap", gap: 8 }}>

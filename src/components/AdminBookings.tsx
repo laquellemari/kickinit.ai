@@ -13,6 +13,7 @@ export function AdminBookings() {
   const [key, setKey] = useState("");
   const [draft, setDraft] = useState("");
   const [list, setList] = useState<PublicBooking[] | null>(null);
+  const [toCheckIn, setToCheckIn] = useState<PublicBooking[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -26,6 +27,9 @@ export function AdminBookings() {
       return;
     }
     setList(body.bookings);
+    const conf = await fetch("/api/admin/bookings?status=confirmed", { headers: { "x-admin-key": k } });
+    const cb = await conf.json();
+    setToCheckIn(conf.ok ? (cb.bookings as PublicBooking[]).filter((x) => !x.checkedInAt) : []);
   }, []);
 
   useEffect(() => {
@@ -36,7 +40,7 @@ export function AdminBookings() {
     }
   }, [load]);
 
-  async function act(id: string, action: "confirm" | "decline") {
+  async function act(id: string, action: "confirm" | "decline" | "check-in") {
     setBusy(id);
     const res = await fetch(`/api/bookings/${id}/${action}`, { method: "POST", headers: { "x-admin-key": key } });
     const body = await res.json();
@@ -57,6 +61,7 @@ export function AdminBookings() {
   }
 
   return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
     <section className="concierge-card" aria-label="Requests waiting for the venue">
       {error && <p className="error-note" role="alert">{error}</p>}
       {list.length === 0 && <p className="concierge-reply">No requests waiting. Everything&rsquo;s confirmed or released.</p>}
@@ -73,5 +78,19 @@ export function AdminBookings() {
         </div>
       ))}
     </section>
+    <section className="concierge-card" aria-label="Confirmed, not yet checked in">
+      <h2 className="display" style={{ margin: 0, fontSize: 28 }}>Arrivals</h2>
+      {toCheckIn.length === 0 && <p className="pick-meta">No confirmed guests waiting to check in.</p>}
+      {toCheckIn.map((b) => (
+        <div key={b.id} className="pick-price" style={{ flexWrap: "wrap" }} aria-label={`Arrival: ${b.name}`}>
+          <div>
+            <strong style={{ fontSize: 20 }}>{b.name}</strong>
+            <div className="pick-meta">{new Date(b.startsAt).toLocaleString()} · {guests(b.partySize)}</div>
+          </div>
+          <button className="btn-navy" disabled={busy === b.id} onClick={() => act(b.id, "check-in")}>Check in</button>
+        </div>
+      ))}
+    </section>
+    </div>
   );
 }

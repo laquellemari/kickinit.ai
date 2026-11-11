@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS bookings (
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT '';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS country TEXT NOT NULL DEFAULT '';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS neighborhood TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cuisine TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS local_hour INTEGER NOT NULL DEFAULT 12;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS bookings_user ON bookings (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS bookings_status ON bookings (status, created_at DESC);
 
@@ -62,6 +69,17 @@ CREATE TABLE IF NOT EXISTS contributions (
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS contributions_gift ON contributions (gift_id, created_at);
+CREATE INDEX IF NOT EXISTS contributions_contributor ON contributions (contributor_id);
+CREATE INDEX IF NOT EXISTS gifts_organizer ON gifts (organizer_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS profiles (
+  user_id      TEXT PRIMARY KEY,
+  display_name TEXT NOT NULL DEFAULT '',
+  home_city    TEXT NOT NULL DEFAULT 'Miami',
+  home_country TEXT NOT NULL DEFAULT 'US',
+  avatar       TEXT,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 /** Use a specific database (tests pass PGlite). Resets schema readiness. */

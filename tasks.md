@@ -4,4 +4,4 @@
 _(none)_
 
 ## Up next
-- [ ] Passport, profile, settings pages
+- [x] Passport, profile, settings pages (chunk 9)

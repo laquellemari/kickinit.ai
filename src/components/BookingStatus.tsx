@@ -15,6 +15,7 @@ const COPY: Record<PublicBooking["status"], { title: string; body: (b: PublicBoo
 export function BookingStatus({ id }: { id: string }) {
   const [b, setB] = useState<PublicBooking | null>(null);
   const [error, setError] = useState("");
+  const [checkInError, setCheckInError] = useState("");
 
   useEffect(() => {
     fetch(`/api/bookings/${id}`)
@@ -28,6 +29,14 @@ export function BookingStatus({ id }: { id: string }) {
 
   if (error) return <p className="error-note" role="alert">{error}</p>;
   if (!b) return <div className="concierge-status" role="status"><span className="dot-pulse" aria-hidden="true" /> Loading your booking…</div>;
+
+  async function checkIn() {
+    setCheckInError("");
+    const res = await fetch(`/api/bookings/${id}/check-in`, { method: "POST" });
+    const body = await res.json();
+    if (!res.ok) return setCheckInError(body.error ?? "Couldn't check you in.");
+    setB(body);
+  }
 
   const c = COPY[b.status];
   const when = new Date(b.startsAt).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -47,6 +56,14 @@ export function BookingStatus({ id }: { id: string }) {
         <div><dt>{b.status === "confirmed" ? "Paid" : "Amount"}</dt><dd>{money(b.amount)}</dd></div>
         <div><dt>PayPal order</dt><dd style={{ fontSize: 14 }}>{b.paypalOrderId}</dd></div>
       </dl>
+      {b.status === "confirmed" && !b.checkedInAt && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <button type="button" className="btn-navy" style={{ alignSelf: "flex-start" }} onClick={checkIn}>I&rsquo;m here: check in</button>
+          <span className="pick-meta">Opens 2 hours before your booking. Checking in adds the stamp to your passport.</span>
+          {checkInError && <p className="error-note" role="alert">{checkInError}</p>}
+        </div>
+      )}
+      {b.checkedInAt && <p className="concierge-reply" role="status">Checked in. <Link href="/passport">See your passport</Link>.</p>}
       <div className="pick-actions">
         <Link className="btn-line" href="/">Plan something else</Link>
       </div>

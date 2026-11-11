@@ -13,4 +13,10 @@ export type LivePlace = {
   mapsUrl: string;
   /** Estimated price per person, used to size the PayPal hold. Decimal string. */
   estimatePerPerson: string;
+  city: string;
+  /** ISO country code, e.g. "US". */
+  country: string;
+  /** The venue's current offset from UTC, for local start times. */
+  utcOffsetMinutes: number | null;
+  primaryType: string | null;
 };

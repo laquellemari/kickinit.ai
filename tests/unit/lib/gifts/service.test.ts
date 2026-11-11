@@ -299,6 +299,7 @@ describe("redeemGift", () => {
     const r = await redeemGift({ code: g.redeemCode, userId: "mom", startsAt: SAT, now: NOW });
     expect(r.gift).toMatchObject({ status: "redeemed", bookingId: r.booking.id });
     expect(r.booking).toMatchObject({ status: "confirmed", userId: "mom", itemId: "still-water", amount: "190.00", partySize: 2, paypalOrderId: `gift:${g.id}` });
+    expect(r.booking.facts).toMatchObject({ city: "Miami", neighborhood: "Wynwood", tags: ["wellness", "spa", "bathhouse", "sauna", "cold_plunge"] });
     expect((await getBooking(r.booking.id))?.status).toBe("confirmed");
     expect(f).not.toHaveBeenCalled(); // already paid by the givers
     await expect(redeemGift({ code: g.redeemCode, userId: "mom", startsAt: SAT, now: NOW })).rejects.toMatchObject({ status: 409, message: "This gift has already been redeemed" });

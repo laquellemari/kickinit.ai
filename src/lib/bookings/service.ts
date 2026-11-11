@@ -1,5 +1,5 @@
 import { authorizeOrder, captureAuthorization, voidAuthorization } from "@/lib/paypal/client";
-import { getBooking, getBookingByOrder, insertBooking, transition, type Booking } from "./repo";
+import { getBooking, getBookingByOrder, insertBooking, markCheckedIn, transition, type Booking } from "./repo";
 import { priceFor } from "./pricing";
 
 const HOUR = 3_600_000;
@@ -63,6 +63,7 @@ export async function placeBooking(input: PlaceBookingInput): Promise<Booking> {
     paypalOrderId: input.orderId,
     authorizationId: auth.authorizationId,
     holdExpiresAt: auth.expiresAt ? new Date(auth.expiresAt) : null,
+    facts: priced.factsAt(startsAt),
   });
 
   if (booking.kind !== "partner") return booking;
@@ -94,4 +95,22 @@ export async function declineBooking(id: string): Promise<Booking> {
   const done = await transition(b.id, ["held"], "declined");
   if (!done) throw new BookingError(409, "Booking changed while declining");
   return done;
+}
+
+/**
+ * Mark a confirmed booking as attended, which is what makes it count toward quests.
+ * Guests can check in from 2 hours before the start until 24 hours after; the venue desk (admin) any time.
+ */
+export async function checkIn(input: { id: string; userId: string | null; admin: boolean; now?: Date }): Promise<Booking> {
+  const now = input.now ?? new Date();
+  const b = await getBooking(input.id);
+  if (!b || (!input.admin && b.userId !== input.userId)) throw new BookingError(404, "Booking not found");
+  if (b.checkedInAt) return b;
+  if (b.status !== "confirmed") throw new BookingError(409, "Only confirmed bookings can be checked in");
+  if (!input.admin) {
+    const t = b.startsAt.getTime();
+    if (now.getTime() < t - 2 * HOUR) throw new BookingError(409, "Check-in opens 2 hours before your booking");
+    if (now.getTime() > t + DAY) throw new BookingError(409, "Check-in closed 24 hours after your booking");
+  }
+  return (await markCheckedIn(b.id, now)) ?? (await getBooking(b.id))!;
 }

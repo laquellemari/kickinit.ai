@@ -5,7 +5,7 @@ const BASE = "https://places.googleapis.com/v1";
 /** Text Search "Pro" fields only (5,000 free/month). Rating, price level, hours etc. are Enterprise-priced. */
 export const FIELD_MASK = [
   "places.id", "places.displayName", "places.formattedAddress", "places.location", "places.primaryType",
-  "places.primaryTypeDisplayName", "places.googleMapsUri", "places.businessStatus",
+  "places.primaryTypeDisplayName", "places.googleMapsUri", "places.businessStatus", "places.addressComponents", "places.utcOffsetMinutes",
 ].join(",");
 const ID_RE = /^[A-Za-z0-9_-]{1,300}$/;
 
@@ -25,6 +25,8 @@ type GPlace = {
   primaryTypeDisplayName?: { text: string };
   googleMapsUri?: string;
   businessStatus?: string;
+  addressComponents?: { longText: string; shortText: string; types: string[] }[];
+  utcOffsetMinutes?: number;
 };
 
 /** Rough per-person spend by venue type, used only to size the PayPal hold. The venue confirms the real amount. */
@@ -63,8 +65,17 @@ async function call(url: string, init: RequestInit, mask: string): Promise<unkno
   return json;
 }
 
+function component(p: GPlace, type: string, short = false): string {
+  const c = p.addressComponents?.find((x) => x.types.includes(type));
+  return (short ? c?.shortText : c?.longText) ?? "";
+}
+
 function toLivePlace(p: GPlace): LivePlace {
   return {
+    city: component(p, "locality") || component(p, "postal_town"),
+    country: component(p, "country", true),
+    utcOffsetMinutes: p.utcOffsetMinutes ?? null,
+    primaryType: p.primaryType ?? null,
     id: `gp:${p.id}`,
     placeId: p.id,
     name: p.displayName?.text ?? "Unnamed place",

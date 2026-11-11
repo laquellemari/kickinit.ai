@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "@/lib/db";
+import type { VenueFacts } from "./venue";
 
 export type BookingStatus = "held" | "confirmed" | "declined" | "failed";
 export type Booking = {
@@ -19,13 +20,17 @@ export type Booking = {
   holdExpiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Where/when facts used for quests. */
+  facts: VenueFacts;
+  checkedInAt: Date | null;
 };
-export type NewBooking = Omit<Booking, "id" | "status" | "captureId" | "createdAt" | "updatedAt">;
+export type NewBooking = Omit<Booking, "id" | "status" | "captureId" | "createdAt" | "updatedAt" | "checkedInAt">;
 
 type Row = {
   id: string; user_id: string; kind: Booking["kind"]; item_id: string; name: string; party_size: number; starts_at: Date | string;
   amount: string; currency: string; status: BookingStatus; paypal_order_id: string; authorization_id: string; capture_id: string | null;
   hold_expires_at: Date | string | null; created_at: Date | string; updated_at: Date | string;
+  tags: string[]; city: string; country: string; neighborhood: string | null; cuisine: string | null; local_hour: number; checked_in_at: Date | string | null;
 };
 
 const toDate = (v: Date | string) => new Date(v);
@@ -33,14 +38,18 @@ const fromRow = (r: Row): Booking => ({
   id: r.id, userId: r.user_id, kind: r.kind, itemId: r.item_id, name: r.name, partySize: r.party_size, startsAt: toDate(r.starts_at),
   amount: r.amount, currency: r.currency, status: r.status, paypalOrderId: r.paypal_order_id, authorizationId: r.authorization_id,
   captureId: r.capture_id, holdExpiresAt: r.hold_expires_at === null ? null : toDate(r.hold_expires_at), createdAt: toDate(r.created_at), updatedAt: toDate(r.updated_at),
+  facts: { tags: r.tags, city: r.city, country: r.country, neighborhood: r.neighborhood, cuisine: r.cuisine, localHour: r.local_hour },
+  checkedInAt: r.checked_in_at === null ? null : toDate(r.checked_in_at),
 });
 
 export async function insertBooking(b: NewBooking): Promise<Booking> {
   const db = await getDb();
   const { rows } = await db.query<Row>(
-    `INSERT INTO bookings (id, user_id, kind, item_id, name, party_size, starts_at, amount, currency, status, paypal_order_id, authorization_id, hold_expires_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'held',$10,$11,$12) RETURNING *`,
-    [randomUUID(), b.userId, b.kind, b.itemId, b.name, b.partySize, b.startsAt, b.amount, b.currency, b.paypalOrderId, b.authorizationId, b.holdExpiresAt],
+    `INSERT INTO bookings (id, user_id, kind, item_id, name, party_size, starts_at, amount, currency, status, paypal_order_id, authorization_id, hold_expires_at,
+       tags, city, country, neighborhood, cuisine, local_hour)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'held',$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
+    [randomUUID(), b.userId, b.kind, b.itemId, b.name, b.partySize, b.startsAt, b.amount, b.currency, b.paypalOrderId, b.authorizationId, b.holdExpiresAt,
+      b.facts.tags, b.facts.city, b.facts.country, b.facts.neighborhood, b.facts.cuisine, b.facts.localHour],
   );
   return fromRow(rows[0]);
 }
@@ -80,4 +89,13 @@ export async function listBookings(filter: { userId?: string; status?: BookingSt
     [filter.userId ?? null, filter.status ?? null, Math.min(Math.max(filter.limit ?? 50, 1), 200)],
   );
   return rows.map(fromRow);
+}
+
+/** Marks a confirmed booking as attended. Null if it isn't confirmed or was already checked in. */
+export async function markCheckedIn(id: string, at: Date): Promise<Booking | null> {
+  const { rows } = await (await getDb()).query<Row>(
+    "UPDATE bookings SET checked_in_at = $2, updated_at = now() WHERE id = $1 AND status = 'confirmed' AND checked_in_at IS NULL RETURNING *",
+    [id, at],
+  );
+  return rows[0] ? fromRow(rows[0]) : null;
 }

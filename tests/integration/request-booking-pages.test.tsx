@@ -13,7 +13,7 @@ vi.mock("@/lib/places/client", async (orig) => {
 });
 import { getLivePlace, PlacesError } from "@/lib/places/client";
 
-const place = { id: "gp:ChIJ1", placeId: "ChIJ1", name: "Barbusa", address: "1917 India St, San Diego", lat: 1, lng: 2, category: "culinary" as const, typeLabel: "Italian restaurant", mapsUrl: "https://maps.google.com/x", estimatePerPerson: "60.00" };
+const place = { id: "gp:ChIJ1", placeId: "ChIJ1", name: "Barbusa", address: "1917 India St, San Diego", lat: 1, lng: 2, category: "culinary" as const, typeLabel: "Italian restaurant", mapsUrl: "https://maps.google.com/x", estimatePerPerson: "60.00", city: "San Diego", country: "US", utcOffsetMinutes: -480, primaryType: "italian_restaurant" };
 const requestPage = async (placeId: string, sp: Record<string, string | string[]> = {}) =>
   render(await RequestPage({ params: Promise.resolve({ placeId }), searchParams: Promise.resolve(sp) }));
 
