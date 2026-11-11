@@ -103,3 +103,20 @@ export const createLivePlace = (overrides: Partial<LivePlace> = {}): LivePlace =
     category: "culinary", typeLabel: "Italian restaurant", mapsUrl: "https://maps.google.com/?cid=1", estimatePerPerson: "60.00", ...overrides,
   };
 };
+
+import type { ConciergeResult, Pick } from "@/lib/concierge/agent";
+import { quote as quotePartner } from "@/lib/catalog/catalog";
+import { getExperience } from "@/lib/catalog/catalog";
+import { quoteLive } from "@/lib/places/quote";
+
+export const partnerPick = (id: string, partySize = 2, why = "Because."): Pick => {
+  const q = quotePartner(id, partySize);
+  return { kind: "partner", experience: { ...getExperience(id)!, total: q.total }, why, quote: q };
+};
+export const livePick = (overrides: Partial<LivePlace> = {}, partySize = 2, why = "Live pick."): Pick => {
+  const place = createLivePlace(overrides);
+  return { kind: "live", place, why, quote: quoteLive(place, partySize) };
+};
+export const createConciergeResult = (o: Partial<ConciergeResult> = {}): ConciergeResult => ({
+  reply: "Here are two good ones.", partySize: 2, options: [partnerPick("marea"), livePick()], ...o,
+});
