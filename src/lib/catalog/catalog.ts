@@ -28,6 +28,11 @@ export function getExperience(id: string, list: readonly Experience[] = ALL_EXPE
   return list.find((e) => e.id === id);
 }
 
+/** The partner for a Google place id, if that venue is one of ours. */
+export function getExperienceByPlaceId(placeId: string, list: readonly Experience[] = ALL_EXPERIENCES): Experience | undefined {
+  return list.find((e) => e.placeId === placeId);
+}
+
 /** Server-side price for a booking. The browser never decides what the buyer pays. */
 export function quote(experienceId: string, partySize: number, list: readonly Experience[] = ALL_EXPERIENCES): Quote {
   checkPartySize(partySize);

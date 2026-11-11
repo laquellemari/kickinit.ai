@@ -29,7 +29,7 @@ export function ideaPrompt(c: IdeaContext): string {
 export function parseIdeas(text: string): string[] {
   const out: string[] = [];
   for (const raw of text.split("\n")) {
-    const idea = raw.trim().replace(/^(?:[-*•]|\d+[.)])\s*/, "").replace(/^["“']|["”']$/g, "").trim();
+    const idea = raw.trim().replace(/^(?:[-*•]|\d+[.)])\s*/, "").replace(/\*\*/g, "").replace(/^["“']|["”']$/g, "").trim();
     if (idea.length < 3 || idea.length > MAX_IDEA_CHARS) continue;
     if (out.some((o) => o.toLowerCase() === idea.toLowerCase())) continue;
     out.push(idea);
@@ -40,7 +40,7 @@ export function parseIdeas(text: string): string[] {
 
 /** Three ideas from Claude based on the visitor's history; falls back to stock ideas if the reply is unusable. */
 export async function suggestIdeas(c: IdeaContext, model: LanguageModelV1): Promise<{ ideas: string[]; personalized: boolean }> {
-  const { text } = await generateText({ model, prompt: ideaPrompt(c), maxTokens: 300 });
+  const { text } = await generateText({ model, prompt: ideaPrompt(c), maxTokens: 1024 });
   const ideas = parseIdeas(text);
   if (!ideas.length) console.warn("Ideas reply was unusable:", JSON.stringify(text.slice(0, 600)));
   return ideas.length ? { ideas, personalized: c.searches.length > 0 || c.booked.length > 0 } : { ideas: FALLBACK_IDEAS[c.mode], personalized: false };
