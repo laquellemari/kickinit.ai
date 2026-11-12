@@ -26,7 +26,7 @@ export function giftAsBooking(g: Gift): QuestBooking | null {
   };
 }
 
-export function buildActivity(input: { bookings: Stored[]; organized: Gift[]; contributions: Contribution[]; ctx: UserContext }): ActivityInput {
+export function buildActivity(input: { bookings: Stored[]; organized: Gift[]; contributions: Contribution[]; ctx: UserContext; ratings?: number; referrals?: number }): ActivityInput {
   const gifts = input.organized.map(giftAsBooking).filter((b): b is QuestBooking => b !== null);
   return {
     bookings: [...input.bookings.map(questBooking), ...gifts],
@@ -36,8 +36,8 @@ export function buildActivity(input: { bookings: Stored[]; organized: Gift[]; co
       poolsFundedAsOrganizer: input.organized.filter((g) => g.mode === "pool" && (g.status === "funded" || g.status === "redeemed")).length,
       poolContributions: input.contributions.filter((c) => c.status === "captured").length,
       giftsRedeemed: input.bookings.filter((b) => b.paypalOrderId.startsWith("gift:") && b.status === "confirmed").length,
-      referralsConverted: 0,
-      reviews: 0,
+      referralsConverted: input.referrals ?? 0,
+      reviews: input.ratings ?? 0,
     },
   };
 }

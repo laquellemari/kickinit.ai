@@ -24,6 +24,8 @@ describe("SearchCard", () => {
       expect([select("What").value, select("Where").value, select("When").value, select("Who").value]).toEqual(["Dinner", LA, "Evening", "2 guests"]);
       expect(WHERE.every((w) => /^[A-Z][A-Za-z .]+, [A-Z]{2}$/.test(w))).toBe(true);
       expect(WHO[0]).toBe("1 guest");
+      expect(WHERE).toContain("Las Vegas, NV");
+      expect(WHERE).toContain("Houston, TX");
       expect(WHO.at(-1)).toBe("10 guests");
       expect(WHEN).toHaveLength(3);
     });

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
-import { ideaPrompt, parseIdeas, suggestIdeas, FALLBACK_IDEAS, IDEA_COUNT, MAX_IDEA_CHARS } from "@/lib/ideas/ideas";
+import { ideaPrompt, parseIdeas, suggestIdeas, FALLBACK_IDEAS, IDEA_COUNT, MAX_IDEA_CHARS, cityOf, fallbackIdeas } from "@/lib/ideas/ideas";
 import { recordSearch, recentSearches, MAX_SEARCH_CHARS } from "@/lib/ideas/repo";
 import { createScriptedModel } from "../../helpers/factories";
 import { useTestDb } from "../../helpers/db";
@@ -20,6 +20,20 @@ describe("ideaPrompt", () => {
     expect(p).toContain("in or near Los Angeles");
     expect(p).toContain("haven't searched yet");
     expect(p).not.toContain("booked");
+  });
+});
+
+describe("the place the visitor picked", () => {
+  it("is a hard rule in the prompt, named in every idea, and past cities only inform taste", () => {
+    const p = ideaPrompt({ mode: "you", where: "Houston, TX", searches: ["sushi in San Diego Friday"], booked: [] });
+    expect(p).toContain("LOCATION RULE: every idea must take place in or near Houston, TX (the place they picked) and must name Houston in its text.");
+    expect(p).toContain("use them only to learn their tastes, never their location");
+  });
+  it.each([["Houston, TX", "Houston"], ["Las Vegas, NV", "Las Vegas"], ["Los Angeles · 10 mi", "Los Angeles"], ["", "Los Angeles"], ["  Boise ", "Boise"]])("cityOf(%j) = %j", (where, city) => {
+    expect(cityOf(where)).toBe(city);
+  });
+  it("stock ideas are placed in the picked city", () => {
+    expect(fallbackIdeas("you", "Las Vegas, NV")).toEqual(FALLBACK_IDEAS.you.map((i) => `${i} in Las Vegas`));
   });
 });
 
@@ -60,7 +74,7 @@ describe("suggestIdeas", () => {
   it.each(["you", "them"] as const)("an unusable reply falls back to stock ideas and is logged (%s)", async (mode) => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { model } = createScriptedModel([{ text: "" }]);
-    expect(await suggestIdeas({ ...ctx, mode }, model)).toEqual({ ideas: FALLBACK_IDEAS[mode], personalized: false });
+    expect(await suggestIdeas({ ...ctx, mode, where: "Houston, TX" }, model)).toEqual({ ideas: FALLBACK_IDEAS[mode].map((i) => `${i} in Houston`), personalized: false });
     expect(FALLBACK_IDEAS[mode]).toHaveLength(IDEA_COUNT);
     expect(warn).toHaveBeenCalledWith("Ideas reply was unusable:", '""');
     warn.mockRestore();

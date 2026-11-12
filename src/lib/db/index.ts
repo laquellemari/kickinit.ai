@@ -100,6 +100,17 @@ CREATE TABLE IF NOT EXISTS searches (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS searches_user ON searches (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ratings (
+  booking_id  TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL,
+  item_id     TEXT NOT NULL,
+  stars       INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+  note        TEXT NOT NULL DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ratings_user ON ratings (user_id);
+CREATE INDEX IF NOT EXISTS ratings_item ON ratings (item_id);
 `;
 
 /** Use a specific database (tests pass PGlite). Resets schema readiness. */

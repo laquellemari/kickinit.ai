@@ -7,13 +7,20 @@ export const MAX_IDEA_CHARS = 140;
 
 /** Used when the model returns nothing usable, so the button always gives something. */
 export const FALLBACK_IDEAS: Record<IdeaMode, string[]> = {
-  you: ["A sunset sail for two this Saturday", "Live jazz and a late dinner on Friday", "A Korean spa day with a scrub, Sunday afternoon"],
-  them: ["A pottery class for my sister's birthday, under $100", "A couples massage for my parents' anniversary", "A surf lesson for a friend who just moved here"],
+  you: ["A rooftop dinner for two this Saturday", "Live jazz and a late dinner on Friday", "A spa day with a massage, Sunday afternoon"],
+  them: ["A pottery class for my sister's birthday, under $100", "A couples massage for my parents' anniversary", "A cooking class for a friend's birthday"],
 };
+
+/** "Houston, TX" → "Houston"; empty → "Los Angeles". */
+export const cityOf = (where: string) => where.split(",")[0].replace(/·.*$/, "").trim() || "Los Angeles";
+
+/** Stock ideas, placed in the city the visitor picked. */
+export const fallbackIdeas = (mode: IdeaMode, where: string) => FALLBACK_IDEAS[mode].map((i) => `${i} in ${cityOf(where)}`);
 
 export function ideaPrompt(c: IdeaContext): string {
   const lines = [
     `Suggest exactly ${IDEA_COUNT} fresh experience ideas for a kickinit user ${c.mode === "them" ? "who is shopping for a GIFT for someone else" : "planning something for themselves"}, in or near ${c.where || "Los Angeles"}.`,
+    `LOCATION RULE: every idea must take place in or near ${c.where || "Los Angeles"} (the place they picked) and must name ${cityOf(c.where)} in its text. Past searches may mention other cities: use them only to learn their tastes, never their location.`,
     c.searches.length
       ? `Their recent searches (newest first):\n${c.searches.map((s) => `- ${s}`).join("\n")}`
       : "They haven't searched yet, so pick three varied ideas (food, wellness, something active or cultural).",
@@ -43,5 +50,5 @@ export async function suggestIdeas(c: IdeaContext, model: LanguageModelV1): Prom
   const { text } = await generateText({ model, prompt: ideaPrompt(c), maxTokens: 1024 });
   const ideas = parseIdeas(text);
   if (!ideas.length) console.warn("Ideas reply was unusable:", JSON.stringify(text.slice(0, 600)));
-  return ideas.length ? { ideas, personalized: c.searches.length > 0 || c.booked.length > 0 } : { ideas: FALLBACK_IDEAS[c.mode], personalized: false };
+  return ideas.length ? { ideas, personalized: c.searches.length > 0 || c.booked.length > 0 } : { ideas: fallbackIdeas(c.mode, c.where), personalized: false };
 }

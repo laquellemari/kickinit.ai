@@ -8,5 +8,5 @@ export const BUDGET = ["Under $50", "Under $100", "Under $200", "Under $500", "N
 /** Los Angeles first (where the partners are), then nearby, then other big US cities (request-to-book). */
 export const WHERE = [
   "Los Angeles, CA", "Santa Monica, CA", "West Hollywood, CA", "Pasadena, CA", "Long Beach, CA", "Malibu, CA", "Palm Springs, CA", "Santa Barbara, CA",
-  "San Diego, CA", "San Francisco, CA", "Las Vegas, NV", "Seattle, WA", "Denver, CO", "Austin, TX", "Chicago, IL", "Nashville, TN", "Miami, FL", "New York, NY", "Boston, MA", "Washington, DC",
+  "San Diego, CA", "San Francisco, CA", "Las Vegas, NV", "Seattle, WA", "Denver, CO", "Austin, TX", "Houston, TX", "Chicago, IL", "Nashville, TN", "Miami, FL", "New York, NY", "Boston, MA", "Washington, DC",
 ] as const;
