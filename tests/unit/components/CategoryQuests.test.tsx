@@ -34,7 +34,6 @@ describe("CategoryQuests", () => {
     expect((f.mock.calls[0] as unknown as [string])[0]).toBe("/api/passport/culinary");
     expect(screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"))).toEqual(["Category progress", "Easy", "Medium", "Hard", "Legendary"]);
     expect(within(screen.getByRole("region", { name: "Easy" })).getByRole("heading")).toHaveTextContent("Easy · 100 XP each");
-    expect(screen.getByRole("link", { name: "← All categories" })).toHaveAttribute("href", "/passport");
   });
   it("a quest card: what to do, who it's for, XP, progress, and a link to find a match", async () => {
     mock(200, page());

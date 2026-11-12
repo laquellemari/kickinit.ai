@@ -62,7 +62,6 @@ export function CategoryQuests({ id }: { id: string }) {
   const pct = Math.round((page.completed / page.total) * 100);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <Link href="/passport" className="pick-meta">← All categories</Link>
       <section className="passport" aria-label="Category progress">
         <div style={{ flex: "1 1 260px" }}>
           <div style={{ color: "var(--on-navy)" }}>{page.completed} of {page.total} quests collected</div>
