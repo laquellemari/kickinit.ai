@@ -20,8 +20,8 @@ const apis = (claude: () => Response, places: () => Response = () => json(200, {
 
 let t: Awaited<ReturnType<typeof useTestDb>>;
 beforeAll(async () => { t = await useTestDb(); });
-beforeEach(async () => { await t.reset(); vi.stubEnv("ANTHROPIC_API_KEY", "sk"); vi.stubEnv("GOOGLE_PLACES_API_KEY", "g"); });
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+beforeEach(async () => { await t.reset(); vi.stubEnv("ANTHROPIC_API_KEY", "sk"); vi.stubEnv("GOOGLE_PLACES_API_KEY", "g"); vi.spyOn(console, "info").mockImplementation(() => {}); });
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("GET /api/places/:placeId/about", () => {
   it("200: writes the description on first visit, cacheable for an hour", async () => {

@@ -16,7 +16,7 @@ export class AboutError extends Error {
 const API = "https://api.anthropic.com/v1/messages";
 const DEFAULT_MODEL = "claude-haiku-5-5";
 export const MAX_WORDS = 55;
-export const MAX_CHARS = 400;
+export const MAX_CHARS = 500;
 
 /** The facts as plain lines for the prompt. Empty facts are left out. */
 export function factsText(f: PlaceFacts): string {
@@ -53,7 +53,9 @@ export function cleanAbout(reply: string): string | null {
   if (!s || /^NONE\.?$/i.test(s)) return null;
   // Keep at most two sentences.
   const sentences = s.match(/[^.!?]+[.!?]+(\s|$)/g) ?? [s];
-  const out = sentences.slice(0, 2).join("").trim();
+  const two = sentences.slice(0, 2).join("").trim();
+  // Two long sentences can run over; one is still a good description.
+  const out = two.length <= MAX_CHARS ? two : sentences[0].trim();
   return out.length >= 20 && out.length <= MAX_CHARS ? out : null;
 }
 
@@ -72,7 +74,14 @@ export async function writeAbout(f: PlaceFacts): Promise<string | null> {
   const raw = await res.text();
   const json = (raw ? JSON.parse(raw) : {}) as ApiResponse;
   if (!res.ok) throw new AboutError(502, `Description failed: ${json.error?.message ?? `HTTP ${res.status}`}`);
-  return cleanAbout((json.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join(" "));
+  const reply = (json.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join(" ");
+  const about = cleanAbout(reply);
+  // One line per venue, so an empty description can be understood from the logs.
+  console.info("[about]", JSON.stringify({
+    venue: f.name, editorial: !!f.editorial, overview: !!f.overview, reviewSummary: !!f.reviewSummary, reviews: f.reviews.length,
+    features: f.features.length, kept: about !== null, reply: reply.slice(0, 600),
+  }));
+  return about;
 }
 
 const DAY = 86_400_000;
@@ -80,7 +89,7 @@ const DAY = 86_400_000;
 export const FOUND_TTL_DAYS = 30;
 export const EMPTY_TTL_DAYS = 7;
 /** Bumped when the prompt changes, so descriptions written by an older prompt are rewritten. */
-export const ABOUT_VERSION = "v1";
+export const ABOUT_VERSION = "v2";
 const keyOf = (placeId: string) => `${ABOUT_VERSION}:${placeId}`;
 
 export type About = { about: string | null; checkedAt: Date };

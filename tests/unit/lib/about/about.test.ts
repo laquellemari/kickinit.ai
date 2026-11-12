@@ -24,7 +24,7 @@ const google = () => new Response(JSON.stringify({ id: "ChIJ1", displayName: { t
 
 let t: Awaited<ReturnType<typeof useTestDb>>;
 beforeAll(async () => { t = await useTestDb(); });
-beforeEach(async () => { await t.reset(); vi.stubEnv("ANTHROPIC_API_KEY", "sk"); vi.stubEnv("GOOGLE_PLACES_API_KEY", "g"); });
+beforeEach(async () => { await t.reset(); vi.stubEnv("ANTHROPIC_API_KEY", "sk"); vi.stubEnv("GOOGLE_PLACES_API_KEY", "g"); vi.spyOn(console, "info").mockImplementation(() => {}); });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("factsText", () => {
@@ -56,6 +56,10 @@ describe("cleanAbout", () => {
   it("keeps only the first two sentences", () => expect(cleanAbout("One is here. Two is here! Three is here?")).toBe("One is here. Two is here!"));
   it("text without a full stop is kept whole", () => expect(cleanAbout("A rooftop bar with fire pits")).toBe("A rooftop bar with fire pits"));
   it.each(["NONE", "none.", "", "   ", "Too short."])("%j → null", (r) => expect(cleanAbout(r)).toBeNull());
+  it("two sentences too long together: keeps the first", () => {
+    const one = `${"a".repeat(300)}.`;
+    expect(cleanAbout(`${one} ${"b".repeat(300)}.`)).toBe(one);
+  });
   it(`boundary: 20 to ${MAX_CHARS} characters`, () => {
     expect(cleanAbout("x".repeat(19))).toBeNull();
     expect(cleanAbout("x".repeat(20))).toBe("x".repeat(20));
@@ -75,6 +79,9 @@ describe("writeAbout", () => {
     const body = JSON.parse(String(init.body));
     expect(body).toMatchObject({ model: "claude-haiku-5-5", max_tokens: 300, messages: [{ role: "user", content: aboutPrompt(facts()) }] });
     expect(body.tools).toBeUndefined();
+    expect(vi.mocked(console.info)).toHaveBeenCalledWith("[about]", JSON.stringify({
+      venue: "Perch", editorial: true, overview: true, reviewSummary: true, reviews: 2, features: 2, kept: true, reply: `${GOOD} `,
+    }));
   });
   it("the model can be changed: ABOUT_MODEL, else CONCIERGE_MODEL", async () => {
     const f = vi.fn(async () => answer(GOOD));
