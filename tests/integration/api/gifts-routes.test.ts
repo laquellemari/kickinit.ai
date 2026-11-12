@@ -8,6 +8,7 @@ import { POST as cron } from "@/app/api/cron/close-pools/route";
 import { POST as order } from "@/app/api/paypal/orders/route";
 import { insertGift, insertContribution, transitionGift } from "@/lib/gifts/repo";
 import { resetTokenCache } from "@/lib/paypal/client";
+import { getDb } from "@/lib/db";
 import { useTestDb } from "../../helpers/db";
 import { createNewGift, createNewContribution } from "../../helpers/factories";
 import { mockPayPal, pp, setPayPalEnv } from "../../helpers/paypal";
@@ -41,9 +42,14 @@ describe("POST /api/gifts", () => {
   it("creates a pool and shows the organizer their redeem code", async () => {
     const deadline = new Date(Date.now() + 3 * DAY).toISOString();
     const body = await verifyRes(await create(req({ method: "POST", body: { experienceId: "hugh-spa", partySize: "2", organizerName: "Kavon", recipientName: "Mom", note: "60!", mode: "pool", deadline } })), {
-      status: 201, body: { status: "open", mode: "pool", amount: "190.00", raised: "0.00", remaining: "190.00", minContribution: "5.00", maxContribution: "190.00", isOrganizer: true, contributors: [] },
+      status: 201, body: { status: "open", mode: "pool", amount: "228.00", raised: "0.00", remaining: "228.00", minContribution: "5.00", maxContribution: "228.00", isOrganizer: true, contributors: [] },
     });
     expect(body.redeemCode).toMatch(/^[A-Za-z0-9_-]{22}$/);
+  });
+  it("a member organizing pays no concierge fee", async () => {
+    await (await getDb()).query("INSERT INTO memberships (user_id, subscription_id, status, checked_at) VALUES ($1, 'I-1', 'ACTIVE', now())", [ORG]);
+    const deadline = new Date(Date.now() + 3 * DAY).toISOString();
+    await verifyRes(await create(req({ method: "POST", visitor: ORG, body: { experienceId: "hugh-spa", partySize: 2, organizerName: "Kavon", recipientName: "Mom", mode: "solo", deadline } })), { status: 201, body: { amount: "190.00" } });
   });
   it("400 on bad input", async () => {
     await verifyRes(await create(req({ method: "POST", body: { experienceId: "hugh-spa", partySize: 2, organizerName: "", recipientName: "Mom", mode: "solo" } })), { status: 400, body: { error: "Your name is required" } });

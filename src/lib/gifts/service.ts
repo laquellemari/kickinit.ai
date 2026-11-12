@@ -1,4 +1,5 @@
 import { insertBooking, transition, type Booking } from "@/lib/bookings/repo";
+import { withFee } from "@/lib/pricing/fees";
 import { BookingError, parseStartsAt } from "@/lib/bookings/service";
 import { partnerFacts } from "@/lib/bookings/venue";
 import { quote } from "@/lib/catalog/catalog";
@@ -16,7 +17,10 @@ export const fromCents = (c: number) => (c / 100).toFixed(2);
 
 export type CreateGiftInput = {
   organizerId: string; organizerName: unknown; experienceId: unknown; partySize: number; recipientName: unknown;
-  note: unknown; mode: unknown; deadline?: unknown; now?: Date;
+  note: unknown; mode: unknown; deadline?: unknown;
+  /** Members pay no concierge fee on gifts either. */
+  organizerMember?: boolean;
+  now?: Date;
 };
 
 function text(v: unknown, label: string, max: number, required = true): string {
@@ -52,7 +56,7 @@ export async function createGift(input: CreateGiftInput): Promise<Gift> {
   }
   return insertGift({
     organizerId: input.organizerId, organizerName, experienceId: q.experienceId, name: q.description.replace(/ · .*$/, ""),
-    partySize: q.partySize, amountCents: toCents(q.total), currency: q.currency, recipientName, note, mode: input.mode, deadline,
+    partySize: q.partySize, amountCents: toCents(withFee(toCents(q.total), input.organizerMember === true).total), currency: q.currency, recipientName, note, mode: input.mode, deadline,
   });
 }
 

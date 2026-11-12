@@ -1,11 +1,13 @@
 import Link from "next/link";
 import type { PlanPick } from "@/lib/concierge/agent";
 import { guests, money } from "@/lib/format";
+import { isDiningExperience } from "@/lib/pricing/fees";
 import { VenuePhoto } from "@/components/VenuePhoto";
 
 export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; partySize: number; gift?: boolean }) {
   if (pick.kind === "partner") {
     const e = pick.experience;
+    const free = isDiningExperience(e) && !gift;
     return (
       <article className="pick" aria-label={e.name}>
         <VenuePhoto placeId={e.placeId} alt={e.name} height={170} bg={e.bg}>
@@ -15,8 +17,8 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
         <span className="pick-meta">{e.neighborhood}, {e.city}</span>
         <p className="pick-why">{pick.why}</p>
         <div className="pick-price">
-          <span className="pick-meta">{guests(partySize)}</span>
-          <strong>{money(pick.quote.total)}</strong>
+          <span className="pick-meta">{free ? "Pay the bill at the end" : `${guests(partySize)} · + concierge fee`}</span>
+          <strong>{free ? "Free to book" : money(pick.quote.total)}</strong>
         </div>
         <div className="pick-actions">
           {gift ? (
@@ -39,8 +41,8 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
       <span className="pick-meta">{p.address}</span>
       <p className="pick-why">{pick.why}</p>
       <div className="pick-price">
-        <span className="pick-meta">Est. bill · {guests(partySize)}</span>
-        <strong>{money(pick.quote.breakdown?.billEstimate ?? pick.quote.total)}</strong>
+        <span className="pick-meta">{p.dining ? "Pay the bill at the end" : "Exact price from the venue"}</span>
+        <strong>{p.dining ? "Free to book" : "See prices"}</strong>
       </div>
       <div className="pick-actions">
         <Link className="btn-navy" href={`/request/${p.placeId}?party=${partySize}`}>Request to book</Link>

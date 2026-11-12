@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
 import { publicBooking } from "@/lib/bookings/public";
 import { listBookings } from "@/lib/bookings/repo";
-import { placeBooking } from "@/lib/bookings/service";
+import { placeBooking, requestFreeBooking } from "@/lib/bookings/service";
+import { isMember } from "@/lib/membership/membership";
 import { readJson, toResponse } from "@/lib/paypal/http";
 import { visitorId } from "@/lib/visitor";
 
-/** After PayPal approval: { orderId, kind, itemId, partySize, startsAt } → the booking. */
+/**
+ * After PayPal approval: { orderId, kind, itemId, partySize, startsAt, serviceId? } → the booking.
+ * Restaurants and bars: { free: true, kind, itemId, partySize, startsAt } → the booking, no payment.
+ */
 export async function POST(req: Request) {
   try {
     const userId = visitorId(req);
     const b = await readJson(req);
-    const booking = await placeBooking({
-      orderId: typeof b.orderId === "string" ? b.orderId : "",
-      kind: b.kind,
-      itemId: b.itemId,
-      partySize: Number(b.partySize),
-      startsAt: b.startsAt,
-      userId,
-    });
+    const common = { kind: b.kind, itemId: b.itemId, partySize: Number(b.partySize), startsAt: b.startsAt, userId };
+    const booking = b.free === true
+      ? await requestFreeBooking(common)
+      : await placeBooking({ ...common, orderId: typeof b.orderId === "string" ? b.orderId : "", serviceId: b.serviceId, member: await isMember(userId) });
     return NextResponse.json(publicBooking(booking), { status: 201 });
   } catch (err) {
     return toResponse(err);

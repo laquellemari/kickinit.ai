@@ -14,12 +14,20 @@ describe("/experience/[id]", () => {
   it("shows the experience with facts, tags and the booking panel", async () => {
     await page("carasau-pasta-bar", { party: "4" });
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Carasau Pasta Bar");
-    expect(screen.getByText("$90 per person")).toBeInTheDocument();
+    expect(screen.getByText("Free to book · pay the bill at the end")).toBeInTheDocument();
+    expect(screen.getByText("Book a table · free")).toBeInTheDocument();
     expect(screen.getByText("2 hr")).toBeInTheDocument();
     expect(screen.getByText("1–8 guests")).toBeInTheDocument();
     expect(screen.getByText("romantic")).toBeInTheDocument();
     expect(screen.getByText(/Demo partner: a real venue/)).toHaveTextContent("kickinit has no partnership with it");
     expect((screen.getByLabelText("Guests") as HTMLSelectElement).value).toBe("4");
+  });
+  it("a fixed-price experience shows its price and the paid checkout", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    await page("hugh-spa");
+    expect(screen.getByText("$95 per person")).toBeInTheDocument();
+    expect(screen.getByText("Instant book · kickinit partner")).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
   it("per-group pricing and a fixed party size read naturally", async () => {
     await page("mic-drop-karaoke");

@@ -31,7 +31,7 @@ describe("POST /api/concierge", () => {
     expect(body.options[0]).toMatchObject({ experience: { id: "vibrato-grill-jazz" }, quote: { total: "70.00" }, why: "Late jazz." });
   });
   it("passes live search through when configured, and returns request-to-book picks", async () => {
-    runtime.live = async () => [{ id: "gp:A", placeId: "A", name: "Sorella", address: "SD", lat: 1, lng: 2, category: "culinary", typeLabel: "Restaurant", mapsUrl: "u", estimatePerPerson: "60.00" }];
+    runtime.live = async () => [{ id: "gp:A", placeId: "A", name: "Sorella", address: "SD", lat: 1, lng: 2, category: "culinary", typeLabel: "Restaurant", mapsUrl: "u", estimatePerPerson: "60.00", dining: true }];
     const { model, toolNames } = createScriptedModel([
       { tool: "search_live_places", args: { query: "italian in San Diego" } },
       { tool: "present_options", args: { intro: "One spot.", partySize: 2, picks: [{ experienceId: "gp:A", why: "Cozy." }] } },
@@ -39,7 +39,8 @@ describe("POST /api/concierge", () => {
     runtime.model = model;
     const body = await (await post({ message: "italian dinner for 2", where: "San Diego" })).json();
     expect(toolNames[0]).toContain("search_live_places");
-    expect(body.options[0]).toMatchObject({ kind: "live", place: { name: "Sorella" }, quote: { total: "148.00" } });
+    expect(body.options[0]).toMatchObject({ kind: "live", place: { name: "Sorella", dining: true }, why: "Cozy." });
+    expect(body.options[0]).not.toHaveProperty("quote");
   });
   it("defaults mode to 'you'", async () => {
     const { model, prompts } = createScriptedModel([{ text: "ok" }]);

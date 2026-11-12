@@ -23,28 +23,23 @@ export type Booking = {
   /** Where/when facts used for quests. */
   facts: VenueFacts;
   checkedInAt: Date | null;
-  /** Request-to-book: kickinit's booking fee inside the hold. */
+  /** kickinit's concierge fee inside `amount` ("0.00" for members and free bookings). */
   fee: string | null;
-  /** Request-to-book: the guest's saved PayPal, if they agreed to be charged for anything above the hold. Never sent to the browser. */
-  vaultId: string | null;
-  /** Set once the venue closes the bill. */
-  settlement: Settlement | null;
-  /** When the PayPal hold was renewed (once, after its 3-day guarantee). */
-  reauthorizedAt: Date | null;
+  /** The venue service booked, for request-to-book venues priced from their published menu. */
+  serviceName: string | null;
 };
-export type OverageStatus = "none" | "charged" | "pay_at_table";
-export type Settlement = { billTotal: string; capturedTotal: string; overage: string; overageStatus: OverageStatus; overageCaptureId: string | null; settledAt: Date };
-export type NewBooking = Omit<Booking, "id" | "status" | "captureId" | "createdAt" | "updatedAt" | "checkedInAt" | "fee" | "vaultId" | "settlement" | "reauthorizedAt"> &
-  { fee?: string | null; vaultId?: string | null };
+/** Restaurants and bars book with no payment: their order id is "free:<uuid>". */
+export const FREE_PREFIX = "free:";
+export const isFree = (b: Pick<Booking, "paypalOrderId">) => b.paypalOrderId.startsWith(FREE_PREFIX);
+export type NewBooking = Omit<Booking, "id" | "status" | "captureId" | "createdAt" | "updatedAt" | "checkedInAt" | "fee" | "serviceName"> &
+  { fee?: string | null; serviceName?: string | null };
 
 type Row = {
   id: string; user_id: string; kind: Booking["kind"]; item_id: string; name: string; party_size: number; starts_at: Date | string;
   amount: string; currency: string; status: BookingStatus; paypal_order_id: string; authorization_id: string; capture_id: string | null;
   hold_expires_at: Date | string | null; created_at: Date | string; updated_at: Date | string;
   tags: string[]; city: string; country: string; neighborhood: string | null; cuisine: string | null; local_hour: number; checked_in_at: Date | string | null;
-  fee: string | null; vault_id: string | null; bill_total: string | null; captured_total: string | null; overage: string | null;
-  overage_status: OverageStatus | null; overage_capture_id: string | null; settled_at: Date | string | null;
-  reauthorized_at: Date | string | null;
+  fee: string | null; service_name: string | null;
 };
 
 const toDate = (v: Date | string) => new Date(v);
@@ -54,22 +49,17 @@ const fromRow = (r: Row): Booking => ({
   captureId: r.capture_id, holdExpiresAt: r.hold_expires_at === null ? null : toDate(r.hold_expires_at), createdAt: toDate(r.created_at), updatedAt: toDate(r.updated_at),
   facts: { tags: r.tags, city: r.city, country: r.country, neighborhood: r.neighborhood, cuisine: r.cuisine, localHour: r.local_hour },
   checkedInAt: r.checked_in_at === null ? null : toDate(r.checked_in_at),
-  fee: r.fee, vaultId: r.vault_id,
-  reauthorizedAt: r.reauthorized_at === null ? null : toDate(r.reauthorized_at),
-  settlement: r.settled_at === null ? null : {
-    billTotal: r.bill_total!, capturedTotal: r.captured_total!, overage: r.overage!, overageStatus: r.overage_status!,
-    overageCaptureId: r.overage_capture_id, settledAt: toDate(r.settled_at),
-  },
+  fee: r.fee, serviceName: r.service_name,
 });
 
 export async function insertBooking(b: NewBooking): Promise<Booking> {
   const db = await getDb();
   const { rows } = await db.query<Row>(
     `INSERT INTO bookings (id, user_id, kind, item_id, name, party_size, starts_at, amount, currency, status, paypal_order_id, authorization_id, hold_expires_at,
-       tags, city, country, neighborhood, cuisine, local_hour, fee, vault_id)
+       tags, city, country, neighborhood, cuisine, local_hour, fee, service_name)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'held',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
     [randomUUID(), b.userId, b.kind, b.itemId, b.name, b.partySize, b.startsAt, b.amount, b.currency, b.paypalOrderId, b.authorizationId, b.holdExpiresAt,
-      b.facts.tags, b.facts.city, b.facts.country, b.facts.neighborhood, b.facts.cuisine, b.facts.localHour, b.fee ?? null, b.vaultId ?? null],
+      b.facts.tags, b.facts.city, b.facts.country, b.facts.neighborhood, b.facts.cuisine, b.facts.localHour, b.fee ?? null, b.serviceName ?? null],
   );
   return fromRow(rows[0]);
 }
@@ -120,21 +110,12 @@ export async function markCheckedIn(id: string, at: Date): Promise<Booking | nul
   return rows[0] ? fromRow(rows[0]) : null;
 }
 
-/** Records how the bill was paid. Once only: null if the booking was already settled or isn't confirmed. */
-export async function settleBooking(id: string, s: Omit<Settlement, "settledAt">, captureId: string, at: Date): Promise<Booking | null> {
-  const { rows } = await (await getDb()).query<Row>(
-    `UPDATE bookings SET bill_total = $2, captured_total = $3, overage = $4, overage_status = $5, overage_capture_id = $6, capture_id = $7, settled_at = $8, updated_at = now()
-     WHERE id = $1 AND status = 'confirmed' AND settled_at IS NULL RETURNING *`,
-    [id, s.billTotal, s.capturedTotal, s.overage, s.overageStatus, s.overageCaptureId, captureId, at],
+/** Free (restaurant and bar) bookings still to come: requested or confirmed, not yet attended. */
+export async function countUpcomingFree(userId: string, now: Date): Promise<number> {
+  const { rows } = await (await getDb()).query<{ n: number | string }>(
+    `SELECT count(*) AS n FROM bookings WHERE user_id = $1 AND paypal_order_id LIKE 'free:%'
+       AND status IN ('held', 'confirmed') AND checked_in_at IS NULL AND starts_at > $2`,
+    [userId, now],
   );
-  return rows[0] ? fromRow(rows[0]) : null;
-}
-
-/** The hold was renewed: PayPal gave it a new authorization id. */
-export async function setReauthorized(id: string, authorizationId: string, holdExpiresAt: Date | null, at: Date): Promise<Booking> {
-  const { rows } = await (await getDb()).query<Row>(
-    "UPDATE bookings SET authorization_id = $2, hold_expires_at = COALESCE($3, hold_expires_at), reauthorized_at = $4, updated_at = now() WHERE id = $1 RETURNING *",
-    [id, authorizationId, holdExpiresAt, at],
-  );
-  return fromRow(rows[0]);
+  return Number(rows[0].n);
 }

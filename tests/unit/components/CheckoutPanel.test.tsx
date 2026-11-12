@@ -5,8 +5,11 @@ import { CheckoutPanel, type CheckoutItem } from "@/components/CheckoutPanel";
 import { routerPush } from "../../helpers/setup";
 
 const NOW = new Date(2026, 10, 11, 12, 0);
-const partner: CheckoutItem = { kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", unitPrice: "90.00", perGroup: false, partyMin: 1, partyMax: 8 };
-const live: CheckoutItem = { kind: "live", itemId: "gp:ChIJ1", name: "Barbusa", unitPrice: "60.00", perGroup: false, partyMin: 1, partyMax: 20 };
+const SAT = new Date(2026, 10, 14, 19, 30).toISOString();
+const spa: CheckoutItem = { kind: "partner", itemId: "hugh-spa", name: "Hugh Spa", unitPrice: "95.00", perGroup: false, partyMin: 1, partyMax: 8, free: false };
+const restaurant: CheckoutItem = { kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", unitPrice: "90.00", perGroup: false, partyMin: 1, partyMax: 8, free: true };
+const liveSpa: CheckoutItem = { kind: "live", itemId: "gp:ChIJ1", name: "Spa Uno", unitPrice: "150.00", perGroup: false, partyMin: 1, partyMax: 20, free: false, serviceId: "massage-150" };
+const liveDiner: CheckoutItem = { kind: "live", itemId: "gp:ChIJ2", name: "Barbusa", unitPrice: "0.00", perGroup: false, partyMin: 1, partyMax: 20, free: true };
 
 type Reply = { status: number; body: unknown };
 function mockApi(...replies: Reply[]) {
@@ -19,57 +22,71 @@ function mockApi(...replies: Reply[]) {
 }
 const call = (f: ReturnType<typeof vi.fn>, n: number) => {
   const [url, init] = f.mock.calls[n] as unknown as [string, RequestInit];
-  return { url, body: JSON.parse(init.body as string) };
+  return { url, body: init?.body ? JSON.parse(init.body as string) : undefined };
 };
 const pick = (day = "2026-11-14", time = "19:30") => {
   fireEvent.change(screen.getByLabelText("Date"), { target: { value: day } });
   fireEvent.change(screen.getByLabelText("Time"), { target: { value: time } });
 };
-const panel = (item = partner, o: { party?: number; clientId?: string } = {}) =>
-  render(<CheckoutPanel item={item} initialParty={o.party ?? 2} clientId={o.clientId ?? "client-123"} now={NOW} />);
+const panel = (item = spa, o: { party?: number; clientId?: string; member?: boolean | null } = {}) =>
+  render(<CheckoutPanel item={item} initialParty={o.party ?? 2} clientId={o.clientId ?? "client-123"} now={NOW} member={o.member === null ? undefined : (o.member ?? false)} />);
 
 beforeEach(() => { paypalReact.approve = true; });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("CheckoutPanel", () => {
-  describe("happy path", () => {
-    it("partner: pick a time, pay with PayPal, booking is saved, then go to the booking page", async () => {
+  describe("paid: exact price + concierge fee", () => {
+    it("partner: shows venue price and 20% fee, pays with PayPal, saves, then goes to the booking page", async () => {
       const f = mockApi({ status: 201, body: { id: "ORDER-9" } }, { status: 201, body: { id: "bk-1" } });
       panel();
       expect(screen.getByText("Instant book · kickinit partner")).toBeInTheDocument();
-      expect(screen.getByTestId("total")).toHaveTextContent("$180");
+      const lines = screen.getByRole("group", { name: "What you pay" });
+      expect(lines).toHaveTextContent("Venue price ($95 × 2 guests)$190");
+      expect(lines).toHaveTextContent("Concierge fee (20%)$38");
+      expect(screen.getByTestId("total")).toHaveTextContent("$228");
+      expect(screen.getByRole("link", { name: "Join for $9.99/month" })).toHaveAttribute("href", "/membership");
+      expect(screen.getByText(/save \$38 on this booking/)).toBeInTheDocument();
       pick();
       fireEvent.click(screen.getByRole("button", { name: "PayPal" }));
       await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/booking/bk-1"));
-      expect(call(f, 0)).toEqual({ url: "/api/paypal/orders", body: { kind: "partner", itemId: "carasau-pasta-bar", partySize: 2 } });
-      expect(call(f, 1)).toEqual({ url: "/api/bookings", body: { orderId: "ORDER-9", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: new Date(2026, 10, 14, 19, 30).toISOString() } });
+      expect(call(f, 0)).toEqual({ url: "/api/paypal/orders", body: { kind: "partner", itemId: "hugh-spa", partySize: 2 } });
+      expect(call(f, 1)).toEqual({ url: "/api/bookings", body: { kind: "partner", itemId: "hugh-spa", partySize: 2, startsAt: SAT, orderId: "ORDER-9" } });
       expect(paypalReact.options).toEqual({ clientId: "client-123", intent: "authorize", currency: "USD" });
+      expect(screen.queryByText(/pay the venue's bill/)).toBeNull();
     });
-    it("live: shows what the hold is made of (bill + 20% + $4 fee) and when you're charged", () => {
-      panel(live, { party: 3 });
+    it("members: no fee line amount, no join pitch", () => {
+      panel(spa, { member: true });
+      expect(screen.getByRole("group", { name: "What you pay" })).toHaveTextContent("Concierge fee (members pay none)$0");
+      expect(screen.getByTestId("total")).toHaveTextContent("$190");
+      expect(screen.queryByRole("link", { name: /Join/ })).toBeNull();
+    });
+    it("live: the venue's published price, its service id is sent, and it's charged only once confirmed", async () => {
+      const f = mockApi({ status: 201, body: { id: "O" } }, { status: 201, body: { id: "b" } });
+      panel(liveSpa, { party: 3 });
       expect(screen.getByText("Request to book")).toBeInTheDocument();
-      const lines = screen.getByRole("group", { name: "What PayPal holds" });
-      expect(lines).toHaveTextContent("Est. bill ($60 × 3 guests)$180");
-      expect(lines).toHaveTextContent("Room for tip and extras (20%)$36");
-      expect(lines).toHaveTextContent("kickinit booking fee$4");
-      expect(screen.getByText("PayPal holds")).toBeInTheDocument();
-      expect(screen.getByTestId("total")).toHaveTextContent("$220");
-      expect(screen.getByText(/Nothing is charged until the venue confirms and the bill closes/)).toBeInTheDocument();
+      expect(screen.getByTestId("total")).toHaveTextContent("$540");
+      expect(screen.getByText(/charged only once we confirm your booking with the venue/)).toBeInTheDocument();
+      expect(screen.getByLabelText("Date")).toHaveAttribute("max", "2026-12-08");
+      pick();
+      fireEvent.click(screen.getByRole("button", { name: "PayPal" }));
+      await waitFor(() => expect(routerPush).toHaveBeenCalled());
+      expect(call(f, 0).body).toEqual({ kind: "live", itemId: "gp:ChIJ1", partySize: 3, serviceId: "massage-150" });
+      expect(call(f, 1).body).toMatchObject({ serviceId: "massage-150", orderId: "O" });
     });
     it("changing guests updates the total and what's ordered", async () => {
       const f = mockApi({ status: 201, body: { id: "O" } }, { status: 201, body: { id: "b" } });
       panel();
       fireEvent.change(screen.getByLabelText("Guests"), { target: { value: "5" } });
-      expect(screen.getByTestId("total")).toHaveTextContent("$450");
+      expect(screen.getByTestId("total")).toHaveTextContent("$570");
       pick();
       fireEvent.click(screen.getByRole("button", { name: "PayPal" }));
       await waitFor(() => expect(routerPush).toHaveBeenCalled());
       expect(call(f, 0).body.partySize).toBe(5);
     });
-    it("per-group pricing shows a flat price", () => {
-      panel({ ...partner, unitPrice: "120.00", perGroup: true, partyMin: 2, partyMax: 10 }, { party: 6 });
-      expect(screen.getByText("Flat price for the group")).toBeInTheDocument();
-      expect(screen.getByTestId("total")).toHaveTextContent("$120");
+    it("per-group pricing isn't multiplied by guests", () => {
+      panel({ ...spa, unitPrice: "120.00", perGroup: true, partyMin: 2, partyMax: 10 }, { party: 6 });
+      expect(screen.getByRole("group", { name: "What you pay" })).toHaveTextContent("Venue price (per group)$120");
+      expect(screen.getByTestId("total")).toHaveTextContent("$144");
     });
     it("shows a progress state while saving the booking", async () => {
       let release!: (r: Response) => void;
@@ -85,6 +102,75 @@ describe("CheckoutPanel", () => {
     });
   });
 
+  describe("free: restaurants and bars", () => {
+    it("partner restaurant: no PayPal, no fee; one button books it", async () => {
+      const f = mockApi({ status: 201, body: { id: "bk-free" } });
+      panel(restaurant);
+      expect(screen.getByText("Book a table · free")).toBeInTheDocument();
+      expect(screen.getByTestId("total")).toHaveTextContent("Free");
+      expect(screen.queryByRole("group", { name: "What you pay" })).toBeNull();
+      expect(screen.getByText(/you pay the venue's bill at the end/)).toBeInTheDocument();
+      pick();
+      expect(screen.queryByRole("button", { name: "PayPal" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Book this table" }));
+      await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/booking/bk-free"));
+      expect(call(f, 0)).toEqual({ url: "/api/bookings", body: { kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: SAT, free: true } });
+    });
+    it("any other restaurant: a request, and it works without PayPal set up", async () => {
+      mockApi({ status: 201, body: { id: "bk-r" } });
+      panel(liveDiner, { clientId: "" });
+      expect(screen.getByText("Request a table · free")).toBeInTheDocument();
+      expect(screen.getByText(/kickinit asks the venue for your table/)).toBeInTheDocument();
+      pick();
+      fireEvent.click(screen.getByRole("button", { name: "Request this table" }));
+      await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/booking/bk-r"));
+    });
+    it("a refused free booking shows the server's reason, or a fallback", async () => {
+      mockApi({ status: 429, body: { error: "You already have 5 upcoming restaurant bookings." } }, { status: 500, body: {} });
+      panel(restaurant);
+      pick();
+      fireEvent.click(screen.getByRole("button", { name: "Book this table" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("You already have 5 upcoming restaurant bookings.");
+      fireEvent.click(screen.getByRole("button", { name: "Book this table" }));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Couldn't save the booking. Please try again."));
+      expect(routerPush).not.toHaveBeenCalled();
+    });
+    it("free bookings never ask whether you're a member", () => {
+      const f = mockApi();
+      panel(restaurant, { member: null });
+      expect(f).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("membership lookup (display only)", () => {
+    it("asks /api/membership when not told, and drops the fee for members", async () => {
+      const f = mockApi({ status: 200, body: { member: true } });
+      panel(spa, { member: null });
+      await waitFor(() => expect(screen.getByTestId("total")).toHaveTextContent("$190"));
+      expect(call(f, 0).url).toBe("/api/membership");
+    });
+    it.each([{ status: 500, body: {} }, { status: 200, body: { member: "yes" } }])("anything else counts as not a member (%j)", async (r) => {
+      const f = mockApi(r);
+      panel(spa, { member: null });
+      await waitFor(() => expect(f).toHaveBeenCalled());
+      expect(screen.getByTestId("total")).toHaveTextContent("$228");
+    });
+    it("a network error counts as not a member", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+      panel(spa, { member: null });
+      await waitFor(() => expect(fetch).toHaveBeenCalled());
+      expect(screen.getByTestId("total")).toHaveTextContent("$228");
+    });
+    it("an answer after leaving the page is ignored", async () => {
+      let release!: (r: Response) => void;
+      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { release = r; })));
+      const { unmount } = panel(spa, { member: null });
+      unmount();
+      release(new Response(JSON.stringify({ member: true }), { status: 200 }));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  });
+
   describe("validation", () => {
     it("no PayPal button until both date and time are chosen", () => {
       panel();
@@ -95,17 +181,13 @@ describe("CheckoutPanel", () => {
       fireEvent.change(screen.getByLabelText("Time"), { target: { value: "19:30" } });
       expect(screen.getByRole("button", { name: "PayPal" })).toBeInTheDocument();
     });
-    it("request-to-book dates stop at 27 days out (inside PayPal's hold window)", () => {
-      panel(live);
-      expect(screen.getByLabelText("Date")).toHaveAttribute("max", "2026-12-08");
-    });
-    it("the date picker allows today through 89 days out", () => {
+    it("the date picker allows today through 89 days out for partners", () => {
       panel();
       expect(screen.getByLabelText("Date")).toHaveAttribute("min", "2026-11-11");
       expect(screen.getByLabelText("Date")).toHaveAttribute("max", "2027-02-08");
     });
     it("without a PayPal client id, says payments aren't set up", () => {
-      panel(partner, { clientId: "" });
+      panel(spa, { clientId: "" });
       pick();
       expect(screen.getByText("Payments aren’t set up yet.")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "PayPal" })).toBeNull();
@@ -156,84 +238,19 @@ describe("CheckoutPanel", () => {
 
   describe("boundary", () => {
     it("starting party is clamped to the venue's range", () => {
-      panel({ ...partner, partyMin: 2, partyMax: 4 }, { party: 9 });
+      panel({ ...spa, partyMin: 2, partyMax: 4 }, { party: 9 });
       expect((screen.getByLabelText("Guests") as HTMLSelectElement).value).toBe("4");
       expect((screen.getByLabelText("Guests") as HTMLSelectElement).options).toHaveLength(3);
     });
     it("below the minimum starts at the minimum", () => {
-      panel({ ...partner, partyMin: 2, partyMax: 4 }, { party: 1 });
+      panel({ ...spa, partyMin: 2, partyMax: 4 }, { party: 1 });
       expect((screen.getByLabelText("Guests") as HTMLSelectElement).value).toBe("2");
     });
   });
 
   it("defaults now to the current time", () => {
-    render(<CheckoutPanel item={partner} initialParty={2} clientId="c" />);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+    render(<CheckoutPanel item={spa} initialParty={2} clientId="c" />);
     expect(screen.getByLabelText("Date")).toHaveAttribute("min");
-  });
-
-  describe("charging a bill above the hold to saved PayPal (option 3)", () => {
-    const consent = () => screen.getByRole("checkbox", { name: /charge the difference to my PayPal/ });
-    it("off by default: nothing saved, no id token fetched, partners never see it", () => {
-      const f = mockApi();
-      const { unmount } = panel(live);
-      expect(consent()).not.toBeChecked();
-      expect(f).not.toHaveBeenCalled();
-      unmount();
-      panel(partner);
-      expect(screen.queryByRole("checkbox")).toBeNull();
-    });
-    it("ticked: fetches an id token, hands it to PayPal's script, and asks to save PayPal with the hold", async () => {
-      const f = mockApi({ status: 200, body: { idToken: "eyJ.tok" } }, { status: 201, body: { id: "O" } }, { status: 201, body: { id: "bk" } });
-      panel(live);
-      pick();
-      fireEvent.click(consent());
-      expect(screen.getByRole("status")).toHaveTextContent("Setting up PayPal");
-      fireEvent.click(await screen.findByRole("button", { name: "PayPal" }));
-      await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/booking/bk"));
-      expect((f.mock.calls[0] as unknown as [string])[0]).toBe("/api/paypal/id-token");
-      expect(call(f, 1).body).toEqual({ kind: "live", itemId: "gp:ChIJ1", partySize: 2, savePayPal: true });
-      expect(paypalReact.options).toEqual({ clientId: "client-123", intent: "authorize", currency: "USD", dataUserIdToken: "eyJ.tok" });
-    });
-    it("unticking again books without saving (token kept for later)", async () => {
-      const f = mockApi({ status: 200, body: { idToken: "t" } }, { status: 201, body: { id: "O" } }, { status: 201, body: { id: "bk" } });
-      panel(live);
-      pick();
-      fireEvent.click(consent());
-      await screen.findByRole("button", { name: "PayPal" });
-      fireEvent.click(consent());
-      fireEvent.click(screen.getByRole("button", { name: "PayPal" }));
-      await waitFor(() => expect(routerPush).toHaveBeenCalled());
-      expect(call(f, 1).body).toEqual({ kind: "live", itemId: "gp:ChIJ1", partySize: 2 });
-      expect(paypalReact.options).toEqual({ clientId: "client-123", intent: "authorize", currency: "USD" });
-    });
-    it.each([[{ status: 500, body: { error: "PayPal id token failed" } }], [{ status: 429, body: {} }]])("token can't be fetched: unticks and explains (%j)", async (reply) => {
-      mockApi(reply);
-      panel(live);
-      pick();
-      fireEvent.click(consent());
-      expect(await screen.findByRole("alert")).toHaveTextContent("You can still book; any difference is paid at the table.");
-      expect(consent()).not.toBeChecked();
-      expect(screen.getByRole("button", { name: "PayPal" })).toBeInTheDocument();
-      fireEvent.click(consent());
-      expect(screen.queryByRole("alert")).toBeNull();
-    });
-    it("a token that arrives after leaving the page is ignored", async () => {
-      let release!: (r: Response) => void;
-      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { release = r; })));
-      const { unmount } = panel(live);
-      fireEvent.click(consent());
-      unmount();
-      release(new Response(JSON.stringify({ idToken: "late" }), { status: 200 }));
-      await new Promise((r) => setTimeout(r, 0));
-    });
-    it("a failure that arrives after leaving the page is ignored", async () => {
-      let release!: (r: Response) => void;
-      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { release = r; })));
-      const { unmount } = panel(live);
-      fireEvent.click(consent());
-      unmount();
-      release(new Response("{}", { status: 500 }));
-      await new Promise((r) => setTimeout(r, 0));
-    });
   });
 });

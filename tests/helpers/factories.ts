@@ -102,23 +102,19 @@ export const createLivePlace = (overrides: Partial<LivePlace> = {}): LivePlace =
     id: `gp:${placeId}`, placeId, name: "Cucina Sorella", address: "1 Main St, San Diego, CA", lat: 32.7, lng: -117.16,
     category: "culinary", typeLabel: "Italian restaurant", mapsUrl: "https://maps.google.com/?cid=1", estimatePerPerson: "60.00",
     estimateBasis: "Typical spend for a italian restaurant", summary: null, rating: null, ratingCount: 0,
-    city: "San Diego", country: "US", utcOffsetMinutes: -480, primaryType: "italian_restaurant", ...overrides,
+    city: "San Diego", country: "US", utcOffsetMinutes: -480, primaryType: "italian_restaurant", dining: true, website: null, ...overrides,
   };
 };
 
 import type { ConciergeResult, PlanPick } from "@/lib/concierge/agent";
 import { quote as quotePartner } from "@/lib/catalog/catalog";
 import { getExperience } from "@/lib/catalog/catalog";
-import { quoteLive } from "@/lib/places/quote";
 
 export const partnerPick = (id: string, partySize = 2, why = "Because."): PlanPick => {
   const q = quotePartner(id, partySize);
   return { kind: "partner", experience: { ...getExperience(id)!, total: q.total }, why, quote: q };
 };
-export const livePick = (overrides: Partial<LivePlace> = {}, partySize = 2, why = "Live pick."): PlanPick => {
-  const place = createLivePlace(overrides);
-  return { kind: "live", place, why, quote: quoteLive(place, partySize) };
-};
+export const livePick = (overrides: Partial<LivePlace> = {}, why = "Live pick."): PlanPick => ({ kind: "live", place: createLivePlace(overrides), why });
 export const createConciergeResult = (o: Partial<ConciergeResult> = {}): ConciergeResult => ({
   reply: "Here are two good ones.", partySize: 2, options: [partnerPick("carasau-pasta-bar"), livePick()], ...o,
 });

@@ -1,13 +1,13 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { checkIn, placeBooking } from "@/lib/bookings/service";
+import { checkIn, requestFreeBooking } from "@/lib/bookings/service";
 import { insertBooking, transition, getBooking, markCheckedIn } from "@/lib/bookings/repo";
 import { priceFor } from "@/lib/bookings/pricing";
 import { POST as checkInRoute } from "@/app/api/bookings/[id]/check-in/route";
 import { resetTokenCache } from "@/lib/paypal/client";
 import { useTestDb } from "../../../helpers/db";
 import { createNewBooking } from "../../../helpers/factories";
-import { mockPayPal, pp, setPayPalEnv } from "../../../helpers/paypal";
+import { mockPayPal, setPayPalEnv } from "../../../helpers/paypal";
 
 const HOUR = 3_600_000;
 const START = new Date("2026-11-15T02:30:00Z");
@@ -24,8 +24,7 @@ async function confirmed(o: Parameters<typeof createNewBooking>[0] = {}) {
 
 describe("venue facts are stored with the booking", () => {
   it("partner booking: tags, city, neighborhood, cuisine and Los Angeles local hour", async () => {
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
-    const b = await placeBooking({ orderId: "O1", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: START.toISOString(), userId: U, now: new Date(START.getTime() - 48 * HOUR) });
+    const b = await requestFreeBooking({ kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: START.toISOString(), userId: U, now: new Date(START.getTime() - 48 * HOUR) });
     expect(b.facts).toEqual({ tags: ["restaurant", "italian", "romantic"], city: "Los Angeles", country: "US", neighborhood: "Mid-City", cuisine: "italian", localHour: 18 });
     expect((await getBooking(b.id))!.facts.localHour).toBe(18);
   });

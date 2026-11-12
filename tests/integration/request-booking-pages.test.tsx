@@ -22,24 +22,35 @@ beforeEach(() => { vi.stubEnv("NEXT_PUBLIC_PAYPAL_CLIENT_ID", "cid"); vi.stubGlo
 afterEach(() => { vi.unstubAllEnvs(); vi.mocked(getLivePlace).mockReset(); vi.unstubAllGlobals(); });
 
 describe("/request/[placeId]", () => {
-  it("shows the live venue and a request-to-book checkout with the party from the URL", async () => {
+  it("a restaurant: free to request, with the party from the URL, and no price lookup", async () => {
     vi.mocked(getLivePlace).mockResolvedValue(place);
     await requestPage("ChIJ1", { party: ["3"] });
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Barbusa");
     expect(screen.getByText("1917 India St, San Diego")).toBeInTheDocument();
-    expect(screen.getByText("Request to book")).toBeInTheDocument();
+    expect(screen.getByText("Request a table · free")).toBeInTheDocument();
     expect((screen.getByLabelText("Guests") as HTMLSelectElement).value).toBe("3");
-    expect(screen.getByTestId("total")).toHaveTextContent("$220");
+    expect(screen.getByTestId("total")).toHaveTextContent("Free");
+    expect(screen.getByText(/Restaurants and bars are free to book on kickinit/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View on Google Maps" })).toHaveAttribute("href", "https://maps.google.com/x");
+    expect(screen.queryByRole("link", { name: "Their website" })).toBeNull();
+    expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining("/menu"));
   });
-  it("about: Google's description, rating and how the hold was estimated", async () => {
+  it("anything else: reads the venue's own published prices, and links its website", async () => {
+    vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "Spa Uno", dining: false, typeLabel: "Spa", website: "https://spauno.com" });
+    await requestPage("ChIJ1");
+    expect(screen.getByRole("status")).toHaveTextContent("Reading Spa Uno’s published prices…");
+    expect(fetch).toHaveBeenCalledWith("/api/places/ChIJ1/menu");
+    expect(screen.getByText(/we book it for you at the exact price it publishes/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Their website" })).toHaveAttribute("href", "https://spauno.com");
+  });
+  it("about: Google's description and rating, and no estimate anywhere", async () => {
     vi.mocked(getLivePlace).mockResolvedValue({ ...place, summary: "Lively Italian spot with handmade pasta.", rating: 4.6, ratingCount: 1234 });
     await requestPage("ChIJ1");
     const about = screen.getByRole("region", { name: "About this place" });
     expect(about).toHaveTextContent("Lively Italian spot with handmade pasta.");
     expect(about).toHaveTextContent("★ 4.6 on Google · 1,234 reviews");
-    expect(about).toHaveTextContent("Estimated spend: $60 per person (Google rates it $$$). You pay the venue’s real bill, not the estimate.");
-    expect(screen.getByText(/pay the bill for you/)).toHaveTextContent("you’re charged the real bill plus our booking fee when it closes");
+    expect(about).not.toHaveTextContent("Estimated");
+    expect(screen.queryByText(/estimate/i)).toBeNull();
   });
   it("no Google description or rating: a plain line instead, no rating", async () => {
     vi.mocked(getLivePlace).mockResolvedValue(place);
@@ -61,7 +72,7 @@ describe("/request/[placeId]", () => {
     expect(searchLivePlaces).toHaveBeenCalledWith("Italian restaurant near 1917 India St, San Diego");
     const recs = screen.getByRole("region", { name: "You might also like" });
     expect(screen.getByRole("link", { name: /Cucina Urbana/ })).toHaveAttribute("href", "/request/ChIJ9?party=4");
-    expect(recs).toHaveTextContent("≈ $240");
+    expect(recs).toHaveTextContent("Free to book");
   });
   it("a silly party in the URL is clamped for recommendations", async () => {
     vi.mocked(getLivePlace).mockResolvedValue(place);
@@ -74,11 +85,19 @@ describe("/request/[placeId]", () => {
     await requestPage("ChIJ1");
     expect((screen.getByLabelText("Guests") as HTMLSelectElement).value).toBe("2");
   });
-  it("no PayPal client id: says payments aren't set up", async () => {
+  it("no PayPal client id: a restaurant can still be requested (it needs no payment)", async () => {
     vi.stubEnv("NEXT_PUBLIC_PAYPAL_CLIENT_ID", "");
     vi.mocked(getLivePlace).mockResolvedValue(place);
     await requestPage("ChIJ1");
-    expect(screen.getByText("Payments aren’t set up yet.")).toBeInTheDocument();
+    expect(screen.getByText("Request a table · free")).toBeInTheDocument();
+    expect(screen.queryByText("Payments aren’t set up yet.")).toBeNull();
+  });
+  it("no PayPal client id, no env var at all: the menu checkout still renders", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PAYPAL_CLIENT_ID", undefined as unknown as string);
+    delete process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+    vi.mocked(getLivePlace).mockResolvedValue({ ...place, dining: false });
+    await requestPage("ChIJ1");
+    expect(screen.getByRole("status")).toHaveTextContent("published prices");
   });
   it.each([
     ["Google says not found", new PlacesError(404, "x")],

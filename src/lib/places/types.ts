@@ -11,10 +11,14 @@ export type LivePlace = {
   category: Category;
   typeLabel: string;
   mapsUrl: string;
-  /** Estimated price per person, used to size the PayPal hold. Decimal string. */
+  /** Google's rough per-person spend, a hint for the concierge's budget only. Never charged. Decimal string. */
   estimatePerPerson: string;
-  /** Where the estimate came from, shown to the guest. */
+  /** Where that hint came from. */
   estimateBasis: string;
+  /** A restaurant, cafe or bar: free to book, the guest pays the bill at the end. */
+  dining: boolean;
+  /** The venue's own website, where its published prices are read from (venue page only). */
+  website: string | null;
   /** Google's description of the venue (venue page only). */
   summary: string | null;
   rating: number | null;

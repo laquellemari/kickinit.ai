@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { CheckoutPanel } from "@/components/CheckoutPanel";
+import { LiveMenu } from "@/components/LiveMenu";
 import { Nav } from "@/components/Nav";
 import { Recommendations } from "@/components/Recommendations";
 import { VenuePhoto } from "@/components/VenuePhoto";
@@ -23,6 +24,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
   const raw = (await searchParams).party;
   const party = Number(Array.isArray(raw) ? raw[0] : raw) || 2;
   const recs = await similarTo(place, Math.min(Math.max(Math.trunc(party), 1), 20));
+  const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? "";
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -45,22 +47,26 @@ export default async function RequestPage({ params, searchParams }: Props) {
               {place.rating !== null && (
                 <p className="google-meta">★ {place.rating.toFixed(1)} on Google · {place.ratingCount.toLocaleString("en-US")} {place.ratingCount === 1 ? "review" : "reviews"}</p>
               )}
-              <p className="google-meta">
-                Estimated spend: ${Number(place.estimatePerPerson).toFixed(0)} per person ({place.estimateBasis}). You pay the venue&rsquo;s real bill, not the estimate.
-              </p>
             </section>
             <p className="pick-why">
-              This venue isn&rsquo;t a kickinit partner yet, so we send them your request and pay the bill for you. PayPal holds the estimate now. If the venue can&rsquo;t take you, the hold is released; if they confirm, you&rsquo;re charged the real bill plus our booking fee when it closes.
+              {place.dining
+                ? "Restaurants and bars are free to book on kickinit. We ask the venue for your table and tell you when it's confirmed; you pay the bill at the end, as usual."
+                : "This venue isn't a kickinit partner, so we book it for you at the exact price it publishes. PayPal holds the total and only charges once we've confirmed with the venue; if they can't take you, the hold is released."}
             </p>
             <div className="pick-actions">
               <a className="btn-line" href={place.mapsUrl} target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+              {place.website && <a className="btn-line" href={place.website} target="_blank" rel="noopener noreferrer">Their website</a>}
             </div>
           </article>
-          <CheckoutPanel
-            item={{ kind: "live", itemId: place.id, name: place.name, unitPrice: place.estimatePerPerson, perGroup: false, partyMin: 1, partyMax: 20 }}
-            initialParty={party}
-            clientId={process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? ""}
-          />
+          {place.dining ? (
+            <CheckoutPanel
+              item={{ kind: "live", itemId: place.id, name: place.name, unitPrice: "0.00", perGroup: false, partyMin: 1, partyMax: 20, free: true }}
+              initialParty={party}
+              clientId={clientId}
+            />
+          ) : (
+            <LiveMenu placeId={place.placeId} itemId={place.id} name={place.name} initialParty={party} clientId={clientId} mapsUrl={place.mapsUrl} />
+          )}
         </div>
         <Recommendations items={recs} />
       </main>
