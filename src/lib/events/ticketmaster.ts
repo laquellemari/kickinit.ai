@@ -62,7 +62,8 @@ export function toLiveEvent(e: TmEvent): LiveEvent | null {
   const price = e.priceRanges?.find((p) => typeof p.min === "number");
   const c = e.classifications?.[0];
   return {
-    id: `tm:${e.id}`, name: e.name, url: e.url, localDate: start.localDate, localTime: start.localTime ?? null,
+    // Ticketmaster sometimes sends a curly apostrophe as "???" ("Danny Elfman???s").
+    id: `tm:${e.id}`, name: e.name.replace(/\?{2,}/g, "’"), url: e.url, localDate: start.localDate, localTime: start.localTime ?? null,
     venue: v?.name ?? "", city: v?.city?.name ?? "", state: v?.state?.stateCode ?? "",
     image: bestImage(e.images),
     priceMin: price?.min ?? null, priceMax: price && typeof price.max === "number" ? price.max : null, currency: price?.currency ?? null,
@@ -123,15 +124,24 @@ export function venueNames(name: string): { name: string; cityOnly: boolean }[] 
   return out;
 }
 
-/** Ticketmaster venue ids matching a name (best matches first), in the given city or state if known. */
+type TmVenue = { id: string; name?: string; city?: { name?: string } };
+
+/**
+ * Ticketmaster venue ids for a venue name, in the given city or state if known. Ticketmaster's venue search is fuzzy
+ * ("The Colosseum Theater at Caesars Palace" also finds other Caesars rooms), so a venue only counts when its name
+ * contains the distinctive part of ours ("colosseum").
+ */
 export async function findVenueIds(name: string, where: Pick<EventQuery, "city" | "stateCode"> = {}): Promise<string[]> {
   const city = where.city?.toLowerCase();
-  for (const v of venueNames(name)) {
+  const names = venueNames(name);
+  const core = names[names.length - 1].name.toLowerCase();
+  const named = (v: TmVenue) => (v.name ?? "").toLowerCase().includes(core);
+  for (const v of names) {
     if (v.cityOnly && !city) continue;
-    const params: Record<string, string> = { keyword: v.name, size: "5", countryCode: "US" };
+    const params: Record<string, string> = { keyword: v.name, size: "10", countryCode: "US" };
     if (where.stateCode) params.stateCode = where.stateCode;
-    const r = await get<{ _embedded?: { venues?: { id: string; city?: { name?: string } }[] } }>("/venues.json", params);
-    const venues = r._embedded?.venues ?? [];
+    const r = await get<{ _embedded?: { venues?: TmVenue[] } }>("/venues.json", params);
+    const venues = (r._embedded?.venues ?? []).filter(named);
     const inCity = city ? venues.filter((x) => x.city?.name?.toLowerCase() === city) : [];
     const ids = (inCity.length || v.cityOnly ? inCity : venues).map((x) => x.id).slice(0, 3);
     if (ids.length) return ids;
