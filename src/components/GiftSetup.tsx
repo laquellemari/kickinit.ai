@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Experience } from "@/lib/catalog/types";
 import { guests, money } from "@/lib/format";
+import { MEMBERSHIP_PRICE, withFee } from "@/lib/pricing/fees";
 import { isoDay } from "@/lib/slots";
+import { useMember } from "./useMember";
 
 const DAY = 86_400_000;
 
-export function GiftSetup({ experience: e, initialParty, now = new Date() }: { experience: Experience; initialParty: number; now?: Date }) {
+export function GiftSetup({ experience: e, initialParty, member: given, now = new Date() }: { experience: Experience; initialParty: number; member?: boolean; now?: Date }) {
   const router = useRouter();
   const sizes = Array.from({ length: e.partyMax - e.partyMin + 1 }, (_, i) => e.partyMin + i);
   const [party, setParty] = useState(Math.min(Math.max(initialParty, e.partyMin), e.partyMax));
@@ -19,7 +21,9 @@ export function GiftSetup({ experience: e, initialParty, now = new Date() }: { e
   const [deadlineDay, setDeadlineDay] = useState(isoDay(new Date(now.getTime() + 3 * DAY)));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const total = ((Math.round(Number(e.price) * 100) * (e.pricing === "per_group" ? 1 : party)) / 100).toFixed(2);
+  const member = useMember(given);
+  // A gift has a known price, so it's the experience plus our concierge fee (none for members).
+  const fees = withFee(Math.round(Number(e.price) * 100) * (e.pricing === "per_group" ? 1 : party), member);
 
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -69,10 +73,15 @@ export function GiftSetup({ experience: e, initialParty, now = new Date() }: { e
           <input type="date" value={deadlineDay} min={isoDay(new Date(now.getTime() + DAY))} max={isoDay(new Date(now.getTime() + 13 * DAY))} onChange={(x) => setDeadlineDay(x.target.value)} />
         </label>
       )}
+      <dl className="hold-lines" role="group" aria-label="What the gift costs">
+        <div><dt>The experience</dt><dd>{money(fees.venueTotal)}</dd></div>
+        <div><dt>Concierge fee ({member ? "members pay none" : "20%"})</dt><dd>{money(fees.fee)}</dd></div>
+      </dl>
       <div className="book-total">
         <span className="pick-meta">{mode === "pool" ? "Pool goal" : "Gift total"}</span>
-        <strong data-testid="total">{money(total)}</strong>
+        <strong data-testid="total">{money(fees.total)}</strong>
       </div>
+      {!member && <p className="pick-meta" style={{ margin: 0 }}>Members pay no concierge fee (${MEMBERSHIP_PRICE}/month).</p>}
       <button type="submit" className="btn-navy" disabled={busy}>{mode === "pool" ? "Create the pool" : "Continue to payment"}</button>
       {error && <p className="error-note" role="alert">{error}</p>}
       <p className="pick-meta" style={{ margin: 0 }}>

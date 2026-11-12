@@ -1,7 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { BookingError } from "@/lib/bookings/service";
+import { PriceError } from "@/lib/bookings/pricing";
 import { PlacesError } from "@/lib/places/client";
+import { MenuError } from "@/lib/pricing/menu";
 import { PayPalError } from "./client";
 
 const CONFIG_ERRORS = [
@@ -38,7 +40,7 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
 }
 
 export function toResponse(err: unknown): NextResponse {
-  if (err instanceof HttpError || err instanceof BookingError) return NextResponse.json({ error: err.message }, { status: err.status });
+  if (err instanceof HttpError || err instanceof BookingError || err instanceof PriceError || err instanceof MenuError) return NextResponse.json({ error: err.message }, { status: err.status });
   if (err instanceof PlacesError) {
     return err.status === 404
       ? NextResponse.json({ error: "Place not found" }, { status: 404 })

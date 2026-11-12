@@ -23,8 +23,10 @@ afterEach(() => vi.unstubAllGlobals());
 describe("GiftSetup", () => {
   it("pool (default): sends the pool with a 9pm deadline on the chosen day, then opens the gift page", async () => {
     const f = mockApi(201, { id: "g1" });
-    render(<GiftSetup experience={spa} initialParty={2} now={NOW} />);
-    expect(screen.getByTestId("total")).toHaveTextContent("$190");
+    render(<GiftSetup experience={spa} initialParty={2} now={NOW} member={false} />);
+    expect(screen.getByTestId("total")).toHaveTextContent("$228");
+    expect(screen.getByRole("group", { name: "What the gift costs" })).toHaveTextContent("The experience$190Concierge fee (20%)$38");
+    expect(screen.getByText("Members pay no concierge fee ($9.99/month).")).toBeInTheDocument();
     expect(screen.getByLabelText("Pool closes on")).toHaveValue("2026-11-14");
     fill();
     fireEvent.click(screen.getByRole("button", { name: "Create the pool" }));
@@ -33,7 +35,7 @@ describe("GiftSetup", () => {
   });
   it("pay in full: no deadline field, no deadline sent", async () => {
     const f = mockApi(201, { id: "g2" });
-    render(<GiftSetup experience={spa} initialParty={2} now={NOW} />);
+    render(<GiftSetup experience={spa} initialParty={2} now={NOW} member={false} />);
     fireEvent.click(screen.getByLabelText(/I’ll pay it all/));
     expect(screen.queryByLabelText("Pool closes on")).toBeNull();
     fill();
@@ -44,42 +46,50 @@ describe("GiftSetup", () => {
   });
   it("switching back to pool shows the deadline again; guests and deadline update", async () => {
     const f = mockApi(201, { id: "g3" });
-    render(<GiftSetup experience={spa} initialParty={2} now={NOW} />);
+    render(<GiftSetup experience={spa} initialParty={2} now={NOW} member={false} />);
     fireEvent.click(screen.getByLabelText(/I’ll pay it all/));
     fireEvent.click(screen.getByLabelText(/Start a group pool/));
     fireEvent.change(screen.getByLabelText("Guests"), { target: { value: "3" } });
     fireEvent.change(screen.getByLabelText("Pool closes on"), { target: { value: "2026-11-20" } });
-    expect(screen.getByTestId("total")).toHaveTextContent("$285");
+    expect(screen.getByTestId("total")).toHaveTextContent("$342");
     fill();
     fireEvent.click(screen.getByRole("button", { name: "Create the pool" }));
     await waitFor(() => expect(routerPush).toHaveBeenCalled());
     expect(sent(f)).toMatchObject({ partySize: 3, deadline: new Date(2026, 10, 20, 21, 0).toISOString() });
   });
   it("the deadline picker allows tomorrow through 13 days out", () => {
-    render(<GiftSetup experience={spa} initialParty={2} now={NOW} />);
+    render(<GiftSetup experience={spa} initialParty={2} now={NOW} member={false} />);
     expect(screen.getByLabelText("Pool closes on")).toHaveAttribute("min", "2026-11-12");
     expect(screen.getByLabelText("Pool closes on")).toHaveAttribute("max", "2026-11-24");
   });
   it("shows the server's validation message and re-enables the button", async () => {
     mockApi(400, { error: "Their name is required" });
-    render(<GiftSetup experience={spa} initialParty={2} now={NOW} />);
+    render(<GiftSetup experience={spa} initialParty={2} now={NOW} member={false} />);
     fireEvent.click(screen.getByRole("button", { name: "Create the pool" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Their name is required");
     expect(screen.getByRole("button", { name: "Create the pool" })).toBeEnabled();
   });
   it("falls back to a generic error", async () => {
     mockApi(500, {});
-    render(<GiftSetup experience={spa} initialParty={2} now={NOW} />);
+    render(<GiftSetup experience={spa} initialParty={2} now={NOW} member={false} />);
     fireEvent.click(screen.getByRole("button", { name: "Create the pool" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't set up the gift.");
   });
   it("boundary: per-group price and clamped party", () => {
-    render(<GiftSetup experience={createExperience({ pricing: "per_group", price: "120.00", partyMin: 2, partyMax: 4 })} initialParty={9} now={NOW} />);
+    render(<GiftSetup experience={createExperience({ pricing: "per_group", price: "120.00", partyMin: 2, partyMax: 4 })} initialParty={9} now={NOW} member={false} />);
     expect(screen.getByLabelText("Guests")).toHaveValue("4");
-    expect(screen.getByTestId("total")).toHaveTextContent("$120");
+    expect(screen.getByTestId("total")).toHaveTextContent("$144");
   });
   it("below the minimum starts at the minimum; defaults now", () => {
-    render(<GiftSetup experience={createExperience({ partyMin: 2, partyMax: 4 })} initialParty={1} />);
+    render(<GiftSetup experience={createExperience({ partyMin: 2, partyMax: 4 })} initialParty={1} member={false} />);
     expect(screen.getByLabelText("Guests")).toHaveValue("2");
+  });
+  it("members: no fee, no pitch (looked up from /api/membership)", async () => {
+    const f = mockApi(200, { member: true });
+    render(<GiftSetup experience={spa} initialParty={2} now={NOW} />);
+    await waitFor(() => expect(screen.getByTestId("total")).toHaveTextContent("$190"));
+    expect(screen.getByRole("group", { name: "What the gift costs" })).toHaveTextContent("Concierge fee (members pay none)$0");
+    expect(screen.queryByText(/Members pay no concierge fee/)).toBeNull();
+    expect((f.mock.calls[0] as unknown as [string])[0]).toBe("/api/membership");
   });
 });

@@ -4,7 +4,8 @@ import { BookingStatus } from "@/components/BookingStatus";
 
 const booking = (o: Record<string, unknown> = {}) => ({
   id: "b1", kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", partySize: 2, startsAt: "2026-11-15T03:30:00.000Z",
-  amount: "180.00", currency: "USD", status: "confirmed", paypalOrderId: "5KY78813NL6193526", holdExpiresAt: null, createdAt: "2026-11-11T00:00:00.000Z", checkedInAt: null, city: "Miami", ...o,
+  amount: "180.00", currency: "USD", status: "confirmed", paypalOrderId: "5KY78813NL6193526", holdExpiresAt: null, createdAt: "2026-11-11T00:00:00.000Z", checkedInAt: null, city: "Miami",
+  fee: "0.00", serviceName: null, free: false, ...o,
 });
 const mock = (status: number, body: unknown) => {
   const f = vi.fn(async () => new Response(JSON.stringify(body), { status }));
@@ -75,24 +76,38 @@ describe("BookingStatus", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load this booking.");
   });
 
-  it("request-to-book shows its own copy, and pay-at-table is an alert with an outlined stamp", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(booking({ kind: "live", status: "confirmed", fee: "4.00", overageConsent: false,
-      settlement: { billTotal: "120.00", capturedTotal: "100.00", overage: "24.00", overageStatus: "pay_at_table", settledAt: "x" }, amount: "100.00" })))));
+  it("a paid booking with a concierge fee says what the total is made of", async () => {
+    mock(200, booking({ amount: "360.00", fee: "60.00", kind: "live", serviceName: "60-minute massage" }));
     render(<BookingStatus id="b1" />);
-    expect(await screen.findByRole("heading", { name: "Almost done." })).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Please pay the remaining $24 at the table.");
-    expect(screen.getByText("PAY AT TABLE")).toHaveClass("stamp-live");
-    expect(screen.getByText("Charged")).toBeInTheDocument();
+    expect(await screen.findByText("$360 charged to PayPal (the venue's price plus our $60 concierge fee). Show this page when you arrive.")).toBeInTheDocument();
+    expect(screen.getByText("Booked")).toBeInTheDocument();
+    expect(screen.getByText("60-minute massage")).toBeInTheDocument();
   });
-  it("a paid request-to-book bill has a filled stamp and no alert", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(booking({ kind: "live", status: "confirmed", fee: "4.00", overageConsent: true,
-      settlement: { billTotal: "80.00", capturedTotal: "84.00", overage: "0.00", overageStatus: "none", settledAt: "x" }, amount: "100.00" })))));
+  it("held with a fee", async () => {
+    mock(200, booking({ status: "held", amount: "228.00", fee: "38.00" }));
     render(<BookingStatus id="b1" />);
-    expect(await screen.findByRole("heading", { name: "Bill paid." })).toBeInTheDocument();
-    expect(screen.getByText("PAID")).not.toHaveClass("stamp-live");
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(await screen.findByText(/PayPal is holding \$228 \(the venue's price plus our \$38 concierge fee\)/)).toBeInTheDocument();
   });
-
+  it("no fee recorded (older bookings, members): no fee note", async () => {
+    mock(200, booking({ fee: null }));
+    render(<BookingStatus id="b1" />);
+    expect(await screen.findByText("$180 charged to PayPal. Show this page when you arrive.")).toBeInTheDocument();
+  });
+  it.each([
+    ["confirmed", "You're booked.", "CONFIRMED", "There's nothing to pay kickinit"],
+    ["held", "Request sent.", "REQUESTED", "We're asking Barbusa for your table"],
+    ["declined", "Not available.", "DECLINED", "The venue couldn't take this booking. Nothing was charged."],
+    ["failed", "Something went wrong.", "FAILED", "This booking didn't go through. Nothing was charged."],
+  ])("free restaurant booking, %s: no PayPal order, cost to book is free", async (status, title, stamp, body) => {
+    mock(200, booking({ status, free: true, paypalOrderId: null, amount: "0.00", name: "Barbusa", kind: "live" }));
+    render(<BookingStatus id="b1" />);
+    expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+    expect(screen.getByText(stamp)).toBeInTheDocument();
+    expect(screen.getByText(body, { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Cost to book")).toBeInTheDocument();
+    expect(screen.getByText("Free")).toBeInTheDocument();
+    expect(screen.queryByText("PayPal order")).toBeNull();
+  });
   describe("rating a visit", () => {
     function api(first: unknown, rate?: { status: number; body: unknown }) {
       const f = vi.fn(async (url: string) => url.endsWith("/rating") ? new Response(JSON.stringify(rate!.body), { status: rate!.status }) : new Response(JSON.stringify(first)));

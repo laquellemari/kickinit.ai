@@ -18,11 +18,7 @@ export class PayPalError extends Error {
 }
 
 export type Money = { value: string; currency: string };
-export type HoldOrderInput = {
-  amount: string; currency: string; description: string; referenceId: string; requestId: string;
-  /** Save the buyer's PayPal with this hold so we can charge any amount above it later (they agreed at checkout). */
-  savePayPal?: { returnUrl: string; cancelUrl: string };
-};
+export type HoldOrderInput = { amount: string; currency: string; description: string; referenceId: string; requestId: string };
 
 function config() {
   const clientId = process.env.PAYPAL_CLIENT_ID;
@@ -53,12 +49,14 @@ export async function getAccessToken(): Promise<string> {
   return body.access_token;
 }
 
-async function call<T>(path: string, requestId: string, body?: unknown): Promise<T | null> {
+async function call<T>(path: string, requestId: string, body?: unknown, method: "POST" | "GET" = "POST"): Promise<T | null> {
   const { baseUrl } = config();
   const token = await getAccessToken();
+  const headers: Record<string, string> = { authorization: `Bearer ${token}`, "content-type": "application/json", prefer: "return=representation" };
+  if (requestId) headers["paypal-request-id"] = requestId;
   const res = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "paypal-request-id": requestId, prefer: "return=representation" },
+    method,
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
@@ -69,6 +67,10 @@ async function call<T>(path: string, requestId: string, body?: unknown): Promise
   }
   return json as T | null;
 }
+
+/** For other PayPal APIs (Subscriptions): a POST with an idempotency key, or a GET. */
+export const paypalPost = <T>(path: string, requestId: string, body?: unknown) => call<T>(path, requestId, body);
+export const paypalGet = <T>(path: string) => call<T>(path, "", undefined, "GET");
 
 function checkAmount(value: string): void {
   if (!AMOUNT_RE.test(value)) throw new Error("Amount must be a decimal like 180.00");
@@ -103,21 +105,12 @@ export async function createHoldOrder(input: HoldOrderInput): Promise<{ id: stri
     purchase_units: [
       { reference_id: input.referenceId, description: input.description, amount: { currency_code: input.currency, value: input.amount } },
     ],
-    ...(input.savePayPal && {
-      payment_source: {
-        paypal: {
-          attributes: { vault: { store_in_vault: "ON_SUCCESS", usage_type: "MERCHANT", customer_type: "CONSUMER" } },
-          experience_context: { return_url: input.savePayPal.returnUrl, cancel_url: input.savePayPal.cancelUrl },
-        },
-      },
-    }),
   });
   return { id: order!.id, status: order!.status };
 }
 
 type AuthorizedOrder = {
   id: string;
-  payment_source?: { paypal?: { attributes?: { vault?: { id?: string; status?: string } } } };
   purchase_units?: {
     payments?: { authorizations?: { id: string; status: string; expiration_time: string; amount?: { value: string; currency_code: string } }[] };
   }[];
@@ -135,50 +128,7 @@ export async function authorizeOrder(orderId: string, requestId: string) {
     status: auth.status,
     expiresAt: auth.expiration_time,
     amount: auth.amount ? { value: auth.amount.value, currency: auth.amount.currency_code } : null,
-    /** Set only when PayPal saved the buyer's account (status VAULTED); "APPROVED" means it wasn't saved. */
-    vaultId: savedVaultId(order),
   };
-}
-
-function savedVaultId(order: AuthorizedOrder | null): string | null {
-  const v = order?.payment_source?.paypal?.attributes?.vault;
-  return v?.status === "VAULTED" && v.id ? v.id : null;
-}
-
-export type SavedChargeInput = { vaultId: string; amount: string; currency: string; description: string; referenceId: string; requestId: string };
-
-/** Charge a buyer's saved PayPal without them present (they agreed when booking). Returns the capture id. */
-export async function chargeSavedPayPal(input: SavedChargeInput): Promise<{ orderId: string; captureId: string }> {
-  if (!input.vaultId || !ID_RE.test(input.vaultId)) throw new Error("Saved PayPal id is missing or invalid");
-  checkAmount(input.amount);
-  checkCurrency(input.currency);
-  if (!input.description.trim() || input.description.length > 127) throw new Error("Description must be 1 to 127 characters");
-  checkRequestId(input.requestId);
-  const order = await call<{ id: string; status: string; purchase_units?: { payments?: { captures?: { id: string; status: string }[] } }[] }>(
-    "/v2/checkout/orders",
-    input.requestId,
-    {
-      intent: "CAPTURE",
-      purchase_units: [{ reference_id: input.referenceId, description: input.description, amount: { currency_code: input.currency, value: input.amount } }],
-      payment_source: { paypal: { vault_id: input.vaultId } },
-    },
-  );
-  const capture = order?.purchase_units?.[0]?.payments?.captures?.[0];
-  if (order?.status !== "COMPLETED" || !capture) throw new PayPalError(422, "NOT_COMPLETED", `PayPal didn't complete the charge (status ${order?.status ?? "none"})`);
-  return { orderId: order.id, captureId: capture.id };
-}
-
-/** A short-lived id token the JS SDK needs (data-user-id-token) to save a buyer's PayPal during checkout. */
-export async function getIdToken(): Promise<string> {
-  const { clientId, secret, baseUrl } = config();
-  const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
-    method: "POST",
-    headers: { authorization: `Basic ${btoa(`${clientId}:${secret}`)}`, "content-type": "application/x-www-form-urlencoded" },
-    body: "grant_type=client_credentials&response_type=id_token",
-  });
-  const body = await res.json();
-  if (!res.ok || !body.id_token) throw new PayPalError(res.status, body.error ?? "NO_ID_TOKEN", `PayPal id token failed: ${body.error_description ?? "no id_token returned"}`);
-  return body.id_token;
 }
 
 export async function captureAuthorization(authorizationId: string, requestId: string, amount?: Money) {
@@ -191,19 +141,6 @@ export async function captureAuthorization(authorizationId: string, requestId: s
   const body = amount ? { final_capture: true, amount: { value: amount.value, currency_code: amount.currency } } : { final_capture: true };
   const capture = await call<{ id: string; status: string }>(`/v2/payments/authorizations/${authorizationId}/capture`, requestId, body);
   return { captureId: capture!.id, status: capture!.status };
-}
-
-/** PayPal guarantees a hold for 3 days; from day 4 to 29 it can be renewed once, with a fresh 3-day guarantee. */
-export async function reauthorizeAuthorization(authorizationId: string, requestId: string, amount: { value: string; currency: string }) {
-  checkId(authorizationId, "Authorization");
-  checkRequestId(requestId);
-  checkAmount(amount.value);
-  checkCurrency(amount.currency);
-  const res = await call<{ id: string; status: string; expiration_time?: string }>(
-    `/v2/payments/authorizations/${authorizationId}/reauthorize`, requestId, { amount: { currency_code: amount.currency, value: amount.value } },
-  );
-  if (!res?.id) throw new PayPalError(502, "EMPTY_RESPONSE", "PayPal didn't return the renewed hold");
-  return { authorizationId: res.id, status: res.status, expiresAt: res.expiration_time ?? null };
 }
 
 export async function voidAuthorization(authorizationId: string, requestId: string) {

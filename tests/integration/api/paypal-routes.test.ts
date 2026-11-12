@@ -5,15 +5,18 @@ import { POST as authorize } from "@/app/api/paypal/orders/[orderId]/authorize/r
 import { POST as capture } from "@/app/api/paypal/authorizations/[authorizationId]/capture/route";
 import { POST as voidAuth } from "@/app/api/paypal/authorizations/[authorizationId]/void/route";
 import { resetTokenCache } from "@/lib/paypal/client";
-import { GET as idToken } from "@/app/api/paypal/id-token/route";
+import { saveMenu } from "@/lib/pricing/menu-store";
+import { getDb } from "@/lib/db";
 import { mockPayPal, pp, setPayPalEnv, verifyPayPalCall } from "../../helpers/paypal";
+import { useTestDb } from "../../helpers/db";
 
 const ADMIN = "admin-secret-123";
 const SANDBOX = "https://api-m.sandbox.paypal.com";
 const UUID = /^[0-9a-f-]{36}$/;
+const ME = "11111111-1111-4111-8111-111111111111";
 
 const post = (body?: unknown, headers: Record<string, string> = {}) =>
-  new Request("http://localhost/api", { method: "POST", headers: { "content-type": "application/json", ...headers }, body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body) });
+  new Request("http://localhost/api", { method: "POST", headers: { "content-type": "application/json", cookie: `kid=${ME}`, ...headers }, body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body) });
 const params = <K extends string>(key: K, value: string) => ({ params: Promise.resolve({ [key]: value } as Record<K, string>) });
 
 async function verifyResponse(res: Response, expected: { status: number; body: Record<string, unknown> }) {
@@ -21,40 +24,65 @@ async function verifyResponse(res: Response, expected: { status: number; body: R
   expect(await res.json()).toMatchObject(expected.body);
 }
 
-const goodOrder = { experienceId: "carasau-pasta-bar", partySize: 2 };
+/** Hugh Spa for 2: $190 + $38 concierge fee. */
+const goodOrder = { experienceId: "hugh-spa", partySize: 2 };
 
-beforeEach(() => { setPayPalEnv(); vi.stubEnv("ADMIN_API_KEY", ADMIN); resetTokenCache(); });
+let t: Awaited<ReturnType<typeof useTestDb>>;
+beforeEach(async () => { t ??= await useTestDb(); await t.reset(); setPayPalEnv(); vi.stubEnv("ADMIN_API_KEY", ADMIN); resetTokenCache(); });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("POST /api/paypal/orders", () => {
-  it("happy: prices on the server, holds the total, returns the order and quote", async () => {
+  it("happy: prices on the server (venue price + 20% fee), holds the total, returns the order and quote", async () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
     await verifyResponse(await createOrder(post(goodOrder)), {
       status: 201,
-      body: { id: "5O190127TN364715T", status: "CREATED", quote: { experienceId: "carasau-pasta-bar", partySize: 2, total: "180.00", currency: "USD" } },
+      body: { id: "5O190127TN364715T", status: "CREATED", quote: { experienceId: "hugh-spa", partySize: 2, venueTotal: "190.00", fee: "38.00", total: "228.00", currency: "USD" } },
     });
     const sent = JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
     expect(sent.intent).toBe("AUTHORIZE");
-    expect(sent.purchase_units[0].amount).toEqual({ currency_code: "USD", value: "180.00" });
-    expect(sent.purchase_units[0].description).toBe("Carasau Pasta Bar · 2 guests");
-    expect(sent.purchase_units[0].reference_id).toMatch(/^carasau-pasta-bar:[0-9a-f-]{36}$/);
+    expect(sent.purchase_units[0].amount).toEqual({ currency_code: "USD", value: "228.00" });
+    expect(sent.purchase_units[0].description).toBe("Hugh Spa · 2 guests");
+    expect(sent.purchase_units[0].reference_id).toMatch(/^hugh-spa:[0-9a-f-]{36}$/);
+    expect(sent.payment_source).toBeUndefined();
     const key = new Headers((f.mock.calls[1] as unknown as [string, RequestInit])[1].headers).get("paypal-request-id");
     expect(key).toMatch(UUID);
   });
   it("accepts the { kind, itemId } form for partners", async () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
-    await verifyResponse(await createOrder(post({ kind: "partner", itemId: "vibrato-grill-jazz", partySize: 2 })), { status: 201, body: { quote: { total: "70.00" } } });
-    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("70.00");
+    await verifyResponse(await createOrder(post({ kind: "partner", itemId: "mic-drop-karaoke", partySize: 4 })), { status: 201, body: { quote: { total: "144.00" } } });
+    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("144.00");
   });
-  it("prices a live venue from Google on the server", async () => {
+  it("members: the venue price only", async () => {
+    await (await getDb()).query("INSERT INTO memberships (user_id, subscription_id, status, checked_at) VALUES ($1, 'I-1', 'ACTIVE', now())", [ME]);
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
+    await verifyResponse(await createOrder(post(goodOrder)), { status: 201, body: { quote: { fee: "0.00", total: "190.00" } } });
+    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("190.00");
+  });
+  it("prices a live venue from its own published menu on the server", async () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "g");
+    await saveMenu("ChIJ1", { items: [{ id: "massage-150", name: "Massage", price: "150.00", per: "person", durationMinutes: 60, sourceUrl: "https://spauno.com" }], checkedAt: new Date() });
     const f = mockPayPal(
-      { status: 200, body: { id: "ChIJ1", displayName: { text: "Barbusa" }, primaryType: "italian_restaurant", location: { latitude: 1, longitude: 2 } } },
+      { status: 200, body: { id: "ChIJ1", displayName: { text: "Spa Uno" }, primaryType: "spa", location: { latitude: 1, longitude: 2 } } },
       { status: 200, body: pp.token() },
       { status: 201, body: pp.order() },
     );
-    await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJ1", partySize: 3 })), { status: 201, body: { quote: { total: "148.00", description: "Barbusa · 3 guests (request)" } } });
-    expect(JSON.parse((f.mock.calls[2] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("148.00");
+    await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJ1", partySize: 3, serviceId: "massage-150" })), { status: 201, body: { quote: { total: "540.00", description: "Spa Uno: Massage · 3 guests (request)" } } });
+    expect(JSON.parse((f.mock.calls[2] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("540.00");
+  });
+  it.each([
+    ["a partner restaurant", { kind: "partner", itemId: "carasau-pasta-bar", partySize: 2 }, []],
+    ["any other restaurant", { kind: "live", itemId: "gp:ChIJ2", partySize: 2 }, [{ status: 200, body: { id: "ChIJ2", displayName: { text: "Barbusa" }, primaryType: "italian_restaurant" } }]],
+  ])("%s is free to book: 400, no PayPal order", async (_l, body, google) => {
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "g");
+    const f = mockPayPal(...google);
+    await verifyResponse(await createOrder(post(body)), { status: 400, body: { error: "Restaurants and bars are free to book, so there's nothing to pay" } });
+    expect(f).toHaveBeenCalledTimes(google.length);
+  });
+  it("401 without a visitor cookie, before pricing anything", async () => {
+    const f = mockPayPal();
+    const res = await createOrder(new Request("http://localhost/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(goodOrder) }));
+    expect(res.status).toBe(401);
+    expect(f).not.toHaveBeenCalled();
   });
   it("404 for a live venue Google doesn't know", async () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "g");
@@ -67,16 +95,16 @@ describe("POST /api/paypal/orders", () => {
   it("ignores an amount sent by the browser", async () => {
     const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
     await createOrder(post({ ...goodOrder, amount: "0.01", currency: "EUR" }));
-    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount).toEqual({ currency_code: "USD", value: "180.00" });
+    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount).toEqual({ currency_code: "USD", value: "228.00" });
   });
   it("accepts partySize as a numeric string", async () => {
     mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
-    expect((await createOrder(post({ experienceId: "carasau-pasta-bar", partySize: "3" }))).status).toBe(201);
+    expect((await createOrder(post({ experienceId: "hugh-spa", partySize: "3" }))).status).toBe(201);
   });
   it.each([
     ["missing experienceId", { partySize: 2 }, 400, "Experience id is required"],
     ["non-string experienceId", { experienceId: 7, partySize: 2 }, 400, "Experience id is required"],
-    ["missing partySize", { experienceId: "carasau-pasta-bar" }, 400, "Party size must be a whole number from 1 to 20"],
+    ["missing partySize", { experienceId: "hugh-spa" }, 400, "Party size must be a whole number from 1 to 20"],
     ["party too big for the venue", { experienceId: "desuar-hollywood-spa", partySize: 3 }, 400, "Party size for DESUAR HOLLYWOOD SPA must be from 1 to 2"],
     ["unknown experience", { experienceId: "nope", partySize: 2 }, 404, "Experience not found: nope"],
   ])("%s -> %i", async (_l, body, status, error) => {
@@ -164,50 +192,5 @@ describe.each([
 
   it("400 on an unsafe authorization id", async () => {
     await verifyResponse(await handler(post(undefined, { "x-admin-key": ADMIN }), params("authorizationId", "A B")), { status: 400, body: { error: "Authorization id has invalid characters" } });
-  });
-});
-
-describe("saving PayPal with a request-to-book hold", () => {
-  const gp = { status: 200, body: { id: "ChIJ1", displayName: { text: "Barbusa" }, primaryType: "italian_restaurant", location: { latitude: 1, longitude: 2 } } };
-  const sent = (f: ReturnType<typeof vi.fn>) => JSON.parse((f.mock.calls[2] as unknown as [string, RequestInit])[1].body as string);
-  beforeEach(() => vi.stubEnv("GOOGLE_PLACES_API_KEY", "g"));
-  it("live + savePayPal: asks PayPal to save it, returning to this venue's page", async () => {
-    const f = mockPayPal(gp, { status: 200, body: pp.token() }, { status: 201, body: pp.order({ status: "PAYER_ACTION_REQUIRED" }) });
-    const res = await createOrder(new Request("https://kickinit.example/api/paypal/orders", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "live", itemId: "gp:ChIJ1", partySize: 2, savePayPal: true }) }));
-    expect(res.status).toBe(201);
-    expect(sent(f).payment_source.paypal).toEqual({
-      attributes: { vault: { store_in_vault: "ON_SUCCESS", usage_type: "MERCHANT", customer_type: "CONSUMER" } },
-      experience_context: { return_url: "https://kickinit.example/request/ChIJ1", cancel_url: "https://kickinit.example/request/ChIJ1" },
-    });
-  });
-  it("live without the box ticked: nothing saved", async () => {
-    const f = mockPayPal(gp, { status: 200, body: pp.token() }, { status: 201, body: pp.order() });
-    await createOrder(post({ kind: "live", itemId: "gp:ChIJ1", partySize: 2, savePayPal: "yes" }));
-    expect(sent(f).payment_source).toBeUndefined();
-  });
-  it("partners never save PayPal (fixed price, nothing can go over)", async () => {
-    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.order() });
-    await createOrder(post({ kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, savePayPal: true }));
-    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string).payment_source).toBeUndefined();
-  });
-});
-
-describe("GET /api/paypal/id-token", () => {
-  const get = (ip = "1.2.3.4") => idToken(new Request("http://x/api/paypal/id-token", { headers: { "x-forwarded-for": ip } }));
-  it("returns a fresh id token, never cached", async () => {
-    mockPayPal({ status: 200, body: { ...pp.token(), id_token: "eyJ.tok" } });
-    const res = await get();
-    expect(res.status).toBe(200);
-    expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(await res.json()).toEqual({ idToken: "eyJ.tok" });
-  });
-  it("a PayPal failure passes its status through", async () => {
-    mockPayPal({ status: 401, body: { error: "invalid_client", error_description: "bad" } });
-    expect((await get("5.5.5.5")).status).toBe(401);
-  });
-  it("rate limit: 30 a minute, the 31st is 429", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ...pp.token(), id_token: "t" }), { status: 200 })));
-    for (let i = 0; i < 30; i++) expect((await get("9.9.9.9")).status).toBe(200);
-    expect((await get("9.9.9.9")).status).toBe(429);
   });
 });

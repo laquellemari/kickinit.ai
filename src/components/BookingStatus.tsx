@@ -2,15 +2,26 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { liveCopy } from "@/lib/bookings/bill-copy";
 import type { PublicBooking } from "@/lib/bookings/public";
 import { guests, money } from "@/lib/format";
 
-const COPY: Record<PublicBooking["status"], { title: string; body: (b: PublicBooking) => string; stamp: string }> = {
-  confirmed: { title: "You're booked.", stamp: "CONFIRMED", body: (b) => `${money(b.amount)} charged to PayPal. Show this page when you arrive.` },
-  held: { title: "Request sent.", stamp: "ON HOLD", body: (b) => `PayPal is holding ${money(b.amount)}. You'll be charged only if the venue confirms; if they can't, the hold is released.` },
+type Copy = { title: string; body: (b: PublicBooking) => string; stamp: string };
+const feeNote = (b: PublicBooking) => (b.fee && Number(b.fee) > 0 ? ` (the venue's price plus our ${money(b.fee)} concierge fee)` : "");
+
+/** Paid bookings: the exact price is held, then charged when confirmed. */
+const PAID: Record<PublicBooking["status"], Copy> = {
+  confirmed: { title: "You're booked.", stamp: "CONFIRMED", body: (b) => `${money(b.amount)} charged to PayPal${feeNote(b)}. Show this page when you arrive.` },
+  held: { title: "Request sent.", stamp: "ON HOLD", body: (b) => `PayPal is holding ${money(b.amount)}${feeNote(b)}. It's charged only once we confirm with the venue; if they can't take you, the hold is released.` },
   declined: { title: "Not available.", stamp: "RELEASED", body: () => "The venue couldn't take this booking, so we released the hold. You weren't charged." },
   failed: { title: "Something went wrong.", stamp: "FAILED", body: () => "This booking didn't go through and you weren't charged." },
+};
+
+/** Restaurants and bars: nothing to pay kickinit; the guest pays the venue's bill at the end. */
+const FREE: Record<PublicBooking["status"], Copy> = {
+  confirmed: { title: "You're booked.", stamp: "CONFIRMED", body: () => "Your table is confirmed. There's nothing to pay kickinit: you pay the venue's bill at the end. Show this page when you arrive." },
+  held: { title: "Request sent.", stamp: "REQUESTED", body: (b) => `We're asking ${b.name} for your table and will confirm it here. Booking is free: you pay the venue's bill at the end.` },
+  declined: { title: "Not available.", stamp: "DECLINED", body: () => "The venue couldn't take this booking. Nothing was charged." },
+  failed: { title: "Something went wrong.", stamp: "FAILED", body: () => "This booking didn't go through. Nothing was charged." },
 };
 
 type View = PublicBooking & { rating?: { stars: number; note: string } | null };
@@ -73,25 +84,27 @@ export function BookingStatus({ id }: { id: string }) {
     setB(body);
   }
 
-  const base = COPY[b.status];
-  const live = liveCopy(b);
-  const c = live ?? { ...base, body: base.body(b), amountLabel: b.status === "confirmed" ? "Paid" : "Amount", amount: b.amount, alert: false };
+  const base = (b.free ? FREE : PAID)[b.status];
+  const c = { ...base, body: base.body(b) };
   const when = new Date(b.startsAt).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
     <article className="concierge-card" aria-label="Booking" style={{ gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
         <div>
           <h2 className="display" style={{ margin: 0, fontSize: 40 }}>{c.title}</h2>
-          <p className="concierge-reply" style={{ marginTop: 8 }} role={c.alert ? "alert" : undefined}>{c.body}</p>
+          <p className="concierge-reply" style={{ marginTop: 8 }}>{c.body}</p>
         </div>
-        <span className={`stamp stamp-wide ${b.status === "confirmed" && !c.alert ? "" : "stamp-live"}`} style={{ position: "static", height: 64 }}>{c.stamp}</span>
+        <span className={`stamp stamp-wide ${b.status === "confirmed" ? "" : "stamp-live"}`} style={{ position: "static", height: 64 }}>{c.stamp}</span>
       </div>
       <dl className="fact-list">
         <div><dt>Where</dt><dd>{b.name}</dd></div>
         <div><dt>When</dt><dd>{when}</dd></div>
         <div><dt>Party</dt><dd>{guests(b.partySize)}</dd></div>
-        <div><dt>{c.amountLabel}</dt><dd>{money(c.amount)}</dd></div>
-        <div><dt>PayPal order</dt><dd style={{ fontSize: 14 }}>{b.paypalOrderId}</dd></div>
+        {b.serviceName && <div><dt>Booked</dt><dd>{b.serviceName}</dd></div>}
+        {b.free
+          ? <div><dt>Cost to book</dt><dd>Free</dd></div>
+          : <div><dt>{b.status === "confirmed" ? "Paid" : "Amount"}</dt><dd>{money(b.amount)}</dd></div>}
+        {b.paypalOrderId && <div><dt>PayPal order</dt><dd style={{ fontSize: 14 }}>{b.paypalOrderId}</dd></div>}
       </dl>
       {b.status === "confirmed" && !b.checkedInAt && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

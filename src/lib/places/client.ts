@@ -1,3 +1,4 @@
+import { isDiningType } from "@/lib/pricing/fees";
 import type { Category } from "@/lib/catalog/types";
 import type { LivePlace } from "./types";
 
@@ -9,7 +10,7 @@ export const FIELD_MASK = [
   "places.priceLevel", "places.priceRange",
 ].join(",");
 /** One venue's page: the search fields plus Google's description and rating. */
-export const DETAIL_MASK = `${FIELD_MASK.replaceAll("places.", "")},editorialSummary,generativeSummary,rating,userRatingCount`;
+export const DETAIL_MASK = `${FIELD_MASK.replaceAll("places.", "")},editorialSummary,generativeSummary,rating,userRatingCount,websiteUri`;
 const ID_RE = /^[A-Za-z0-9_-]{1,300}$/;
 
 export class PlacesError extends Error {
@@ -35,10 +36,11 @@ type GPlace = {
   priceLevel?: string;
   priceRange?: { startPrice?: { units?: string; currencyCode?: string }; endPrice?: { units?: string; currencyCode?: string } };
   editorialSummary?: { text?: string };
+  websiteUri?: string;
   generativeSummary?: { overview?: { text?: string } };
 };
 
-/** Rough per-person spend by venue type, used only to size the PayPal hold. The venue confirms the real amount. */
+/** Rough per-person spend by venue type: a budget hint for the concierge only, never charged. */
 const RULES: [RegExp, Category, string][] = [
   [/(^|_)(cafe|coffee_shop|bakery|ice_cream_shop|dessert_shop)$/, "culinary", "20.00"],
   [/restaurant$|^(meal_takeaway|food_court|steak_house|sushi_bar)$/, "culinary", "40.00"],
@@ -107,6 +109,8 @@ function toLivePlace(p: GPlace): LivePlace {
     country: component(p, "country", true),
     utcOffsetMinutes: p.utcOffsetMinutes ?? null,
     primaryType: p.primaryType ?? null,
+    dining: isDiningType(p.primaryType),
+    website: p.websiteUri && /^https?:\/\//.test(p.websiteUri) ? p.websiteUri : null,
     id: `gp:${p.id}`,
     placeId: p.id,
     name: p.displayName?.text ?? "Unnamed place",

@@ -62,18 +62,19 @@ export function verifyResultIds(results: SearchResult[], ids: string[]) {
 import type { ConciergeResult } from "@/lib/concierge/agent";
 
 /** Checks the concierge reply, party size and the server-priced picks in order. */
-export function verifyConcierge(r: ConciergeResult, expected: { reply?: string | RegExp; partySize: number | null; picks: { id: string; total: string }[] }) {
+/** Partner picks carry the venue price; live picks carry none (restaurants are free, others use the venue's own menu). */
+export function verifyConcierge(r: ConciergeResult, expected: { reply?: string | RegExp; partySize: number | null; picks: { id: string; total: string | null }[] }) {
   if (expected.reply instanceof RegExp) expect(r.reply).toMatch(expected.reply);
   else if (expected.reply !== undefined) expect(r.reply).toBe(expected.reply);
   expect(r.partySize).toBe(expected.partySize);
   // The model's picks lead, in order; the server may add more matches after them.
-  const got = r.options.map((o) => ({ id: o.kind === "partner" ? o.experience.id : o.place.id, total: o.quote.total }));
+  const got = r.options.map((o) => ({ id: o.kind === "partner" ? o.experience.id : o.place.id, total: o.kind === "partner" ? o.quote.total : null }));
   expect(got.slice(0, expected.picks.length)).toEqual(expected.picks);
   if (!expected.picks.length) expect(got).toEqual([]);
   expect(new Set(got.map((g) => g.id)).size).toBe(got.length);
   for (const o of r.options) {
-    if (o.kind === "partner") expect(o.experience.total).toBe(o.quote.total);
-    else expect(o.quote.description).toMatch(/\(request\)$/);
+    if (o.kind !== "partner") continue;
+    expect(o.experience.total).toBe(o.quote.total);
     expect(o.quote.partySize).toBe(expected.partySize);
   }
 }

@@ -38,10 +38,13 @@ beforeEach(async () => { await t.reset(); setPayPalEnv(); resetTokenCache(); });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 describe("createGift", () => {
-  it("pool: prices from the catalog, trims text, keeps the chosen deadline", async () => {
+  it("pool: the catalog price + 20% concierge fee, trims text, keeps the chosen deadline", async () => {
     const g = await createGift(giftInput({ organizerName: "  Kavon ", recipientName: " Mom ", note: "  Happy 60th " }));
-    expect(g).toMatchObject({ status: "open", mode: "pool", amountCents: 19000, name: "Hugh Spa", organizerName: "Kavon", recipientName: "Mom", note: "Happy 60th", partySize: 2 });
+    expect(g).toMatchObject({ status: "open", mode: "pool", amountCents: 22800, name: "Hugh Spa", organizerName: "Kavon", recipientName: "Mom", note: "Happy 60th", partySize: 2 });
     expect(g.deadline.getTime()).toBe(NOW.getTime() + 3 * DAY);
+  });
+  it("a member organizing pays no fee: just the catalog price", async () => {
+    expect((await createGift(giftInput({ organizerMember: true }))).amountCents).toBe(19000);
   });
   it("solo: deadline is a day to finish paying, and the note is optional", async () => {
     const g = await createGift(giftInput({ mode: "solo", deadline: undefined, note: undefined }));

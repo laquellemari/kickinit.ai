@@ -141,7 +141,7 @@ describe("resolvePicks", () => {
 });
 
 describe("live search (Google Places)", () => {
-  const sd = [createLivePlace(), createLivePlace({ placeId: "ChIJsd2", name: "Harbor Spa", category: "wellness", estimatePerPerson: "120.00" })];
+  const sd = [createLivePlace(), createLivePlace({ placeId: "ChIJsd2", name: "Harbor Spa", category: "wellness", estimatePerPerson: "120.00", dining: false })];
 
   it("is only offered to the model when a live search function is provided", async () => {
     const without = createScriptedModel([{ text: "ok" }]);
@@ -153,7 +153,7 @@ describe("live search (Google Places)", () => {
     expect(JSON.stringify(without.prompts[0])).not.toContain("search_live_places");
   });
 
-  it("happy: live picks come back as request-to-book with an estimated hold", async () => {
+  it("happy: live picks come back as request-to-book, with Google's spend as a hint and whether they're free to book", async () => {
     let asked = "";
     const { model, prompts } = createScriptedModel([
       { tool: "search_live_places", args: { query: "romantic italian dinner in San Diego" } },
@@ -161,12 +161,12 @@ describe("live search (Google Places)", () => {
     ]);
     const r = await runConcierge(input({ where: "San Diego" }), { model, searchLive: async (q) => { asked = q; return sd; } });
     expect(asked).toBe("romantic italian dinner in San Diego");
-    verifyConcierge(r, { reply: "Two lovely options.", partySize: 2, picks: [{ id: "gp:ChIJsd1", total: "148.00" }, { id: "gp:ChIJsd2", total: "292.00" }] });
+    verifyConcierge(r, { reply: "Two lovely options.", partySize: 2, picks: [{ id: "gp:ChIJsd1", total: null }, { id: "gp:ChIJsd2", total: null }] });
     expect(r.options.every((o) => o.kind === "live")).toBe(true);
     const toolMsg = (prompts[1] as { role: string; content: { result: unknown }[] }[]).at(-1)!;
     expect(toolMsg.content[0].result).toEqual([
-      { id: "gp:ChIJsd1", name: "Cucina Sorella", type: "Italian restaurant", address: "1 Main St, San Diego, CA", estimatePerPerson: "60.00" },
-      { id: "gp:ChIJsd2", name: "Harbor Spa", type: "Italian restaurant", address: "1 Main St, San Diego, CA", estimatePerPerson: "120.00" },
+      { id: "gp:ChIJsd1", name: "Cucina Sorella", type: "Italian restaurant", address: "1 Main St, San Diego, CA", googleSpendPerPerson: "60.00", freeToBook: true },
+      { id: "gp:ChIJsd2", name: "Harbor Spa", type: "Italian restaurant", address: "1 Main St, San Diego, CA", googleSpendPerPerson: "120.00", freeToBook: false },
     ]);
   });
 
@@ -176,7 +176,7 @@ describe("live search (Google Places)", () => {
       present([{ experienceId: "hugh-spa", why: "Partner." }, { experienceId: "gp:ChIJsd2", why: "Live." }]),
     ]);
     const r = await runConcierge(input(), { model, searchLive: async () => sd });
-    verifyConcierge(r, { partySize: 2, picks: [{ id: "hugh-spa", total: "190.00" }, { id: "gp:ChIJsd2", total: "292.00" }] });
+    verifyConcierge(r, { partySize: 2, picks: [{ id: "hugh-spa", total: "190.00" }, { id: "gp:ChIJsd2", total: null }] });
     expect(r.options.slice(0, 2).map((o) => o.kind)).toEqual(["partner", "live"]);
   });
 
@@ -192,7 +192,7 @@ describe("live search (Google Places)", () => {
       { tool: "search_live_places", args: { query: "x in y" } },
       present([{ experienceId: "gp:ChIJsd1", why: "a" }, { experienceId: "gp:ChIJsd1", why: "b" }]),
     ]);
-    verifyConcierge(await runConcierge(input(), { model, searchLive: async () => sd }), { partySize: 2, picks: [{ id: "gp:ChIJsd1", total: "148.00" }] });
+    verifyConcierge(await runConcierge(input(), { model, searchLive: async () => sd }), { partySize: 2, picks: [{ id: "gp:ChIJsd1", total: null }] });
   });
 
   it("a live search failure is told to the model, logged, and doesn't crash", async () => {

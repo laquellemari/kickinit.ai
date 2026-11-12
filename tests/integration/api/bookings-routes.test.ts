@@ -4,13 +4,12 @@ import { POST as create, GET as mine } from "@/app/api/bookings/route";
 import { GET as one } from "@/app/api/bookings/[id]/route";
 import { POST as confirm } from "@/app/api/bookings/[id]/confirm/route";
 import { POST as decline } from "@/app/api/bookings/[id]/decline/route";
-import { POST as closeBillRoute } from "@/app/api/bookings/[id]/close-bill/route";
 import { POST as rateRoute } from "@/app/api/bookings/[id]/rating/route";
 import { markCheckedIn } from "@/lib/bookings/repo";
 import { GET as adminList } from "@/app/api/admin/bookings/route";
 import { insertBooking, transition } from "@/lib/bookings/repo";
 import { resetTokenCache } from "@/lib/paypal/client";
-import { setDb } from "@/lib/db";
+import { getDb, setDb } from "@/lib/db";
 import { useTestDb } from "../../helpers/db";
 import { createNewBooking } from "../../helpers/factories";
 import { mockPayPal, pp, setPayPalEnv } from "../../helpers/paypal";
@@ -40,13 +39,32 @@ beforeEach(async () => { await t.reset(); setPayPalEnv(); vi.stubEnv("ADMIN_API_
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 describe("POST /api/bookings", () => {
-  it("happy: partner booking is placed, charged and returned without private fields", async () => {
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
-    const body = await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "carasau-pasta-bar", partySize: "2", startsAt: FUTURE } })), {
-      status: 201, body: { kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", partySize: 2, amount: "180.00", status: "confirmed", paypalOrderId: "O1", startsAt: FUTURE },
+  const paid = (value: string) => pp.authorizedOrder({ amount: { value, currency_code: "USD" } });
+  it("happy: a paid partner booking is placed, charged (price + fee) and returned without private fields", async () => {
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: paid("228.00") }, { status: 201, body: pp.capture() });
+    const body = await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "hugh-spa", partySize: "2", startsAt: FUTURE } })), {
+      status: 201, body: { kind: "partner", itemId: "hugh-spa", name: "Hugh Spa", partySize: 2, amount: "228.00", fee: "38.00", free: false, status: "confirmed", paypalOrderId: "O1", startsAt: FUTURE },
     });
     expect(body).not.toHaveProperty("userId");
     expect(body).not.toHaveProperty("authorizationId");
+  });
+  it("members are priced without the fee", async () => {
+    await (await getDb()).query("INSERT INTO memberships (user_id, subscription_id, status, checked_at) VALUES ($1, 'I-1', 'ACTIVE', now())", [ME]);
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: paid("190.00") }, { status: 201, body: pp.capture() });
+    await verifyRes(await create(req({ method: "POST", body: { orderId: "O2", kind: "partner", itemId: "hugh-spa", partySize: 2, startsAt: FUTURE } })), { status: 201, body: { amount: "190.00", fee: "0.00" } });
+  });
+  it("free: a restaurant is booked with no PayPal at all, and shows no order id", async () => {
+    const f = mockPayPal();
+    await verifyRes(await create(req({ method: "POST", body: { free: true, kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: FUTURE } })), {
+      status: 201, body: { itemId: "carasau-pasta-bar", amount: "0.00", status: "confirmed", free: true, paypalOrderId: null },
+    });
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("free: a paid experience can't be booked for free", async () => {
+    await verifyRes(await create(req({ method: "POST", body: { free: true, kind: "partner", itemId: "hugh-spa", partySize: 2, startsAt: FUTURE } })), { status: 400, body: { error: "This booking is paid with PayPal" } });
+  });
+  it("free must be exactly true; anything else is the paid path", async () => {
+    await verifyRes(await create(req({ method: "POST", body: { free: "true", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: FUTURE } })), { status: 400, body: { error: "Order id is required" } });
   });
   it("400 on validation, before PayPal", async () => {
     const f = mockPayPal();
@@ -67,7 +85,7 @@ describe("POST /api/bookings", () => {
   it("503 when the database isn't configured", async () => {
     setDb(null);
     vi.stubEnv("DATABASE_URL", "");
-    await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: FUTURE } })), { status: 503, body: { error: "Database is not configured" } });
+    await verifyRes(await create(req({ method: "POST", body: { orderId: "O1", kind: "partner", itemId: "hugh-spa", partySize: 2, startsAt: FUTURE } })), { status: 503, body: { error: "Database is not configured" } });
     await t.reset();
   });
 });
@@ -153,36 +171,6 @@ describe("GET /api/admin/bookings", () => {
   });
   it("401 without the admin key", async () => {
     await verifyRes(await adminList(req({ url: "http://x/api/admin/bookings" })), { status: 401 });
-  });
-});
-
-describe("POST /api/bookings/:id/close-bill", () => {
-  const confirmedLive = async (o: Parameters<typeof createNewBooking>[0] = {}) => {
-    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1", amount: "100.00", fee: "4.00", ...o }));
-    await transition(b.id, ["held"], "confirmed");
-    return b;
-  };
-  it("admin closes the bill: settled from the hold; the response never shows the saved PayPal or capture ids", async () => {
-    const b = await confirmedLive({ vaultId: "VLT-SECRET" });
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture({ id: "CAP-SECRET" }) });
-    const json = await verifyRes(await closeBillRoute(req({ method: "POST", admin: ADMIN, body: { billTotal: "80.00" } }), p(b.id)), {
-      status: 200, body: { id: b.id, fee: "4.00", overageConsent: true, settlement: { billTotal: "80.00", capturedTotal: "84.00", overage: "0.00", overageStatus: "none" } },
-    });
-    expect(JSON.stringify(json)).not.toMatch(/VLT-SECRET|CAP-SECRET|authorizationId|userId/);
-    expect(typeof json.settlement.settledAt).toBe("string");
-  });
-  it("401 without the admin key, even for the guest", async () => {
-    const b = await confirmedLive({ userId: ME });
-    const f = mockPayPal();
-    await verifyRes(await closeBillRoute(req({ method: "POST", body: { billTotal: "80" } }), p(b.id)), { status: 401 });
-    expect(f).not.toHaveBeenCalled();
-  });
-  it("404 for a bad id", async () => {
-    await verifyRes(await closeBillRoute(req({ method: "POST", admin: ADMIN, body: { billTotal: "80" } }), p("x")), { status: 404 });
-  });
-  it("400 for a bad amount", async () => {
-    const b = await confirmedLive();
-    await verifyRes(await closeBillRoute(req({ method: "POST", admin: ADMIN, body: { billTotal: "lots" } }), p(b.id)), { status: 400, body: { error: "Enter the final bill, like 96.50" } });
   });
 });
 

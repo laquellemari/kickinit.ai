@@ -1,6 +1,7 @@
-import { authorizeOrder, captureAuthorization, chargeSavedPayPal, reauthorizeAuthorization, voidAuthorization, MAX_AMOUNT } from "@/lib/paypal/client";
-import { getBooking, getBookingByOrder, insertBooking, markCheckedIn, setReauthorized, settleBooking, transition, type Booking, type OverageStatus } from "./repo";
-import { priceFor } from "./pricing";
+import { randomUUID } from "node:crypto";
+import { authorizeOrder, captureAuthorization, voidAuthorization } from "@/lib/paypal/client";
+import { countUpcomingFree, FREE_PREFIX, getBooking, getBookingByOrder, insertBooking, isFree, markCheckedIn, transition, type Booking } from "./repo";
+import { PriceError, priceFor, type Priced } from "./pricing";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -12,12 +13,17 @@ export class BookingError extends Error {
   }
 }
 
-export type PlaceBookingInput = { orderId: string; kind: unknown; itemId: unknown; partySize: number; startsAt: unknown; userId: string; now?: Date };
+export type PlaceBookingInput = {
+  orderId: string; kind: unknown; itemId: unknown; partySize: number; startsAt: unknown; userId: string;
+  /** Request-to-book: which of the venue's published prices. */
+  serviceId?: unknown;
+  /** Members pay no concierge fee. */
+  member?: boolean;
+  now?: Date;
+};
 
 /** PayPal holds can be captured up to day 29, so request-to-book dates stay inside that window. */
 export const LIVE_MAX_DAYS = 28;
-/** PayPal guarantees an authorization's funds for 3 days. */
-export const HONOR_DAYS = 3;
 
 export function parseStartsAt(value: unknown, now: Date): Date {
   const d = typeof value === "string" ? new Date(value) : null;
@@ -27,14 +33,25 @@ export function parseStartsAt(value: unknown, now: Date): Date {
   return d;
 }
 
+/** Pricing errors keep their status (404 unknown item, 409 no published prices, 400 bad input). */
+async function price(input: { kind: unknown; itemId: unknown; partySize: number; serviceId?: unknown; member?: boolean }): Promise<Priced> {
+  try {
+    return await priceFor(input.kind, input.itemId, input.partySize, { serviceId: input.serviceId, member: input.member });
+  } catch (err) {
+    if (err instanceof PriceError) throw new BookingError(err.status, err.message);
+    throw err;
+  }
+}
+
 /**
  * After the buyer approves in PayPal: place the hold, check PayPal is holding exactly our price, and save the booking.
- * Partner experiences are confirmed and charged immediately; live venues stay held until the venue confirms.
+ * Partner experiences are confirmed and charged immediately; live venues stay held until our concierge confirms with the venue.
  * Safe to retry: a second call for the same PayPal order returns the existing booking.
  */
 export async function placeBooking(input: PlaceBookingInput): Promise<Booking> {
   const now = input.now ?? new Date();
   if (!input.orderId) throw new BookingError(400, "Order id is required");
+  if (input.orderId.startsWith(FREE_PREFIX)) throw new BookingError(400, "Order id is invalid");
   const startsAt = parseStartsAt(input.startsAt, now);
   const existing = await getBookingByOrder(input.orderId);
   if (existing) {
@@ -42,13 +59,8 @@ export async function placeBooking(input: PlaceBookingInput): Promise<Booking> {
     return existing;
   }
 
-  let priced;
-  try {
-    priced = await priceFor(input.kind, input.itemId, input.partySize);
-  } catch (err) {
-    const msg = (err as Error).message;
-    throw new BookingError(msg.startsWith("Experience not found") ? 404 : 400, msg);
-  }
+  const priced = await price(input);
+  if (priced.quote.free) throw new BookingError(400, "Restaurants and bars are free to book, so there's nothing to pay");
   if (priced.kind === "live" && startsAt.getTime() > now.getTime() + LIVE_MAX_DAYS * DAY) {
     throw new BookingError(400, `Request-to-book dates open up to ${LIVE_MAX_DAYS} days ahead`);
   }
@@ -72,8 +84,8 @@ export async function placeBooking(input: PlaceBookingInput): Promise<Booking> {
     authorizationId: auth.authorizationId,
     holdExpiresAt: auth.expiresAt ? new Date(auth.expiresAt) : null,
     facts: priced.factsAt(startsAt),
-    fee: priced.quote.breakdown?.fee ?? null,
-    vaultId: auth.vaultId ?? null,
+    fee: priced.quote.fee,
+    serviceName: priced.quote.serviceName,
   });
 
   if (booking.kind !== "partner") return booking;
@@ -85,21 +97,47 @@ export async function placeBooking(input: PlaceBookingInput): Promise<Booking> {
   }
 }
 
+/** Restaurants and bars: no more than this many free bookings waiting at once, so nobody can hoard tables. */
+export const MAX_UPCOMING_FREE = 5;
+
 /**
- * Venue confirmed. A partner's fixed price is charged now. A request-to-book booking keeps its hold:
- * nothing is charged until the venue closes the bill (closeBill).
+ * A restaurant or bar: no payment. A partner's table is confirmed straight away; any other venue is a request
+ * our concierge confirms with the venue. The guest pays the venue's bill at the end.
  */
+export async function requestFreeBooking(input: Omit<PlaceBookingInput, "orderId">): Promise<Booking> {
+  const now = input.now ?? new Date();
+  const startsAt = parseStartsAt(input.startsAt, now);
+  const priced = await price(input);
+  if (!priced.quote.free) throw new BookingError(400, "This booking is paid with PayPal");
+  if ((await countUpcomingFree(input.userId, now)) >= MAX_UPCOMING_FREE) {
+    throw new BookingError(429, `You already have ${MAX_UPCOMING_FREE} upcoming restaurant bookings. Check in or wait for one to pass first`);
+  }
+  const booking = await insertBooking({
+    userId: input.userId,
+    kind: priced.kind,
+    itemId: priced.quote.experienceId,
+    name: priced.name,
+    partySize: input.partySize,
+    startsAt,
+    amount: "0.00",
+    currency: priced.quote.currency,
+    paypalOrderId: `${FREE_PREFIX}${randomUUID()}`,
+    authorizationId: "",
+    holdExpiresAt: null,
+    facts: priced.factsAt(startsAt),
+    fee: "0.00",
+  });
+  if (booking.kind !== "partner") return booking;
+  return (await transition(booking.id, ["held"], "confirmed"))!;
+}
+
+/** The venue confirmed: the exact price is charged now. Free bookings just move to confirmed. */
 export async function confirmBooking(id: string): Promise<Booking> {
   const b = await getBooking(id);
   if (!b) throw new BookingError(404, "Booking not found");
   if (b.status !== "held") throw new BookingError(409, `Booking is already ${b.status}`);
-  if (b.kind === "live") {
-    const reserved = await transition(b.id, ["held"], "confirmed");
-    if (!reserved) throw new BookingError(409, "Booking changed while confirming");
-    return reserved;
-  }
-  const cap = await captureAuthorization(b.authorizationId, `capture-${b.id}`);
-  const done = await transition(b.id, ["held"], "confirmed", cap.captureId);
+  const captureId = isFree(b) ? null : (await captureAuthorization(b.authorizationId, `capture-${b.id}`)).captureId;
+  const done = await transition(b.id, ["held"], "confirmed", captureId);
   if (!done) throw new BookingError(409, "Booking changed while confirming");
   return done;
 }
@@ -109,7 +147,7 @@ export async function declineBooking(id: string): Promise<Booking> {
   const b = await getBooking(id);
   if (!b) throw new BookingError(404, "Booking not found");
   if (b.status !== "held") throw new BookingError(409, `Booking is already ${b.status}`);
-  await voidAuthorization(b.authorizationId, `void-${b.id}`);
+  if (!isFree(b)) await voidAuthorization(b.authorizationId, `void-${b.id}`);
   const done = await transition(b.id, ["held"], "declined");
   if (!done) throw new BookingError(409, "Booking changed while declining");
   return done;
@@ -131,69 +169,4 @@ export async function checkIn(input: { id: string; userId: string | null; admin:
     if (now.getTime() > t + DAY) throw new BookingError(409, "Check-in closed 24 hours after your booking");
   }
   return (await markCheckedIn(b.id, now)) ?? (await getBooking(b.id))!;
-}
-
-const AMOUNT = /^\d+(\.\d{1,2})?$/;
-const cents = (v: string) => Math.round(Number(v) * 100);
-const dollars = (c: number) => (c / 100).toFixed(2);
-
-/**
- * The venue closes the bill (tip included). We capture bill + booking fee from the hold and release the rest.
- * If that's more than the hold, the difference goes on the guest's saved PayPal (if they agreed at booking);
- * otherwise, or if that charge fails, they pay the difference at the table.
- */
-export async function closeBill(input: { id: string; billTotal: unknown; now?: Date }): Promise<Booking> {
-  const now = input.now ?? new Date();
-  const bill = typeof input.billTotal === "string" ? input.billTotal.trim() : typeof input.billTotal === "number" ? input.billTotal.toFixed(2) : "";
-  if (!AMOUNT.test(bill) || cents(bill) <= 0) throw new BookingError(400, "Enter the final bill, like 96.50");
-  if (cents(bill) > cents(MAX_AMOUNT)) throw new BookingError(400, `The bill can't be more than $${MAX_AMOUNT}`);
-  const b = await getBooking(input.id);
-  if (!b) throw new BookingError(404, "Booking not found");
-  if (b.kind !== "live") throw new BookingError(409, "Only request-to-book bookings have a bill to close");
-  if (b.settlement) throw new BookingError(409, "This bill is already closed");
-  if (b.status !== "confirmed") throw new BookingError(409, "The venue has to confirm the booking before the bill can be closed");
-
-  const due = cents(bill) + cents(b.fee ?? "0");
-  const hold = cents(b.amount);
-  const fromHold = Math.min(due, hold);
-  const overage = due - fromHold;
-  const authId = await freshAuthorization(b, now);
-  const cap = await captureAuthorization(authId, `settle-${b.id}`, { value: dollars(fromHold), currency: b.currency });
-
-  let overageStatus: OverageStatus = "none";
-  let overageCaptureId: string | null = null;
-  if (overage > 0) {
-    overageStatus = "pay_at_table";
-    if (b.vaultId) {
-      try {
-        const extra = await chargeSavedPayPal({
-          vaultId: b.vaultId, amount: dollars(overage), currency: b.currency, referenceId: b.id, requestId: `overage-${b.id}`,
-          description: `${b.name}: bill above the hold`.slice(0, 127),
-        });
-        overageStatus = "charged";
-        overageCaptureId = extra.captureId;
-      } catch (err) {
-        console.error("Charging the saved PayPal failed; the guest pays the rest at the table:", err);
-      }
-    }
-  }
-  const settled = await settleBooking(b.id, { billTotal: dollars(cents(bill)), capturedTotal: dollars(fromHold), overage: dollars(overage), overageStatus, overageCaptureId }, cap.captureId, now);
-  if (!settled) throw new BookingError(409, "Booking changed while closing the bill");
-  return settled;
-}
-
-/**
- * Past PayPal's 3-day guarantee, renew the hold once before capturing. If renewal isn't possible,
- * fall back to capturing the original hold (still valid until day 29).
- */
-async function freshAuthorization(b: Booking, now: Date): Promise<string> {
-  if (b.reauthorizedAt || now.getTime() - b.createdAt.getTime() < HONOR_DAYS * DAY) return b.authorizationId;
-  try {
-    const r = await reauthorizeAuthorization(b.authorizationId, `reauth-${b.id}`, { value: b.amount, currency: b.currency });
-    await setReauthorized(b.id, r.authorizationId, r.expiresAt ? new Date(r.expiresAt) : null, now);
-    return r.authorizationId;
-  } catch (err) {
-    console.warn("Renewing the PayPal hold failed; capturing the original hold:", err);
-    return b.authorizationId;
-  }
 }

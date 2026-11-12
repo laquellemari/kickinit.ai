@@ -2,16 +2,15 @@ import { generateText, tool, type CoreMessage, type LanguageModelV1, type ToolSe
 import { z } from "zod";
 import { getExperience, getExperienceByPlaceId, quote, searchExperiences } from "@/lib/catalog/catalog";
 import { CATEGORIES, type Quote, type SearchResult } from "@/lib/catalog/types";
-import { quoteLive } from "@/lib/places/quote";
 import type { LivePlace } from "@/lib/places/types";
 
 export type Mode = "you" | "them";
 export type HistoryItem = { role: "user" | "assistant"; content: string };
 export type ConciergeInput = { message: string; mode: Mode; where?: string; history?: HistoryItem[]; today?: Date };
-/** Partner experiences book instantly at a fixed price; live venues are a request, held at an estimate. */
+/** Partner experiences book instantly at a fixed price; live venues are a request at the venue's published price. Restaurants and bars are free to book. */
 export type PlanPick =
   | { kind: "partner"; experience: SearchResult; why: string; quote: Quote }
-  | { kind: "live"; place: LivePlace; why: string; quote: Quote };
+  | { kind: "live"; place: LivePlace; why: string };
 export type SearchLive = (query: string) => Promise<LivePlace[]>;
 export const PARTNER_CITIES = "Los Angeles and its beach towns (most), plus getaways in Palm Springs, Ojai, Malibu and Santa Barbara";
 export type ConciergeResult = { reply: string; partySize: number | null; options: PlanPick[] };
@@ -40,13 +39,13 @@ export function systemPrompt(input: ConciergeInput, opts: { live?: boolean } = {
       ? "The user is buying an experience as a GIFT for someone else. Pick things that suit the person they describe, mention why it fits them, and respect any budget as a total."
       : "The user is planning something for themselves (and anyone they bring).";
   return [
-    "You are the kickinit concierge. You find bookable experiences (restaurants, spas, classes, nights out, outdoors, getaways) from kickinit's partner catalog and hold them with PayPal while the user decides.",
+    "You are the kickinit concierge. You find bookable experiences (restaurants, spas, classes, nights out, outdoors, getaways) from kickinit's partner catalog and real venues, and books them. Restaurants and bars are free to book (the user pays the bill at the end); everything else is paid with PayPal at its exact price plus a 20% concierge fee (members pay no fee).",
     who,
     `Today is ${today}. The user's area: ${input.where?.trim() || "Los Angeles"}.`,
     "Rules:",
     `- kickinit partners (search_experiences) are in ${PARTNER_CITIES}. They book instantly at a fixed price; prefer them when they fit.`,
     opts.live
-      ? "- Also call search_live_places with what + where (e.g. 'romantic italian dinner in San Diego') so the user gets plenty of choice, and always when the area isn't covered or partners don't fit. Live venues are 'request to book': we hold an estimate on PayPal and only charge once the venue confirms. Say so briefly."
+      ? "- Also call search_live_places with what + where (e.g. 'romantic italian dinner in San Diego') so the user gets plenty of choice, and always when the area isn't covered or partners don't fit. Live venues are 'request to book': restaurants and bars are free; for anything else we use the venue's own published prices and PayPal only charges once the venue confirms. Say so briefly."
       : `- If the user's area isn't covered, say kickinit doesn't have partners there yet and suggest the closest options.`,
     "- Only recommend places returned by your search tools, using their exact id. Never invent venues, prices or availability.",
     "- Search at least once. Try a broader search if the first returns nothing.",
@@ -97,7 +96,7 @@ function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, L
         try {
           const places = await searchLive(query);
           for (const p of places) { liveCache.set(p.id, p); found.push(p.id); }
-          return places.map((p) => ({ id: p.id, name: p.name, type: p.typeLabel, address: p.address, estimatePerPerson: p.estimatePerPerson }));
+          return places.map((p) => ({ id: p.id, name: p.name, type: p.typeLabel, address: p.address, googleSpendPerPerson: p.estimatePerPerson, freeToBook: p.dining }));
         } catch (err) {
           console.error("Live search failed:", err);
           return { error: "Live search is unavailable right now. Use partner experiences or ask the user to try again." };
@@ -123,7 +122,7 @@ export function resolvePicks(picks: { experienceId: string; why: string }[], par
       for (const x of out) seen.add(idOf(x));
     } else if (live) {
       seen.add(live.id);
-      out.push({ kind: "live", place: live, why: p.why, quote: quoteLive(live, partySize) });
+      out.push({ kind: "live", place: live, why: p.why });
     } else {
       const e = getExperience(p.experienceId);
       if (!e) continue;

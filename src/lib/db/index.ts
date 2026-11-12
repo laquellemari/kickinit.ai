@@ -34,6 +34,7 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS local_hour INTEGER NOT NULL DEFAUL
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMPTZ;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS fee TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vault_id TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service_name TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS bill_total TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS captured_total TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS overage TEXT;
@@ -111,6 +112,22 @@ CREATE TABLE IF NOT EXISTS ratings (
 );
 CREATE INDEX IF NOT EXISTS ratings_user ON ratings (user_id);
 CREATE INDEX IF NOT EXISTS ratings_item ON ratings (item_id);
+CREATE TABLE IF NOT EXISTS venue_menus (
+  place_id    TEXT PRIMARY KEY,
+  items       JSONB NOT NULL,
+  checked_at  TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS memberships (
+  user_id          TEXT PRIMARY KEY,
+  subscription_id  TEXT NOT NULL UNIQUE,
+  status           TEXT NOT NULL,
+  checked_at       TIMESTAMPTZ NOT NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS app_settings (
+  key    TEXT PRIMARY KEY,
+  value  TEXT NOT NULL
+);
 `;
 
 /** Use a specific database (tests pass PGlite). Resets schema readiness. */

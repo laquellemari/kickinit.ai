@@ -1,8 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { placeBooking, confirmBooking, declineBooking, closeBill, parseStartsAt, BookingError, LIVE_MAX_DAYS, HONOR_DAYS, type PlaceBookingInput } from "@/lib/bookings/service";
-import { getBooking, getBookingByOrder, insertBooking, setReauthorized, transition } from "@/lib/bookings/repo";
+import { placeBooking, requestFreeBooking, confirmBooking, declineBooking, parseStartsAt, BookingError, LIVE_MAX_DAYS, MAX_UPCOMING_FREE, type PlaceBookingInput } from "@/lib/bookings/service";
+import { getBooking, getBookingByOrder, insertBooking, markCheckedIn, transition } from "@/lib/bookings/repo";
 import { resetTokenCache } from "@/lib/paypal/client";
+import { saveMenu } from "@/lib/pricing/menu-store";
 import { useTestDb } from "../../../helpers/db";
 import { createNewBooking } from "../../../helpers/factories";
 import { verifyBooking } from "../../../helpers/verification";
@@ -10,61 +11,62 @@ import { mockPayPal, pp, setPayPalEnv } from "../../../helpers/paypal";
 
 const NOW = new Date("2026-11-11T12:00:00Z");
 const SAT = "2026-11-14T19:30:00.000Z";
+const DAY = 86_400_000;
+/** Hugh Spa for 2: $190 venue price + $38 concierge fee. */
 const input = (o: Partial<PlaceBookingInput> = {}): PlaceBookingInput => ({
-  orderId: "ORDER-1", kind: "partner", itemId: "carasau-pasta-bar", partySize: 2, startsAt: SAT, userId: "u1", now: NOW, ...o,
+  orderId: "ORDER-1", kind: "partner", itemId: "hugh-spa", partySize: 2, startsAt: SAT, userId: "u1", now: NOW, ...o,
 });
 const SANDBOX = "https://api-m.sandbox.paypal.com";
 const urls = (f: ReturnType<typeof vi.fn>) => f.mock.calls.map((c) => (c as unknown as [string])[0].replace(SANDBOX, ""));
-const gPlace = { id: "ChIJ1", displayName: { text: "Barbusa" }, primaryType: "italian_restaurant", location: { latitude: 1, longitude: 2 } };
+const held = (value = "228.00", o: Record<string, unknown> = {}) => pp.authorizedOrder({ amount: { value, currency_code: "USD" }, ...o });
+const gSpa = { id: "ChIJ1", displayName: { text: "Spa Uno" }, primaryType: "spa", location: { latitude: 1, longitude: 2 } };
+const gDiner = { id: "ChIJ2", displayName: { text: "Barbusa" }, primaryType: "italian_restaurant", location: { latitude: 1, longitude: 2 } };
+/** Spa Uno publishes a $150 massage: for 2, $300 + $60 fee. */
+const liveInput = (o: Partial<PlaceBookingInput> = {}) => input({ kind: "live", itemId: "gp:ChIJ1", serviceId: "massage-150", ...o });
+const seedMenu = () => saveMenu("ChIJ1", { items: [{ id: "massage-150", name: "60-minute massage", price: "150.00", per: "person", durationMinutes: 60, sourceUrl: "https://spauno.com/prices" }], checkedAt: new Date() });
 
 let t: Awaited<ReturnType<typeof useTestDb>>;
 beforeAll(async () => { t = await useTestDb(); });
-beforeEach(async () => { await t.reset(); setPayPalEnv(); vi.stubEnv("GOOGLE_PLACES_API_KEY", "g"); resetTokenCache(); });
+beforeEach(async () => { await t.reset(); setPayPalEnv(); vi.stubEnv("GOOGLE_PLACES_API_KEY", "g"); resetTokenCache(); await seedMenu(); });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
-describe("placeBooking", () => {
+describe("placeBooking (paid)", () => {
   describe("happy path", () => {
-    it("partner (instant book): authorizes, checks the amount, saves, captures → confirmed", async () => {
-      const f = mockPayPal(
-        { status: 200, body: pp.token() },
-        { status: 201, body: pp.authorizedOrder() },
-        { status: 201, body: pp.capture() },
-      );
+    it("partner (instant book): authorizes venue price + fee, checks the amount, saves, captures → confirmed", async () => {
+      const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: held() }, { status: 201, body: pp.capture() });
       const b = await placeBooking(input());
-      verifyBooking(b, { status: "confirmed", kind: "partner", itemId: "carasau-pasta-bar", name: "Carasau Pasta Bar", amount: "180.00", partySize: 2, paypalOrderId: "ORDER-1", authorizationId: "0AW2184448108334S", captureId: "7TK53561YB803214S", userId: "u1" });
+      verifyBooking(b, { status: "confirmed", kind: "partner", itemId: "hugh-spa", name: "Hugh Spa", amount: "228.00", partySize: 2, paypalOrderId: "ORDER-1", authorizationId: "0AW2184448108334S", captureId: "7TK53561YB803214S", userId: "u1" });
+      expect(b).toMatchObject({ fee: "38.00", serviceName: null });
       expect(b.startsAt.toISOString()).toBe(SAT);
       expect(b.holdExpiresAt?.toISOString()).toBe("2026-12-12T21:20:49.000Z");
       expect(urls(f)).toEqual(["/v1/oauth2/token", "/v2/checkout/orders/ORDER-1/authorize", "/v2/payments/authorizations/0AW2184448108334S/capture"]);
     });
-
-    it("live (request to book): prices from Google, authorizes, stays held, no capture", async () => {
-      const f = mockPayPal(
-        { status: 200, body: gPlace },
-        { status: 200, body: pp.token() },
-        { status: 201, body: pp.authorizedOrder({ amount: { value: "100.00", currency_code: "USD" } }) },
-      );
-      const b = await placeBooking(input({ kind: "live", itemId: "gp:ChIJ1" }));
-      verifyBooking(b, { status: "held", kind: "live", itemId: "gp:ChIJ1", name: "Barbusa", amount: "100.00", captureId: null });
+    it("members: venue price only, no fee", async () => {
+      mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: held("190.00") }, { status: 201, body: pp.capture() });
+      expect(await placeBooking(input({ member: true }))).toMatchObject({ amount: "190.00", fee: "0.00", status: "confirmed" });
+    });
+    it("live: the venue's published price, held until we confirm with the venue (no capture)", async () => {
+      const f = mockPayPal({ status: 200, body: gSpa }, { status: 200, body: pp.token() }, { status: 201, body: held("360.00") });
+      const b = await placeBooking(liveInput());
+      verifyBooking(b, { status: "held", kind: "live", itemId: "gp:ChIJ1", name: "Spa Uno", amount: "360.00", captureId: null });
+      expect(b).toMatchObject({ fee: "60.00", serviceName: "60-minute massage" });
       expect(urls(f).filter((u) => u.includes("capture"))).toEqual([]);
     });
-
     it("a hold with no expiry from PayPal is saved with a null expiry", async () => {
-      mockPayPal({ status: 200, body: gPlace }, { status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder({ amount: { value: "100.00", currency_code: "USD" }, expiration_time: undefined }) });
-      verifyBooking(await placeBooking(input({ kind: "live", itemId: "gp:ChIJ1" })), { status: "held", holdExpiresAt: null });
+      mockPayPal({ status: 200, body: gSpa }, { status: 200, body: pp.token() }, { status: 201, body: held("360.00", { expiration_time: undefined }) });
+      verifyBooking(await placeBooking(liveInput()), { status: "held", holdExpiresAt: null });
     });
-
     it("is idempotent: retrying the same PayPal order returns the same booking without calling PayPal", async () => {
-      mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
+      mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: held() }, { status: 201, body: pp.capture() });
       const first = await placeBooking(input());
       const f = mockPayPal();
       const again = await placeBooking(input());
       expect(again.id).toBe(first.id);
       expect(f).not.toHaveBeenCalled();
     });
-
     it("if the instant capture fails, the booking stays held (money still on hold) and it's logged", async () => {
       const log = vi.spyOn(console, "error").mockImplementation(() => {});
-      mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 503, body: pp.error("SERVICE_UNAVAILABLE", "Down") });
+      mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: held() }, { status: 503, body: pp.error("SERVICE_UNAVAILABLE", "Down") });
       verifyBooking(await placeBooking(input()), { status: "held", captureId: null });
       expect(log).toHaveBeenCalled();
     });
@@ -73,23 +75,31 @@ describe("placeBooking", () => {
   describe("validation (PayPal is never called)", () => {
     it.each([
       ["missing order id", { orderId: "" }, 400, "Order id is required"],
+      ["a free order id", { orderId: "free:abc" }, 400, "Order id is invalid"],
       ["missing time", { startsAt: undefined }, 400, "Pick a date and time"],
       ["garbage time", { startsAt: "soon" }, 400, "Pick a date and time"],
       ["time in the past", { startsAt: "2026-11-10T19:00:00Z" }, 400, "Pick a time at least an hour from now"],
       ["bad kind", { kind: "x" }, 400, "Kind must be partner or live"],
       ["unknown partner", { itemId: "nope" }, 404, "Experience not found: nope"],
       ["party too big for the venue", { itemId: "desuar-hollywood-spa", partySize: 3 }, 400, "Party size for DESUAR HOLLYWOOD SPA must be from 1 to 2"],
+      ["a restaurant (free to book)", { itemId: "carasau-pasta-bar" }, 400, "Restaurants and bars are free to book, so there's nothing to pay"],
+      ["live with no service picked", { kind: "live", itemId: "gp:ChIJ1" }, 400, "Pick one of the venue's listed prices"],
     ])("%s", async (_l, o, status, msg) => {
-      const f = mockPayPal();
+      const f = mockPayPal({ status: 200, body: gSpa });
       await expect(placeBooking(input(o as Partial<PlaceBookingInput>))).rejects.toMatchObject({ status, message: msg });
-      expect(f).not.toHaveBeenCalled();
+      expect(urls(f).some((u) => u.includes("paypal") || u.startsWith("/v"))).toBe(false);
+    });
+    it("other errors pass through unchanged (e.g. Google is down)", async () => {
+      mockPayPal({ status: 500, body: { error: { status: "INTERNAL", message: "boom" } } });
+      await expect(placeBooking(liveInput())).rejects.toMatchObject({ name: "PlacesError" });
     });
   });
 
   describe("payment integrity", () => {
     it.each([
       ["a different amount", { amount: { value: "0.01", currency_code: "USD" } }],
-      ["a different currency", { amount: { value: "180.00", currency_code: "EUR" } }],
+      ["the venue price without the fee", { amount: { value: "190.00", currency_code: "USD" } }],
+      ["a different currency", { amount: { value: "228.00", currency_code: "EUR" } }],
       ["no amount", { amount: undefined }],
     ])("PayPal holding %s → hold released, nothing saved", async (_l, auth) => {
       const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder(auth) }, { status: 204 });
@@ -104,6 +114,68 @@ describe("placeBooking", () => {
       await insertBooking(createNewBooking({ userId: "owner", paypalOrderId: "ORDER-1" }));
       await expect(placeBooking(input({ userId: "intruder" }))).rejects.toMatchObject({ status: 409, message: "This payment belongs to another booking" });
     });
+  });
+
+  describe("request-to-book date window", () => {
+    it("dates beyond 28 days are refused before PayPal holds anything", async () => {
+      expect(LIVE_MAX_DAYS).toBe(28);
+      const f = mockPayPal({ status: 200, body: gSpa });
+      await expect(placeBooking(liveInput({ startsAt: new Date(NOW.getTime() + 28 * DAY + 1).toISOString() })))
+        .rejects.toMatchObject({ status: 400, message: "Request-to-book dates open up to 28 days ahead" });
+      expect(urls(f).some((u) => u.includes("/authorize"))).toBe(false);
+    });
+    it("boundary: exactly 28 days ahead is fine; partners can still book 89 days out", async () => {
+      mockPayPal({ status: 200, body: gSpa }, { status: 200, body: pp.token() }, { status: 201, body: held("360.00") });
+      await expect(placeBooking(liveInput({ startsAt: new Date(NOW.getTime() + 28 * DAY).toISOString() }))).resolves.toMatchObject({ kind: "live" });
+      resetTokenCache();
+      mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: held() }, { status: 201, body: pp.capture() });
+      await expect(placeBooking(input({ orderId: "ORD-P89", startsAt: new Date(NOW.getTime() + 89 * DAY).toISOString() }))).resolves.toMatchObject({ kind: "partner" });
+    });
+  });
+});
+
+describe("requestFreeBooking (restaurants and bars)", () => {
+  const free = (o: Partial<PlaceBookingInput> = {}) => {
+    const rest: Partial<PlaceBookingInput> = input({ itemId: "carasau-pasta-bar", ...o });
+    delete rest.orderId;
+    return rest as Omit<PlaceBookingInput, "orderId">;
+  };
+  it("a partner restaurant: confirmed straight away, nothing paid, no PayPal", async () => {
+    const f = mockPayPal();
+    const b = await requestFreeBooking(free());
+    verifyBooking(b, { status: "confirmed", kind: "partner", itemId: "carasau-pasta-bar", amount: "0.00", authorizationId: "", captureId: null, holdExpiresAt: null });
+    expect(b.paypalOrderId).toMatch(/^free:[0-9a-f-]{36}$/);
+    expect(b.fee).toBe("0.00");
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("any other restaurant: a request our concierge confirms with the venue", async () => {
+    mockPayPal({ status: 200, body: gDiner });
+    verifyBooking(await requestFreeBooking(free({ kind: "live", itemId: "gp:ChIJ2" })), { status: "held", kind: "live", name: "Barbusa", amount: "0.00" });
+  });
+  it("defaults now to the current time", async () => {
+    await expect(requestFreeBooking({ ...free(), now: undefined, startsAt: "2000-01-01T00:00:00Z" })).rejects.toThrow("at least an hour");
+  });
+  it.each([
+    ["a paid experience", { itemId: "hugh-spa" }, 400, "This booking is paid with PayPal"],
+    ["no time", { startsAt: undefined }, 400, "Pick a date and time"],
+    ["unknown partner", { itemId: "nope" }, 404, "Experience not found: nope"],
+  ])("%s → %i", async (_l, o, status, msg) => {
+    await expect(requestFreeBooking(free(o as Partial<PlaceBookingInput>))).rejects.toMatchObject({ status, message: msg });
+  });
+  it(`boundary: ${MAX_UPCOMING_FREE} upcoming free bookings are allowed, the next is refused (429)`, async () => {
+    for (let i = 0; i < MAX_UPCOMING_FREE; i++) await requestFreeBooking(free());
+    await expect(requestFreeBooking(free())).rejects.toMatchObject({ status: 429, message: `You already have ${MAX_UPCOMING_FREE} upcoming restaurant bookings. Check in or wait for one to pass first` });
+  });
+  it("past, attended, declined and paid bookings don't count toward the limit, nor other visitors'", async () => {
+    for (let i = 0; i < MAX_UPCOMING_FREE - 1; i++) await requestFreeBooking(free());
+    const attended = await requestFreeBooking(free());
+    await markCheckedIn(attended.id, NOW);
+    const declined = await insertBooking(createNewBooking({ userId: "u1", paypalOrderId: "free:d", startsAt: new Date(SAT) }));
+    await transition(declined.id, ["held"], "declined");
+    await insertBooking(createNewBooking({ userId: "u1", paypalOrderId: "free:past", startsAt: new Date("2026-11-01T00:00:00Z") }));
+    await insertBooking(createNewBooking({ userId: "u1", paypalOrderId: "PAID-1", startsAt: new Date(SAT) }));
+    await insertBooking(createNewBooking({ userId: "u2", paypalOrderId: "free:other", startsAt: new Date(SAT) }));
+    await expect(requestFreeBooking(free())).resolves.toMatchObject({ status: "confirmed" });
   });
 });
 
@@ -125,14 +197,22 @@ describe("parseStartsAt boundaries", () => {
 });
 
 describe("confirmBooking / declineBooking (venue's answer)", () => {
-  it("confirm a request-to-book: reserved, nothing charged (the hold waits for the bill)", async () => {
-    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1", authorizationId: "AUTHL", fee: "4.00" }));
+  it("confirm a paid request-to-book: the exact price is captured now", async () => {
+    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1", authorizationId: "AUTHL", fee: "60.00" }));
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture({ id: "CAPL" }) });
+    verifyBooking(await confirmBooking(b.id), { status: "confirmed", captureId: "CAPL" });
+    expect(urls(f)[1]).toBe("/v2/payments/authorizations/AUTHL/capture");
+  });
+  it("confirm or decline a free booking: no PayPal at all", async () => {
     const f = mockPayPal();
-    verifyBooking(await confirmBooking(b.id), { status: "confirmed", captureId: null });
+    const a = await insertBooking(createNewBooking({ kind: "live", paypalOrderId: "free:a", authorizationId: "", amount: "0.00" }));
+    const b = await insertBooking(createNewBooking({ kind: "live", paypalOrderId: "free:b", authorizationId: "", amount: "0.00" }));
+    verifyBooking(await confirmBooking(a.id), { status: "confirmed", captureId: null });
+    verifyBooking(await declineBooking(b.id), { status: "declined" });
     expect(f).not.toHaveBeenCalled();
   });
-  it("confirm a request-to-book that changes mid-call → 409", async () => {
-    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1" }));
+  it("confirm a free booking that changes mid-call → 409", async () => {
+    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ2", paypalOrderId: "free:race", authorizationId: "" }));
     const { getDb } = await import("@/lib/db");
     const db = await getDb();
     const orig = db.query.bind(db);
@@ -187,200 +267,3 @@ describe("confirmBooking / declineBooking (venue's answer)", () => {
   });
 });
 
-describe("placeBooking stores the fee and the saved PayPal (option 3)", () => {
-  it("live with consent: fee from the quote, vault id from PayPal", async () => {
-    mockPayPal(
-      { status: 200, body: gPlace },
-      { status: 200, body: pp.token() },
-      { status: 201, body: { ...pp.authorizedOrder({ amount: { value: "100.00", currency_code: "USD" } }), payment_source: { paypal: { attributes: { vault: { id: "VLT1", status: "VAULTED" } } } } } },
-    );
-    const b = await placeBooking(input({ kind: "live", itemId: "gp:ChIJ1" }));
-    expect(b).toMatchObject({ fee: "4.00", vaultId: "VLT1", settlement: null });
-  });
-  it("partner: no fee, no saved PayPal", async () => {
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
-    expect(await placeBooking(input())).toMatchObject({ fee: null, vaultId: null });
-  });
-});
-
-describe("closeBill (pay the venue's bill from the hold)", () => {
-  // Hold $100 = $80 estimated bill + $16 headroom + $4 fee.
-  const live = async (o: Parameters<typeof createNewBooking>[0] = {}) => {
-    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1", name: "Barbusa", amount: "100.00", fee: "4.00", authorizationId: "AUTHB", ...o }));
-    await transition(b.id, ["held"], "confirmed");
-    return b;
-  };
-  const captureBody = (f: ReturnType<typeof vi.fn>, n = 1) => JSON.parse((f.mock.calls[n] as unknown as [string, RequestInit])[1].body as string);
-  const reqId = (f: ReturnType<typeof vi.fn>, n: number) => new Headers((f.mock.calls[n] as unknown as [string, RequestInit])[1].headers).get("paypal-request-id");
-
-  it("bill under the hold: captures bill + fee, releases the rest, nothing owed", async () => {
-    const b = await live();
-    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture({ id: "CAP1" }) });
-    const s = await closeBill({ id: b.id, billTotal: "72.50", now: NOW });
-    expect(urls(f)[1]).toBe("/v2/payments/authorizations/AUTHB/capture");
-    expect(captureBody(f)).toEqual({ final_capture: true, amount: { value: "76.50", currency_code: "USD" } });
-    expect(reqId(f, 1)).toBe(`settle-${b.id}`);
-    expect(s).toMatchObject({ captureId: "CAP1", settlement: { billTotal: "72.50", capturedTotal: "76.50", overage: "0.00", overageStatus: "none", overageCaptureId: null, settledAt: NOW } });
-  });
-  it("boundary: bill + fee exactly equal to the hold is all captured, nothing over", async () => {
-    const b = await live();
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
-    expect((await closeBill({ id: b.id, billTotal: "96.00", now: NOW })).settlement).toMatchObject({ capturedTotal: "100.00", overage: "0.00", overageStatus: "none" });
-  });
-  it("over the hold with consent: whole hold captured, the rest charged to the saved PayPal", async () => {
-    const b = await live({ vaultId: "VLT1" });
-    const f = mockPayPal(
-      { status: 200, body: pp.token() },
-      { status: 201, body: pp.capture({ id: "CAP2" }) },
-      { status: 201, body: { id: "ORD2", status: "COMPLETED", purchase_units: [{ payments: { captures: [{ id: "OVR2", status: "COMPLETED" }] } }] } },
-    );
-    const s = await closeBill({ id: b.id, billTotal: "120.00", now: NOW });
-    expect(captureBody(f)).toEqual({ final_capture: true, amount: { value: "100.00", currency_code: "USD" } });
-    expect(captureBody(f, 2)).toMatchObject({ intent: "CAPTURE", payment_source: { paypal: { vault_id: "VLT1" } }, purchase_units: [{ amount: { value: "24.00" }, description: "Barbusa: bill above the hold", reference_id: b.id }] });
-    expect(reqId(f, 2)).toBe(`overage-${b.id}`);
-    expect(s.settlement).toMatchObject({ billTotal: "120.00", capturedTotal: "100.00", overage: "24.00", overageStatus: "charged", overageCaptureId: "OVR2" });
-  });
-  it("boundary: 1 cent over the hold is charged to the saved PayPal", async () => {
-    const b = await live({ vaultId: "VLT1" });
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() }, { status: 201, body: { id: "O", status: "COMPLETED", purchase_units: [{ payments: { captures: [{ id: "C", status: "COMPLETED" }] } }] } });
-    expect((await closeBill({ id: b.id, billTotal: "96.01", now: NOW })).settlement).toMatchObject({ overage: "0.01", overageStatus: "charged" });
-  });
-  it("over the hold without consent: the guest pays the difference at the table (option 4)", async () => {
-    const b = await live();
-    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
-    expect((await closeBill({ id: b.id, billTotal: "120.00", now: NOW })).settlement).toMatchObject({ overage: "24.00", overageStatus: "pay_at_table", overageCaptureId: null });
-    expect(f).toHaveBeenCalledTimes(2);
-  });
-  it("saved PayPal declines: falls back to paying at the table, and logs why", async () => {
-    const b = await live({ vaultId: "VLT1" });
-    const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() }, { status: 422, body: { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "INSTRUMENT_DECLINED" }], message: "declined" } });
-    expect((await closeBill({ id: b.id, billTotal: "120.00", now: NOW })).settlement).toMatchObject({ overageStatus: "pay_at_table", overage: "24.00" });
-    expect(err.mock.calls[0][0]).toContain("pays the rest at the table");
-  });
-  it("accepts a number and a missing fee (counts as $0)", async () => {
-    const b = await live({ fee: null });
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
-    expect((await closeBill({ id: b.id, billTotal: 50, now: NOW })).settlement).toMatchObject({ billTotal: "50.00", capturedTotal: "50.00" });
-  });
-  it.each([
-    [undefined, "Enter the final bill, like 96.50"], ["", "Enter the final bill, like 96.50"], ["abc", "Enter the final bill, like 96.50"],
-    ["-5", "Enter the final bill, like 96.50"], ["0.00", "Enter the final bill, like 96.50"], ["10.123", "Enter the final bill, like 96.50"],
-    ["10000.01", "The bill can't be more than $10000.00"],
-  ])("rejects bill %j without touching PayPal", async (billTotal, msg) => {
-    const b = await live();
-    const f = mockPayPal();
-    await expect(closeBill({ id: b.id, billTotal })).rejects.toMatchObject({ status: 400, message: msg });
-    expect(f).not.toHaveBeenCalled();
-  });
-  it("boundary: $0.01 and $10,000.00 bills are accepted", async () => {
-    for (const billTotal of ["0.01", "10000.00"]) {
-      const b = await live({ amount: "10000.00", fee: null });
-      mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
-      expect((await closeBill({ id: b.id, billTotal })).settlement!.billTotal).toBe(billTotal);
-      resetTokenCache();
-    }
-  });
-  it("unknown booking → 404", async () => {
-    await expect(closeBill({ id: "00000000-0000-0000-0000-000000000000", billTotal: "10" })).rejects.toMatchObject({ status: 404 });
-  });
-  it("partner bookings have no bill to close", async () => {
-    const b = await insertBooking(createNewBooking({ kind: "partner" }));
-    await expect(closeBill({ id: b.id, billTotal: "10" })).rejects.toMatchObject({ status: 409, message: "Only request-to-book bookings have a bill to close" });
-  });
-  it("not yet confirmed by the venue → 409", async () => {
-    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1" }));
-    await expect(closeBill({ id: b.id, billTotal: "10" })).rejects.toMatchObject({ status: 409, message: "The venue has to confirm the booking before the bill can be closed" });
-  });
-  it("closing twice → 409 the second time, PayPal not called again", async () => {
-    const b = await live();
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
-    await closeBill({ id: b.id, billTotal: "50" });
-    const f = mockPayPal();
-    await expect(closeBill({ id: b.id, billTotal: "50" })).rejects.toMatchObject({ status: 409, message: "This bill is already closed" });
-    expect(f).not.toHaveBeenCalled();
-  });
-  it("capture fails (e.g. the hold expired): nothing recorded, can retry", async () => {
-    const b = await live();
-    mockPayPal({ status: 200, body: pp.token() }, { status: 422, body: pp.error("AUTHORIZATION_EXPIRED", "Expired") });
-    await expect(closeBill({ id: b.id, billTotal: "50" })).rejects.toMatchObject({ issue: "AUTHORIZATION_EXPIRED" });
-    expect((await getBooking(b.id))!.settlement).toBeNull();
-  });
-  it("a race where someone else closes it mid-call → 409", async () => {
-    const b = await live();
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
-      if (url.endsWith("/oauth2/token")) return new Response(JSON.stringify(pp.token()), { status: 200 });
-      await transition(b.id, ["confirmed"], "failed");
-      return new Response(JSON.stringify(pp.capture()), { status: 201 });
-    }));
-    await expect(closeBill({ id: b.id, billTotal: "50" })).rejects.toMatchObject({ status: 409, message: "Booking changed while closing the bill" });
-  });
-});
-
-describe("keeping request-to-book holds valid", () => {
-  const DAY = 86_400_000;
-  const live = async (o: Parameters<typeof createNewBooking>[0] = {}) => {
-    const b = await insertBooking(createNewBooking({ kind: "live", itemId: "gp:ChIJ1", amount: "100.00", fee: "4.00", authorizationId: "AUTH-OLD", ...o }));
-    await transition(b.id, ["held"], "confirmed");
-    return b;
-  };
-  const captured = (f: ReturnType<typeof vi.fn>) => urls(f).find((u) => u.endsWith("/capture"));
-  it("boundary: exactly 3 days after booking, the hold is renewed first and the renewed hold is captured", async () => {
-    const b = await live();
-    expect(HONOR_DAYS).toBe(3);
-    const f = mockPayPal(
-      { status: 200, body: pp.token() },
-      { status: 201, body: { id: "AUTH-NEW", status: "CREATED", expiration_time: "2026-12-09T12:00:00Z" } },
-      { status: 201, body: pp.capture() },
-    );
-    const at = new Date(b.createdAt.getTime() + 3 * DAY);
-    await closeBill({ id: b.id, billTotal: "50", now: at });
-    expect(urls(f)[1]).toBe("/v2/payments/authorizations/AUTH-OLD/reauthorize");
-    expect(captured(f)).toBe("/v2/payments/authorizations/AUTH-NEW/capture");
-    expect(await getBooking(b.id)).toMatchObject({ authorizationId: "AUTH-NEW", reauthorizedAt: at, holdExpiresAt: new Date("2026-12-09T12:00:00Z") });
-  });
-  it("boundary: 1 ms before 3 days, no renewal", async () => {
-    const b = await live();
-    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
-    await closeBill({ id: b.id, billTotal: "50", now: new Date(b.createdAt.getTime() + 3 * DAY - 1) });
-    expect(urls(f).some((u) => u.endsWith("/reauthorize"))).toBe(false);
-    expect(captured(f)).toBe("/v2/payments/authorizations/AUTH-OLD/capture");
-  });
-  it("renewed without a new expiry keeps the old one", async () => {
-    const b = await live({ holdExpiresAt: new Date("2026-12-01T00:00:00Z") });
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: { id: "AUTH-NEW", status: "CREATED" } }, { status: 201, body: pp.capture() });
-    await closeBill({ id: b.id, billTotal: "50", now: new Date(b.createdAt.getTime() + 5 * DAY) });
-    expect((await getBooking(b.id))!.holdExpiresAt).toEqual(new Date("2026-12-01T00:00:00Z"));
-  });
-  it("a renewal that fails falls back to capturing the original hold, and is logged", async () => {
-    const b = await live();
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 422, body: { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "REAUTHORIZATION_TOO_SOON" }], message: "x" } }, { status: 201, body: pp.capture() });
-    await closeBill({ id: b.id, billTotal: "50", now: new Date(b.createdAt.getTime() + 4 * DAY) });
-    expect(captured(f)).toBe("/v2/payments/authorizations/AUTH-OLD/capture");
-    expect(warn.mock.calls[0][0]).toContain("capturing the original hold");
-    expect((await getBooking(b.id))!.reauthorizedAt).toBeNull();
-  });
-  it("a hold already renewed isn't renewed again", async () => {
-    const b = await live();
-    await setReauthorized(b.id, "AUTH-NEW", null, new Date());
-    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
-    await closeBill({ id: b.id, billTotal: "50", now: new Date(b.createdAt.getTime() + 10 * DAY) });
-    expect(urls(f).some((u) => u.endsWith("/reauthorize"))).toBe(false);
-    expect(captured(f)).toBe("/v2/payments/authorizations/AUTH-NEW/capture");
-  });
-  it("request-to-book dates beyond 28 days are refused before PayPal holds anything", async () => {
-    expect(LIVE_MAX_DAYS).toBe(28);
-    const f = mockPayPal({ status: 200, body: gPlace });
-    await expect(placeBooking(input({ kind: "live", itemId: "gp:ChIJ1", startsAt: new Date(NOW.getTime() + 28 * DAY + 1).toISOString() })))
-      .rejects.toMatchObject({ status: 400, message: "Request-to-book dates open up to 28 days ahead" });
-    expect(urls(f).some((u) => u.includes("/authorize"))).toBe(false);
-  });
-  it("boundary: exactly 28 days ahead is fine; partners can still book 89 days out", async () => {
-    mockPayPal({ status: 200, body: gPlace }, { status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder({ amount: { value: "100.00", currency_code: "USD" } }) });
-    await expect(placeBooking(input({ kind: "live", itemId: "gp:ChIJ1", startsAt: new Date(NOW.getTime() + 28 * DAY).toISOString() }))).resolves.toMatchObject({ kind: "live" });
-    resetTokenCache();
-    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.authorizedOrder() }, { status: 201, body: pp.capture() });
-    await expect(placeBooking(input({ orderId: "ORD-P89", startsAt: new Date(NOW.getTime() + 89 * DAY).toISOString() }))).resolves.toMatchObject({ kind: "partner" });
-  });
-});

@@ -4,6 +4,7 @@ const LINKS = [
   { href: "/", label: "Explore", key: "explore" },
   { href: "/passport", label: "Passport", key: "passport" },
   { href: "/gifts", label: "Gifts", key: "gifts" },
+  { href: "/membership", label: "Membership", key: "membership" },
 ] as const;
 
 export function Nav({ active, region = "Los Angeles · 10 mi" }: { active: (typeof LINKS)[number]["key"]; region?: string }) {
