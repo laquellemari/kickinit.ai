@@ -39,7 +39,7 @@ describe("CheckoutPanel", () => {
     it("partner: shows venue price and 20% fee, pays with PayPal, saves, then goes to the booking page", async () => {
       const f = mockApi({ status: 201, body: { id: "ORDER-9" } }, { status: 201, body: { id: "bk-1" } });
       panel();
-      expect(screen.getByText("Instant book · kickinit partner")).toBeInTheDocument();
+      expect(screen.getByText("Book")).toBeInTheDocument();
       const lines = screen.getByRole("group", { name: "What you pay" });
       expect(lines).toHaveTextContent("Venue price ($95 × 2 guests)$190");
       expect(lines).toHaveTextContent("Concierge fee (20%)$38");
@@ -63,9 +63,9 @@ describe("CheckoutPanel", () => {
     it("live: the venue's published price, its service id is sent, and it's charged only once confirmed", async () => {
       const f = mockApi({ status: 201, body: { id: "O" } }, { status: 201, body: { id: "b" } });
       panel(liveSpa, { party: 3 });
-      expect(screen.getByText("Request to book")).toBeInTheDocument();
+      expect(screen.getByText("Book", { selector: "span" })).toBeInTheDocument();
       expect(screen.getByTestId("total")).toHaveTextContent("$540");
-      expect(screen.getByText(/charged only once we confirm your booking with the venue/)).toBeInTheDocument();
+      expect(screen.getByText(/charges it once your booking is confirmed\. If the venue can't take you, the hold is released/)).toBeInTheDocument();
       expect(screen.getByLabelText("Date")).toHaveAttribute("max", "2026-12-08");
       pick();
       fireEvent.click(screen.getByRole("button", { name: "PayPal" }));
@@ -119,10 +119,10 @@ describe("CheckoutPanel", () => {
     it("any other restaurant: a request, and it works without PayPal set up", async () => {
       mockApi({ status: 201, body: { id: "bk-r" } });
       panel(liveDiner, { clientId: "" });
-      expect(screen.getByText("Request a table · free")).toBeInTheDocument();
-      expect(screen.getByText(/kickinit asks the venue for your table/)).toBeInTheDocument();
+      expect(screen.getByText("Book a table · free")).toBeInTheDocument();
+      expect(screen.getByText(/We confirm your table with the venue/)).toBeInTheDocument();
       pick();
-      fireEvent.click(screen.getByRole("button", { name: "Request this table" }));
+      fireEvent.click(screen.getByRole("button", { name: "Book this table" }));
       await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/booking/bk-r"));
     });
     it("a refused free booking shows the server's reason, or a fallback", async () => {

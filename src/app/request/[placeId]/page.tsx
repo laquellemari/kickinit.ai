@@ -5,6 +5,7 @@ import { Nav } from "@/components/Nav";
 import { Recommendations } from "@/components/Recommendations";
 import { VenueEvents } from "@/components/VenueEvents";
 import { VenuePhoto } from "@/components/VenuePhoto";
+import { STAMP } from "@/lib/catalog/labels";
 import { VenueQuests } from "@/components/VenueQuests";
 import { placeTags } from "@/lib/bookings/venue";
 import { isEventVenue, searchEvents, type LiveEvent } from "@/lib/events/ticketmaster";
@@ -14,7 +15,7 @@ import type { LivePlace } from "@/lib/places/types";
 
 type Props = { params: Promise<{ placeId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-export const metadata = { title: "Request to book · kickinit" };
+export const metadata = { title: "Book · kickinit" };
 
 export default async function RequestPage({ params, searchParams }: Props) {
   const { placeId } = await params;
@@ -45,7 +46,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
       <section className="hero">
         <Nav active="explore" />
         <div className="wrap plan-hero">
-          <div className="eyebrow">{place.typeLabel} · Request to book</div>
+          <div className="eyebrow">{place.typeLabel}{place.city ? ` · ${place.city}` : ""}</div>
           <h1 className="display">{place.name}</h1>
         </div>
       </section>
@@ -53,7 +54,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
         <div className="detail-grid">
           <article className="concierge-card" style={{ gap: 18 }}>
             <VenuePhoto placeId={place.placeId} alt={place.name} height={300}>
-              <span className="stamp stamp-live stamp-wide">REQUEST</span>
+              <span className="stamp stamp-wide">{STAMP[place.category]}</span>
             </VenuePhoto>
             <p className="concierge-reply">{place.address}</p>
             <section aria-label="About this place" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -66,8 +67,8 @@ export default async function RequestPage({ params, searchParams }: Props) {
               {stage
                 ? "Here's what's coming up at this venue. Pick a show to get tickets on Ticketmaster."
                 : place.dining
-                ? "Restaurants and bars are free to book on kickinit. We ask the venue for your table and tell you when it's confirmed; you pay the bill at the end, as usual."
-                : "This venue isn't a kickinit partner, so we book it for you at the exact price it publishes. PayPal holds the total and only charges once we've confirmed with the venue; if they can't take you, the hold is released."}
+                ? "Restaurants and bars are free to book on kickinit. We confirm your table with the venue and show it on your booking page; you pay the bill at the end, as usual."
+                : "You pay the venue's exact price plus our concierge fee. PayPal holds the total and charges it once your booking is confirmed; if the venue can't take you, the hold is released."}
             </p>
             <div className="pick-actions">
               <a className="btn-line" href={place.mapsUrl} target="_blank" rel="noopener noreferrer">View on Google Maps</a>

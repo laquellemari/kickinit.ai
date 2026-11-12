@@ -21,7 +21,7 @@ export type CheckoutItem = {
   partyMax: number;
   /** Restaurants and bars: free to book, no PayPal; the guest pays the bill at the end. */
   free: boolean;
-  /** Request-to-book: which of the venue's published prices. */
+  /** Which of the venue's published prices (venues priced from their own menu). */
   serviceId?: string;
 };
 
@@ -69,9 +69,7 @@ export function CheckoutPanel({ item, initialParty, clientId, member: given, now
     return body.id;
   }
 
-  const heading = item.free
-    ? (live ? "Request a table · free" : "Book a table · free")
-    : (live ? "Request to book" : "Instant book · kickinit partner");
+  const heading = item.free ? "Book a table · free" : "Book";
 
   return (
     <aside className="book-panel" aria-label="Book">
@@ -113,7 +111,7 @@ export function CheckoutPanel({ item, initialParty, clientId, member: given, now
         <div className="concierge-status" role="status"><span className="dot-pulse" aria-hidden="true" /> Securing your booking…</div>
       ) : item.free ? (
         <button type="button" className="btn-navy" onClick={() => { setError(""); void saveBooking({ free: true }, "Couldn't save the booking. Please try again."); }}>
-          {live ? "Request this table" : "Book this table"}
+          Book this table
         </button>
       ) : !clientId ? (
         <p className="error-note">Payments aren&rsquo;t set up yet.</p>
@@ -131,12 +129,8 @@ export function CheckoutPanel({ item, initialParty, clientId, member: given, now
       {error && <p className="error-note" role="alert">{error}</p>}
       <p className="pick-meta" style={{ margin: 0 }}>
         {item.free
-          ? (live
-            ? "kickinit asks the venue for your table and lets you know when it's confirmed. Nothing to pay us: you pay the venue's bill at the end."
-            : "Your table is held for you. Nothing to pay us: you pay the venue's bill at the end.")
-          : live
-            ? "PayPal holds the total now. It's charged only once we confirm your booking with the venue; if they can't take you, the hold is released."
-            : "PayPal holds the total and it's charged the moment your booking is confirmed."}
+          ? "We confirm your table with the venue and show it on your booking page. Nothing to pay us: you pay the venue's bill at the end."
+          : "PayPal holds the total and charges it once your booking is confirmed. If the venue can't take you, the hold is released and nothing is charged."}
       </p>
     </aside>
   );

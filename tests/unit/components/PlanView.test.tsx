@@ -34,7 +34,7 @@ describe("PlanView", () => {
       await verifyPlan({ reply: "Here are two good ones.", cards: ["Carasau Pasta Bar", "Cucina Sorella"] });
       expect(f).toHaveBeenCalledTimes(1);
       expect(sent(f, 0)).toEqual({ message: "dinner for 2", mode: "you", where: "Miami", history: [] });
-      expect(screen.getByText(/the venue’s own exact price, charged only once the venue confirms/)).toBeInTheDocument();
+      expect(screen.getByText(/the exact price plus our concierge fee, charged once your booking is confirmed/)).toBeInTheDocument();
       expect(screen.getByText(/real shows and games, bought on Ticketmaster/)).toBeInTheDocument();
     });
 
@@ -45,12 +45,13 @@ describe("PlanView", () => {
       expect(screen.getByRole("link", { name: "Get tickets" })).toBeInTheDocument();
     });
 
-    it("gift mode changes the heading and highlights Gifts in the nav", async () => {
+    it("gift mode changes the heading; the nav stays on Explore", async () => {
       mockConcierge({ status: 200, body: createConciergeResult() });
       render(<PlanView q="spa day for mom" mode="them" where="San Diego" />);
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Gift ideas.");
       expect(screen.getByText("For them · San Diego")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Gifts" })).toHaveAttribute("aria-current", "page");
+      expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute("aria-current", "page");
+      expect(screen.queryByRole("link", { name: "Gifts" })).toBeNull();
       await screen.findByText("Here are two good ones.");
       expect(screen.getByRole("link", { name: "Gift this" })).toHaveAttribute("href", "/gift/new?experience=carasau-pasta-bar&party=2");
     });
@@ -77,7 +78,7 @@ describe("PlanView", () => {
       mockConcierge({ status: 200, body: createConciergeResult({ partySize: null }) });
       render(<PlanView q="x" mode="you" where="Miami" />);
       await screen.findByText("Here are two good ones.");
-      expect(screen.getByRole("link", { name: "See details" })).toHaveAttribute("href", "/experience/carasau-pasta-bar?party=2");
+      expect(screen.getAllByRole("link", { name: "See details" })[0]).toHaveAttribute("href", "/experience/carasau-pasta-bar?party=2");
     });
   });
 

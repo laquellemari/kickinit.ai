@@ -42,14 +42,15 @@ export function systemPrompt(input: ConciergeInput, opts: { live?: boolean; even
       ? "The user is buying an experience as a GIFT for someone else. Pick things that suit the person they describe, mention why it fits them, and respect any budget as a total."
       : "The user is planning something for themselves (and anyone they bring).";
   return [
-    "You are the kickinit concierge. You find bookable experiences (restaurants, spas, classes, nights out, outdoors, getaways) from kickinit's partner catalog and real venues, and books them. Restaurants and bars are free to book (the user pays the bill at the end); everything else is paid with PayPal at its exact price plus a 20% concierge fee (members pay no fee).",
+    "You are the kickinit concierge. You find bookable experiences (restaurants, spas, classes, nights out, outdoors, getaways) and book them. Restaurants and bars are free to book (the user pays the bill at the end); everything else is paid with PayPal at its exact price plus a 20% concierge fee (members pay no fee).",
     who,
     `Today is ${today}. The user's area: ${input.where?.trim() || "Los Angeles"}.`,
     "Rules:",
     `- kickinit partners (search_experiences) are in ${PARTNER_CITIES}. They book instantly at a fixed price; prefer them when they fit.`,
     opts.live
-      ? "- Also call search_live_places with what + where (e.g. 'romantic italian dinner in San Diego') so the user gets plenty of choice, and always when the area isn't covered or partners don't fit. Live venues are 'request to book': restaurants and bars are free; for anything else we use the venue's own published prices and PayPal only charges once the venue confirms. Say so briefly."
-      : `- If the user's area isn't covered, say kickinit doesn't have partners there yet and suggest the closest options.`,
+      ? "- Also call search_live_places with what + where (e.g. 'romantic italian dinner in San Diego') so the user gets plenty of choice, and always when the area isn't covered or the catalog doesn't fit."
+      : `- If the user's area isn't covered, say kickinit doesn't have experiences there yet and suggest the closest options.`,
+    "- Every venue books the same way for the user. Never call a place a partner or not a partner, and never describe bookings as instant or as requests.",
     ...(opts.events
       ? ["- For concerts, live music, shows, theater, comedy or sports, or when the user names a theater, arena, stadium or concert venue, call search_events (pass venue when they named one) and recommend the actual events, never the venue building. Tickets are bought on Ticketmaster; say so briefly."]
       : []),
@@ -106,7 +107,7 @@ function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, L
           return places.map((p) => ({ id: p.id, name: p.name, type: p.typeLabel, address: p.address, googleSpendPerPerson: p.estimatePerPerson, freeToBook: p.dining }));
         } catch (err) {
           console.error("Live search failed:", err);
-          return { error: "Live search is unavailable right now. Use partner experiences or ask the user to try again." };
+          return { error: "Live search is unavailable right now. Use the catalog search or ask the user to try again." };
         }
       },
     });

@@ -3,7 +3,7 @@ import { render, screen, fireEvent, within } from "@testing-library/react";
 import { Recommendations } from "@/components/Recommendations";
 import type { Recommendation } from "@/lib/places/similar";
 
-const rec = (i: number, kind: "partner" | "live" = "live"): Recommendation => ({ key: `k${i}`, kind, href: `/x/${i}`, name: `Venue ${i}`, meta: "Bar · Request", price: "≈ $90", placeId: `P${i}`, bg: "#fff" });
+const rec = (i: number, kind: "partner" | "live" = "live"): Recommendation => ({ key: `k${i}`, kind, href: `/x/${i}`, name: `Venue ${i}`, meta: "Bar", price: "≈ $90", placeId: `P${i}`, bg: "#fff", stamp: kind === "live" ? "NIGHT" : "SPA" });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Recommendations", () => {
@@ -13,8 +13,8 @@ describe("Recommendations", () => {
     const region = screen.getByRole("region", { name: "You might also like" });
     const links = within(region).getAllByRole("link");
     expect(links.map((l) => l.getAttribute("href"))).toEqual(["/x/1", "/x/2"]);
-    expect(links[0]).toHaveTextContent("INSTANT BOOK");
-    expect(links[1]).toHaveTextContent("REQUEST");
+    expect(links[0]).toHaveTextContent("SPA");
+    expect(links[1]).toHaveTextContent("NIGHT");
     expect(links[1]).toHaveTextContent("≈ $90");
     const row = screen.getByTestId("recs-row");
     const scrollBy = vi.fn();

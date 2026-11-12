@@ -11,7 +11,7 @@ const feeNote = (b: PublicBooking) => (b.fee && Number(b.fee) > 0 ? ` (the venue
 /** Paid bookings: the exact price is held, then charged when confirmed. */
 const PAID: Record<PublicBooking["status"], Copy> = {
   confirmed: { title: "You're booked.", stamp: "CONFIRMED", body: (b) => `${money(b.amount)} charged to PayPal${feeNote(b)}. Show this page when you arrive.` },
-  held: { title: "Request sent.", stamp: "ON HOLD", body: (b) => `PayPal is holding ${money(b.amount)}${feeNote(b)}. It's charged only once we confirm with the venue; if they can't take you, the hold is released.` },
+  held: { title: "Confirming with the venue.", stamp: "ON HOLD", body: (b) => `PayPal is holding ${money(b.amount)}${feeNote(b)}. It's charged once your booking is confirmed; if the venue can't take you, the hold is released.` },
   declined: { title: "Not available.", stamp: "RELEASED", body: () => "The venue couldn't take this booking, so we released the hold. You weren't charged." },
   failed: { title: "Something went wrong.", stamp: "FAILED", body: () => "This booking didn't go through and you weren't charged." },
 };
@@ -19,7 +19,7 @@ const PAID: Record<PublicBooking["status"], Copy> = {
 /** Restaurants and bars: nothing to pay kickinit; the guest pays the venue's bill at the end. */
 const FREE: Record<PublicBooking["status"], Copy> = {
   confirmed: { title: "You're booked.", stamp: "CONFIRMED", body: () => "Your table is confirmed. There's nothing to pay kickinit: you pay the venue's bill at the end. Show this page when you arrive." },
-  held: { title: "Request sent.", stamp: "REQUESTED", body: (b) => `We're asking ${b.name} for your table and will confirm it here. Booking is free: you pay the venue's bill at the end.` },
+  held: { title: "Confirming with the venue.", stamp: "PENDING", body: (b) => `We're confirming your table with ${b.name} and will show it here. Booking is free: you pay the venue's bill at the end.` },
   declined: { title: "Not available.", stamp: "DECLINED", body: () => "The venue couldn't take this booking. Nothing was charged." },
   failed: { title: "Something went wrong.", stamp: "FAILED", body: () => "This booking didn't go through. Nothing was charged." },
 };

@@ -62,7 +62,7 @@ export async function placeBooking(input: PlaceBookingInput): Promise<Booking> {
   const priced = await price(input);
   if (priced.quote.free) throw new BookingError(400, "Restaurants and bars are free to book, so there's nothing to pay");
   if (priced.kind === "live" && startsAt.getTime() > now.getTime() + LIVE_MAX_DAYS * DAY) {
-    throw new BookingError(400, `Request-to-book dates open up to ${LIVE_MAX_DAYS} days ahead`);
+    throw new BookingError(400, `Bookings at this venue open up to ${LIVE_MAX_DAYS} days ahead`);
   }
 
   const auth = await authorizeOrder(input.orderId, `authorize-${input.orderId}`);

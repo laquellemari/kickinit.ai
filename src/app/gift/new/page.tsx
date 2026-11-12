@@ -15,7 +15,7 @@ export default async function NewGiftPage({ searchParams }: { searchParams: Prom
   return (
     <div style={{ minHeight: "100vh" }}>
       <section className="hero">
-        <Nav active="gifts" />
+        <Nav active="explore" />
         <div className="wrap plan-hero">
           <div className="eyebrow">For them · {e.neighborhood}, {e.city}</div>
           <h1 className="display">Gift {e.name}.</h1>

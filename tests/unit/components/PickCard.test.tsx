@@ -7,7 +7,7 @@ describe("PickCard", () => {
   it("partner restaurant: instant-book stamp, free to book, link to details with party size", () => {
     render(<PickCard pick={partnerPick("carasau-pasta-bar", 2, "Terrace over the bay.")} partySize={2} />);
     const card = screen.getByRole("article", { name: "Carasau Pasta Bar" });
-    expect(within(card).getByText("INSTANT BOOK")).toBeInTheDocument();
+    expect(within(card).getByText("DINE")).toBeInTheDocument();
     expect(within(card).getByText("Mid-City, Los Angeles")).toBeInTheDocument();
     expect(within(card).getByText("Terrace over the bay.")).toBeInTheDocument();
     expect(within(card).getByText("Free to book")).toBeInTheDocument();
@@ -29,14 +29,14 @@ describe("PickCard", () => {
   it("live restaurant: request stamp, free to book, request link, Google Maps in a new tab", () => {
     render(<PickCard pick={livePick()} partySize={3} />);
     const card = screen.getByRole("article", { name: "Cucina Sorella" });
-    expect(within(card).getByText("REQUEST")).toBeInTheDocument();
+    expect(within(card).getByText("DINE")).toBeInTheDocument();
     expect(within(card).getByText("Free to book")).toBeInTheDocument();
-    expect(within(card).getByRole("link", { name: "Request to book" })).toHaveAttribute("href", "/request/ChIJsd1?party=3");
+    expect(within(card).getByRole("link", { name: "See details" })).toHaveAttribute("href", "/request/ChIJsd1?party=3");
     const maps = within(card).getByRole("link", { name: "Map" });
     expect(maps).toHaveAttribute("href", "https://maps.google.com/?cid=1");
     expect(maps).toHaveAttribute("target", "_blank");
     expect(maps).toHaveAttribute("rel", "noopener noreferrer");
-    expect(within(card).queryByText("INSTANT BOOK")).toBeNull();
+    expect(card).not.toHaveTextContent(/instant book|request|partner/i);
   });
   it("live spa: no estimate, the exact price comes from the venue", () => {
     render(<PickCard pick={livePick({ dining: false, name: "Spa Uno", typeLabel: "Spa" })} partySize={2} />);

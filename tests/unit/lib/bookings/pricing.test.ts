@@ -35,7 +35,7 @@ describe("priceFor: request-to-book venues", () => {
   it("a restaurant is free: no menu lookup, nothing to pay", async () => {
     const f = mockFetch(place({ primaryType: "italian_restaurant", displayName: { text: "Barbusa" } }));
     const r = await priceFor("live", "gp:ChIJ1", 3);
-    expect(r).toMatchObject({ kind: "live", name: "Barbusa", quote: { free: true, total: "0.00", unitPrice: "0.00", experienceId: "gp:ChIJ1", description: "Barbusa · 3 guests (request)" } });
+    expect(r).toMatchObject({ kind: "live", name: "Barbusa", quote: { free: true, total: "0.00", unitPrice: "0.00", experienceId: "gp:ChIJ1", description: "Barbusa · 3 guests" } });
     expect(f).toHaveBeenCalledTimes(1);
     expect((f.mock.calls[0] as unknown as [string])[0]).toBe("https://places.googleapis.com/v1/places/ChIJ1");
   });
@@ -43,7 +43,7 @@ describe("priceFor: request-to-book venues", () => {
     await withMenu([item(), item({ id: "facial-95", name: "Facial", price: "95.00" })]);
     mockFetch(place());
     const r = await priceFor("live", "gp:ChIJ1", 2, { serviceId: "massage-150" });
-    expect(r.quote).toMatchObject({ venueTotal: "300.00", fee: "60.00", total: "360.00", unitPrice: "150.00", free: false, serviceId: "massage-150", serviceName: "60-minute massage", description: "Spa Uno: 60-minute massage · 2 guests (request)" });
+    expect(r.quote).toMatchObject({ venueTotal: "300.00", fee: "60.00", total: "360.00", unitPrice: "150.00", free: false, serviceId: "massage-150", serviceName: "60-minute massage", description: "Spa Uno: 60-minute massage · 2 guests" });
     expect(r.factsAt(new Date()).tags).toBeDefined();
   });
   it("a per-group price isn't multiplied by guests; members pay no fee", async () => {
@@ -56,7 +56,7 @@ describe("priceFor: request-to-book venues", () => {
     mockFetch(place({ displayName: { text: "y".repeat(80) } }));
     const d = (await priceFor("live", "gp:ChIJ1", 1, { serviceId: "massage-150" })).quote.description;
     expect(d.length).toBe(127);
-    expect(d.endsWith(" · 1 guest (request)")).toBe(true);
+    expect(d.endsWith(" · 1 guest")).toBe(true);
   });
   it("a long restaurant name is cut too", async () => {
     mockFetch(place({ primaryType: "bar", displayName: { text: "z".repeat(140) } }));

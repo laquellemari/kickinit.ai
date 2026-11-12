@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Nav } from "@/components/Nav";
 
-const links = ["Explore", "Passport", "Gifts", "Membership"] as const;
-const keys = { Explore: "explore", Passport: "passport", Gifts: "gifts", Membership: "membership" } as const;
-const hrefs = { Explore: "/", Passport: "/passport", Gifts: "/gifts", Membership: "/membership" } as const;
+const links = ["Explore", "Passport", "Membership"] as const;
+const keys = { Explore: "explore", Passport: "passport", Membership: "membership" } as const;
+const hrefs = { Explore: "/", Passport: "/passport", Membership: "/membership" } as const;
 
 describe("Nav", () => {
   it.each(links)("marks only %s as the current page when active", (label) => {
