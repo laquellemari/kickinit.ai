@@ -107,6 +107,7 @@ function toLivePlace(p: GPlace): LivePlace {
   return {
     city: component(p, "locality") || component(p, "postal_town"),
     country: component(p, "country", true),
+    state: component(p, "administrative_area_level_1", true),
     utcOffsetMinutes: p.utcOffsetMinutes ?? null,
     primaryType: p.primaryType ?? null,
     dining: isDiningType(p.primaryType),

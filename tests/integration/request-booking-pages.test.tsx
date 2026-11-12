@@ -53,7 +53,7 @@ describe("/request/[placeId]", () => {
     vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "The Colosseum", primaryType: "performing_arts_theater", dining: false, city: "Las Vegas" });
     vi.mocked(searchEvents).mockResolvedValueOnce([createLiveEvent()]);
     await requestPage("ChIJ1");
-    expect(searchEvents).toHaveBeenCalledWith({ venue: "The Colosseum", city: "Las Vegas" });
+    expect(searchEvents).toHaveBeenCalledWith({ venue: "The Colosseum", city: "Las Vegas", stateCode: "CA" });
     expect(screen.getByRole("complementary", { name: "Upcoming events" })).toHaveTextContent("Adele");
     expect(screen.getByText(/Pick a show to get tickets on Ticketmaster/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Guests")).toBeNull();
@@ -61,13 +61,19 @@ describe("/request/[placeId]", () => {
   it("a stage with no city, and a failed event lookup: logged, says try again", async () => {
     vi.stubEnv("TICKETMASTER_API_KEY", "tm");
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "Sphere", primaryType: "arena", dining: false, city: "" });
+    vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "Sphere", primaryType: "arena", dining: false, city: "", state: "" });
     vi.mocked(searchEvents).mockRejectedValueOnce(new Error("Ticketmaster: HTTP 500"));
     await requestPage("ChIJ1");
-    expect(searchEvents).toHaveBeenCalledWith({ venue: "Sphere", city: undefined });
+    expect(searchEvents).toHaveBeenCalledWith({ venue: "Sphere", city: undefined, stateCode: undefined });
     expect(screen.getByText(/couldn’t load this venue’s events/)).toBeInTheDocument();
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+  it("outside the US, Google's region code isn't passed as a US state", async () => {
+    vi.stubEnv("TICKETMASTER_API_KEY", "tm");
+    vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "O2 Arena", primaryType: "arena", dining: false, city: "London", country: "GB", state: "England" });
+    await requestPage("ChIJ1");
+    expect(searchEvents).toHaveBeenCalledWith({ venue: "O2 Arena", city: "London", stateCode: undefined });
   });
   it("a stage without event search set up falls back to the venue's price menu", async () => {
     vi.stubEnv("TICKETMASTER_API_KEY", "");

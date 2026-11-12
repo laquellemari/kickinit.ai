@@ -222,7 +222,7 @@ describe("withMoreOptions (the server tops up the model's picks)", () => {
   const live = (n: number) => Array.from({ length: n }, (_, i) => createLivePlace({ placeId: `L${i}`, name: `Live ${i}` }));
   const cacheOf = (ps: ReturnType<typeof live>) => new Map(ps.map((p) => [p.id, p]));
   const pick = (id: string, why = "Picked.") => resolvePicks([{ experienceId: id, why }], 2);
-  const idsOf = (o: PlanPick[]) => o.map((p) => (p.kind === "partner" ? p.experience.id : p.place.id));
+  const idsOf = (o: PlanPick[]) => o.map((p) => (p.kind === "partner" ? p.experience.id : p.kind === "live" ? p.place.id : p.event.id));
 
   it("keeps the picks first, then everything the searches found (deduped), with a factual reason", () => {
     const ps = live(2);
@@ -278,12 +278,12 @@ describe("a Google result that is one of our partners", () => {
   const carasau = getExperience("carasau-pasta-bar")!;
   const dupe = createLivePlace({ placeId: carasau.placeId, name: "Carasau Pasta Bar" });
   const cache = new Map([[dupe.id, dupe]]);
-  const idsOf = (o: PlanPick[]) => o.map((p) => `${p.kind}:${p.kind === "partner" ? p.experience.id : p.place.id}`);
+  const idsOf = (o: PlanPick[]) => o.map((p) => `${p.kind}:${p.kind === "partner" ? p.experience.id : p.kind === "live" ? p.place.id : p.event.id}`);
   it("books as the partner, keeping the model's reason", () => {
     const out = resolvePicks([{ experienceId: dupe.id, why: "Handmade pasta." }], 2, cache);
     expect(idsOf(out)).toEqual(["partner:carasau-pasta-bar"]);
     expect(out[0].why).toBe("Handmade pasta.");
-    expect(out[0].quote.total).toBe("180.00");
+    expect((out[0] as Extract<PlanPick, { kind: "partner" }>).quote.total).toBe("180.00");
   });
   it("is shown once when the model picks both the partner and its Google listing", () => {
     expect(idsOf(resolvePicks([{ experienceId: "carasau-pasta-bar", why: "a" }, { experienceId: dupe.id, why: "b" }], 2, cache))).toEqual(["partner:carasau-pasta-bar"]);

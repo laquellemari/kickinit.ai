@@ -35,11 +35,12 @@ describe("searchLivePlaces", () => {
     mockFetch({ status: 200, body: { places: [gPlace({
       addressComponents: [
         { longText: "San Diego", shortText: "San Diego", types: ["locality", "political"] },
+        { longText: "California", shortText: "CA", types: ["administrative_area_level_1", "political"] },
         { longText: "United States", shortText: "US", types: ["country", "political"] },
       ],
       utcOffsetMinutes: -480,
     })] } });
-    expect((await searchLivePlaces("x"))[0]).toMatchObject({ city: "San Diego", country: "US", utcOffsetMinutes: -480, primaryType: "italian_restaurant" });
+    expect((await searchLivePlaces("x"))[0]).toMatchObject({ city: "San Diego", state: "CA", country: "US", utcOffsetMinutes: -480, primaryType: "italian_restaurant" });
   });
   it("UK-style addresses use postal_town; missing parts become empty/null", async () => {
     mockFetch({ status: 200, body: { places: [

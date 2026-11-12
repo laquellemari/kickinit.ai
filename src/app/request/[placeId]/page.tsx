@@ -31,7 +31,8 @@ export default async function RequestPage({ params, searchParams }: Props) {
   const stage = isEventVenue(place.primaryType) && !!process.env.TICKETMASTER_API_KEY;
   let events: LiveEvent[] | null = null;
   if (stage) {
-    events = await searchEvents({ venue: place.name, city: place.city || undefined }).catch((err) => {
+    // The state matters: the Las Vegas Strip is "Paradise" to Google, so the city alone can miss the venue.
+    events = await searchEvents({ venue: place.name, city: place.city || undefined, stateCode: place.country === "US" && place.state ? place.state : undefined }).catch((err) => {
       console.error("Venue events failed:", err);
       return null;
     });
