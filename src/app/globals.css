@@ -165,6 +165,8 @@ a:hover { color: var(--navy-deep); }
 .event-list { display: flex; flex-direction: column; gap: 10px; }
 .event-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px dashed var(--line); padding: 8px 0; flex-wrap: wrap; }
 
+.hero-back { color: var(--blue); font-weight: 500; text-decoration: none; }
+.hero-back:hover, .hero-back:focus-visible { text-decoration: underline; }
 .category-tile { text-decoration: none; color: var(--navy); transition: transform .12s ease, box-shadow .12s ease; }
 .category-tile:hover, .category-tile:focus-visible { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(18, 32, 66, .12); }
 .chip { border: 1px solid var(--line); background: #fff; color: var(--navy); border-radius: 999px; padding: 8px 14px; font: 500 14px var(--body); cursor: pointer; min-height: 40px; }

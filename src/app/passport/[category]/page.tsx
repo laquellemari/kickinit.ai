@@ -24,6 +24,7 @@ export default async function Page({ params }: Props) {
         <div className="wrap plan-hero">
           <div className="eyebrow">Passport · Quests</div>
           <h1 className="display"><span aria-hidden="true">{c.emoji} </span>{c.name}</h1>
+          <Link href="/passport" className="hero-back">← All categories</Link>
         </div>
       </section>
       <main className="plan-main">

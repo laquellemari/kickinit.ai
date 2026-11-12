@@ -16,6 +16,7 @@ describe("/passport/[category]", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Wellness & Spa");
     expect(screen.getByRole("status")).toHaveTextContent("Opening the quests");
     expect(screen.getByRole("link", { name: "Passport" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "← All categories" })).toHaveAttribute("href", "/passport");
     const nav = screen.getByRole("navigation", { name: "Other categories" });
     expect(nav.querySelectorAll("a")[0]).toHaveAttribute("href", "/passport/culinary");
     expect(nav.querySelectorAll("a")[1]).toHaveAttribute("href", "/passport/movement");
