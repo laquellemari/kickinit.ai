@@ -26,12 +26,13 @@ export type CheckoutItem = {
 };
 
 /** `member` is looked up from /api/membership unless given. It only changes what's shown: the server sets the price. */
-export function CheckoutPanel({ item, initialParty, clientId, member: given, now = new Date() }: { item: CheckoutItem; initialParty: number; clientId: string; member?: boolean; now?: Date }) {
+/** `initialDay` and `initialTime` pre-fill the time, e.g. dinner before a show the guest planned the night around. */
+export function CheckoutPanel({ item, initialParty, clientId, member: given, now = new Date(), initialDay = "", initialTime = "" }: { item: CheckoutItem; initialParty: number; clientId: string; member?: boolean; now?: Date; initialDay?: string; initialTime?: string }) {
   const router = useRouter();
   const sizes = useMemo(() => Array.from({ length: item.partyMax - item.partyMin + 1 }, (_, i) => item.partyMin + i), [item.partyMin, item.partyMax]);
   const [party, setParty] = useState(Math.min(Math.max(initialParty, item.partyMin), item.partyMax));
-  const [day, setDay] = useState("");
-  const [time, setTime] = useState("");
+  const [day, setDay] = useState(initialDay);
+  const [time, setTime] = useState(initialTime);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const member = useMember(given, item.free);

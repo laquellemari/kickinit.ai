@@ -55,6 +55,7 @@ describe("PickCard", () => {
     expect(within(card).getByRole("img", { name: "Adele" })).toHaveStyle({ backgroundImage: "url(https://s1.ticketm.net/a.jpg)" });
     const link = within(card).getByRole("link", { name: "Get tickets" });
     expect(link).toHaveAttribute("href", "https://www.ticketmaster.com/event/G5v1");
+    expect(within(card).getByRole("link", { name: "Plan the night" })).toHaveAttribute("href", "/night/G5v1?party=2");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer sponsored");
   });

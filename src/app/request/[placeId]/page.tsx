@@ -13,6 +13,7 @@ import { isEventVenue, searchEvents, type LiveEvent } from "@/lib/events/ticketm
 import { getLivePlace, PlacesError } from "@/lib/places/client";
 import { similarTo } from "@/lib/places/similar";
 import type { LivePlace } from "@/lib/places/types";
+import { TIME_SLOTS } from "@/lib/slots";
 
 type Props = { params: Promise<{ placeId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -27,7 +28,12 @@ export default async function RequestPage({ params, searchParams }: Props) {
     if (err instanceof PlacesError && err.status !== 404) throw err;
     notFound();
   }
-  const raw = (await searchParams).party;
+  const query = await searchParams;
+  const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+  // A planned night links here with the dinner time filled in; anything that isn't a real day and slot is ignored.
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(first(query.day)) ? first(query.day) : "";
+  const time = TIME_SLOTS.includes(first(query.time)) ? first(query.time) : "";
+  const raw = query.party;
   const party = Number(Array.isArray(raw) ? raw[0] : raw) || 2;
   const recs = await similarTo(place, Math.min(Math.max(Math.trunc(party), 1), 20));
   const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? "";
@@ -83,6 +89,8 @@ export default async function RequestPage({ params, searchParams }: Props) {
               item={{ kind: "live", itemId: place.id, name: place.name, unitPrice: "0.00", perGroup: false, partyMin: 1, partyMax: 20, free: true }}
               initialParty={party}
               clientId={clientId}
+              initialDay={day}
+              initialTime={time}
             />
           ) : (
             <LiveMenu placeId={place.placeId} itemId={place.id} name={place.name} initialParty={party} clientId={clientId} mapsUrl={place.mapsUrl} />

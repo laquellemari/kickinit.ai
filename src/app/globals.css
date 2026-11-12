@@ -219,3 +219,16 @@ a:hover { color: var(--navy-deep); }
 .explore-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quest-teaser { flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; }
 .venue-quests { margin-top: 40px; }
+
+/* Plan the night: a show with dinner before and dessert or drinks after. */
+.event-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.night { display: flex; flex-direction: column; gap: 28px; }
+.night-part { display: flex; flex-direction: column; gap: 12px; }
+.night-part-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.night-part-head h2 { margin: 0; font-size: 30px; }
+.night-time { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
+.night-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.night-stop { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.night-stop .pick-actions { margin-top: auto; }
+.night-show { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 18px; align-items: center; }
+@media (max-width: 640px) { .night-show { grid-template-columns: 1fr; } }

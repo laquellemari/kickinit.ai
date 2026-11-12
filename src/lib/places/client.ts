@@ -151,6 +151,23 @@ export type RatedPlace = {
 };
 export const RATED_MASK = `${FIELD_MASK},places.rating,places.userRatingCount`;
 
+/** How far around a point a nearby search looks first, in meters. */
+export const NEARBY_RADIUS_M = 1500;
+
+/**
+ * Open places for a query around a point (Google still ranks by relevance, so the query should name the area too),
+ * best rated first. Ratings are Enterprise-priced, so callers cache the result.
+ */
+export async function searchNear(query: string, near: { lat: number; lng: number } | null): Promise<LivePlace[]> {
+  const q = query.trim();
+  if (!q) throw new Error("Search text is required");
+  if (q.length > 200) throw new Error("Search text cannot exceed 200 characters");
+  const req: Record<string, unknown> = { textQuery: q, pageSize: 20 };
+  if (near) req.locationBias = { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: NEARBY_RADIUS_M } };
+  const body = (await call(`${BASE}/places:searchText`, { method: "POST", body: JSON.stringify(req) }, RATED_MASK)) as { places?: GPlace[] };
+  return (body.places ?? []).filter(isOpen).map(toLivePlace).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.ratingCount - a.ratingCount);
+}
+
 /** Top-rated open venues for a query, best first (rating, then number of ratings). */
 export async function searchRatedPlaces(query: string): Promise<RatedPlace[]> {
   const q = query.trim();

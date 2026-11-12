@@ -254,3 +254,13 @@ describe("CheckoutPanel", () => {
     expect(screen.getByLabelText("Date")).toHaveAttribute("min");
   });
 });
+
+describe("CheckoutPanel: a time filled in ahead (dinner before a show)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("starts with the given day and time, ready to book", () => {
+    render(<CheckoutPanel item={liveDiner} initialParty={2} clientId="c" now={NOW} member={false} initialDay="2026-11-14" initialTime="18:00" />);
+    expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-11-14");
+    expect((screen.getByLabelText("Time") as HTMLSelectElement).value).toBe("18:00");
+    expect(screen.getByRole("button", { name: "Book this table" })).toBeInTheDocument();
+  });
+});

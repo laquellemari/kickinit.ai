@@ -55,6 +55,7 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
         </div>
         <div className="pick-actions">
           <a className="btn-navy" href={e.url} target="_blank" rel="noopener noreferrer sponsored">Get tickets</a>
+          <Link className="btn-line" href={`/night/${e.id.replace(/^tm:/, "")}?party=${partySize}`}>Plan the night</Link>
         </div>
       </article>
     );
