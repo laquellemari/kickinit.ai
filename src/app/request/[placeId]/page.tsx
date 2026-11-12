@@ -5,6 +5,8 @@ import { Nav } from "@/components/Nav";
 import { Recommendations } from "@/components/Recommendations";
 import { VenueEvents } from "@/components/VenueEvents";
 import { VenuePhoto } from "@/components/VenuePhoto";
+import { VenueQuests } from "@/components/VenueQuests";
+import { placeTags } from "@/lib/bookings/venue";
 import { isEventVenue, searchEvents, type LiveEvent } from "@/lib/events/ticketmaster";
 import { getLivePlace, PlacesError } from "@/lib/places/client";
 import { similarTo } from "@/lib/places/similar";
@@ -84,6 +86,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
             <LiveMenu placeId={place.placeId} itemId={place.id} name={place.name} initialParty={party} clientId={clientId} mapsUrl={place.mapsUrl} />
           )}
         </div>
+        <VenueQuests tags={placeTags(place)} />
         <Recommendations items={recs} />
       </main>
     </div>

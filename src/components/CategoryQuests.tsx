@@ -16,7 +16,8 @@ const FILTERS: { id: Filter; label: string; test: (q: Quest) => boolean }[] = [
   { id: "todo", label: "Not started", test: (q) => !q.complete && q.current === 0 },
 ];
 
-function QuestCard({ q }: { q: Quest }) {
+/** One quest: what to do, who it's for, XP and progress. `find` adds a link to search for a match. */
+export function QuestCard({ q, find = true }: { q: Quest; find?: boolean }) {
   const pct = Math.round((Math.min(q.current, q.target) / q.target) * 100);
   return (
     <li className={`quest-card${q.complete ? " quest-done" : ""}`} aria-label={q.title}>
@@ -35,7 +36,7 @@ function QuestCard({ q }: { q: Quest }) {
         </div>
         <span className="pick-meta">{Math.min(q.current, q.target)} / {q.target}</span>
       </div>
-      {!q.complete && (
+      {find && !q.complete && (
         <Link className="quest-find" href={`/plan?mode=${q.mode === "gift" ? "them" : "you"}&q=${encodeURIComponent(q.description)}`}>Find something for this →</Link>
       )}
     </li>
