@@ -156,4 +156,40 @@ describe("BookingStatus", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(msg);
     });
   });
+  describe("a new time from the venue", () => {
+    const offered = (o: Record<string, unknown> = {}) => booking({ status: "held", proposedStartsAt: "2026-11-15T05:00:00.000Z", amount: "360.00", fee: "60.00", name: "Spa Uno", ...o });
+    const api = (first: unknown, answer?: { status: number; body: unknown }) => {
+      const f = vi.fn(async (url: string) => (url.endsWith("/proposal") ? new Response(JSON.stringify(answer!.body), { status: answer!.status }) : new Response(JSON.stringify(first))));
+      vi.stubGlobal("fetch", f);
+      return f;
+    };
+    it("shows the offer; taking it confirms the booking", async () => {
+      const f = api(offered(), { status: 200, body: booking({ status: "confirmed", amount: "360.00" }) });
+      render(<BookingStatus id="b1" />);
+      expect(await screen.findByRole("heading", { name: "A new time is offered." })).toBeInTheDocument();
+      expect(screen.getByText("NEW TIME")).toBeInTheDocument();
+      const offer = screen.getByRole("region", { name: "A new time from the venue" });
+      expect(offer).toHaveTextContent("Spa Uno can’t do");
+      expect(offer).toHaveTextContent("Take it and your $360 is charged now; say no and the hold is released.");
+      fireEvent.click(within(offer).getByRole("button", { name: "Take the new time" }));
+      expect(await screen.findByRole("heading", { name: "You're booked." })).toBeInTheDocument();
+      const call = f.mock.calls.find((c) => (c[0] as string).endsWith("/proposal")) as unknown as [string, RequestInit];
+      expect(JSON.parse(call[1].body as string)).toEqual({ accept: true });
+    });
+    it("saying no on a free booking cancels it; errors are shown, with a fallback", async () => {
+      const f = api(offered({ free: true, paypalOrderId: null, amount: "0.00" }), { status: 409, body: { error: "There's no new time waiting for an answer" } });
+      render(<BookingStatus id="b1" />);
+      const offer = await screen.findByRole("region", { name: "A new time from the venue" });
+      expect(offer).not.toHaveTextContent("charged");
+      fireEvent.click(within(offer).getByRole("button", { name: "No thanks, cancel" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("There's no new time waiting for an answer");
+      expect(JSON.parse((f.mock.calls.find((c) => (c[0] as string).endsWith("/proposal")) as unknown as [string, RequestInit])[1].body as string)).toEqual({ accept: false });
+    });
+    it("an error with no message falls back", async () => {
+      api(offered(), { status: 500, body: {} });
+      render(<BookingStatus id="b1" />);
+      fireEvent.click(within(await screen.findByRole("region", { name: "A new time from the venue" })).getByRole("button", { name: "No thanks, release my hold" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save your answer.");
+    });
+  });
 });

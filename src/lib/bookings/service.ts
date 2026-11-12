@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { authorizeOrder, captureAuthorization, voidAuthorization } from "@/lib/paypal/client";
-import { countUpcomingFree, FREE_PREFIX, getBooking, getBookingByOrder, insertBooking, isFree, markCheckedIn, transition, type Booking } from "./repo";
+import { acceptProposal, countUpcomingFree, FREE_PREFIX, getBooking, getBookingByOrder, insertBooking, isFree, markCheckedIn, setProposal, transition, type Booking } from "./repo";
 import { PriceError, priceFor, type Priced } from "./pricing";
 
 const HOUR = 3_600_000;
@@ -140,6 +140,43 @@ export async function confirmBooking(id: string): Promise<Booking> {
   const done = await transition(b.id, ["held"], "confirmed", captureId);
   if (!done) throw new BookingError(409, "Booking changed while confirming");
   return done;
+}
+
+/**
+ * The venue can't do the requested time but can do another: offer it to the guest (venue desk only).
+ * Nothing is charged; the hold stays until the guest answers. Paid request-to-book times stay inside PayPal's hold window.
+ */
+export async function proposeTime(input: { id: string; startsAt: unknown; now?: Date }): Promise<Booking> {
+  const now = input.now ?? new Date();
+  const at = parseStartsAt(input.startsAt, now);
+  const b = await getBooking(input.id);
+  if (!b) throw new BookingError(404, "Booking not found");
+  if (b.status !== "held") throw new BookingError(409, `Booking is already ${b.status}`);
+  if (at.getTime() === b.startsAt.getTime()) throw new BookingError(400, "Offer a different time from the one requested");
+  if (!isFree(b) && b.kind === "live" && at.getTime() > b.createdAt.getTime() + LIVE_MAX_DAYS * DAY) {
+    throw new BookingError(400, `Offer a time within ${LIVE_MAX_DAYS} days of the request`);
+  }
+  const done = await setProposal(b.id, at);
+  if (!done) throw new BookingError(409, "Booking changed while offering a time");
+  return done;
+}
+
+/**
+ * The guest answers an offered time. Yes: it becomes the booking's time and the booking is confirmed (a paid one is
+ * charged now, since the venue already said it can do it). No: the hold is released and nothing is charged.
+ */
+export async function answerProposal(input: { id: string; userId: string; accept: unknown }): Promise<Booking> {
+  if (typeof input.accept !== "boolean") throw new BookingError(400, "Say yes or no to the new time");
+  const b = await getBooking(input.id);
+  if (!b || b.userId !== input.userId) throw new BookingError(404, "Booking not found");
+  if (b.status !== "held" || !b.proposedStartsAt) throw new BookingError(409, "There's no new time waiting for an answer");
+  if (!input.accept) return declineBooking(b.id);
+  // Same venue, so the same local offset: move the local hour by the same number of hours.
+  const shift = Math.round((b.proposedStartsAt.getTime() - b.startsAt.getTime()) / HOUR);
+  const localHour = (((b.facts.localHour + shift) % 24) + 24) % 24;
+  const moved = await acceptProposal(b.id, localHour);
+  if (!moved) throw new BookingError(409, "Booking changed while taking the new time");
+  return confirmBooking(moved.id);
 }
 
 /** Venue declined (or no answer): release the hold so nothing is charged. */

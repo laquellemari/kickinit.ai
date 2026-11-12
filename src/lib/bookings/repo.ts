@@ -27,11 +27,13 @@ export type Booking = {
   fee: string | null;
   /** The venue service booked, for request-to-book venues priced from their published menu. */
   serviceName: string | null;
+  /** The venue can't do `startsAt` but offered this time instead; waiting for the guest's answer. */
+  proposedStartsAt: Date | null;
 };
 /** Restaurants and bars book with no payment: their order id is "free:<uuid>". */
 export const FREE_PREFIX = "free:";
 export const isFree = (b: Pick<Booking, "paypalOrderId">) => b.paypalOrderId.startsWith(FREE_PREFIX);
-export type NewBooking = Omit<Booking, "id" | "status" | "captureId" | "createdAt" | "updatedAt" | "checkedInAt" | "fee" | "serviceName"> &
+export type NewBooking = Omit<Booking, "id" | "status" | "captureId" | "createdAt" | "updatedAt" | "checkedInAt" | "fee" | "serviceName" | "proposedStartsAt"> &
   { fee?: string | null; serviceName?: string | null };
 
 type Row = {
@@ -39,7 +41,7 @@ type Row = {
   amount: string; currency: string; status: BookingStatus; paypal_order_id: string; authorization_id: string; capture_id: string | null;
   hold_expires_at: Date | string | null; created_at: Date | string; updated_at: Date | string;
   tags: string[]; city: string; country: string; neighborhood: string | null; cuisine: string | null; local_hour: number; checked_in_at: Date | string | null;
-  fee: string | null; service_name: string | null;
+  fee: string | null; service_name: string | null; proposed_starts_at: Date | string | null;
 };
 
 const toDate = (v: Date | string) => new Date(v);
@@ -50,6 +52,7 @@ const fromRow = (r: Row): Booking => ({
   facts: { tags: r.tags, city: r.city, country: r.country, neighborhood: r.neighborhood, cuisine: r.cuisine, localHour: r.local_hour },
   checkedInAt: r.checked_in_at === null ? null : toDate(r.checked_in_at),
   fee: r.fee, serviceName: r.service_name,
+  proposedStartsAt: r.proposed_starts_at === null || r.proposed_starts_at === undefined ? null : toDate(r.proposed_starts_at),
 });
 
 export async function insertBooking(b: NewBooking): Promise<Booking> {
@@ -106,6 +109,25 @@ export async function markCheckedIn(id: string, at: Date): Promise<Booking | nul
   const { rows } = await (await getDb()).query<Row>(
     "UPDATE bookings SET checked_in_at = $2, updated_at = now() WHERE id = $1 AND status = 'confirmed' AND checked_in_at IS NULL RETURNING *",
     [id, at],
+  );
+  return rows[0] ? fromRow(rows[0]) : null;
+}
+
+/** The venue offers another time for a request still waiting (null when it isn't waiting anymore). */
+export async function setProposal(id: string, at: Date): Promise<Booking | null> {
+  const { rows } = await (await getDb()).query<Row>(
+    "UPDATE bookings SET proposed_starts_at = $2, updated_at = now() WHERE id = $1 AND status = 'held' RETURNING *",
+    [id, at],
+  );
+  return rows[0] ? fromRow(rows[0]) : null;
+}
+
+/** The guest took the offered time: it becomes the booking's time (null if there was no offer anymore). */
+export async function acceptProposal(id: string, localHour: number): Promise<Booking | null> {
+  const { rows } = await (await getDb()).query<Row>(
+    `UPDATE bookings SET starts_at = proposed_starts_at, local_hour = $2, proposed_starts_at = NULL, updated_at = now()
+     WHERE id = $1 AND status = 'held' AND proposed_starts_at IS NOT NULL RETURNING *`,
+    [id, localHour],
   );
   return rows[0] ? fromRow(rows[0]) : null;
 }
