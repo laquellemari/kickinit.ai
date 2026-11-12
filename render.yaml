@@ -22,6 +22,8 @@ services:
         sync: false
       - key: CHANNEL3_API_KEY
         sync: false
+      - key: TICKETMASTER_API_KEY
+        sync: false
       - key: CONCIERGE_MODEL
         value: claude-haiku-5-5
       - key: DATABASE_URL

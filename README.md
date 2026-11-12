@@ -1,6 +1,6 @@
 # kickinit.ai
 
-**Plans, without the planning.** kickinit is an AI concierge for experiences. Tell it the mood ("a romantic Italian table by the water, Saturday") and it finds the table, the treatment or the trip, and books it. **Restaurants and bars are free to book**: you pay the bill at the end. Everything else is booked at the venue's **exact price** (a partner's price, or the price the venue publishes on its own website) plus a 20% concierge fee, paid with PayPal. **Members ($9.99/month through PayPal Subscriptions) pay no fee.** Switch to **For them** to gift an experience, with friends chipping in to a group pool. Every visit you actually show up to earns stamps in your **Passport**: 403 quests and 58 badges.
+**Plans, without the planning.** kickinit is an AI concierge for experiences. Tell it the mood ("a romantic Italian table by the water, Saturday") and it finds the table, the treatment or the trip, and books it. **Restaurants and bars are free to book**: you pay the bill at the end. Everything else is booked at the venue's **exact price** (the catalog price for our 50 LA venues, or the price any other venue publishes on its own website) plus a 20% concierge fee, paid with PayPal. **Members ($9.99/month through PayPal Subscriptions) pay no fee.** Concerts and shows come with Ticketmaster ticket links. Switch to **For them** to gift an experience, with friends chipping in to a group pool. Every visit you actually show up to earns stamps in your **Passport**: 403 quests and 58 badges.
 
 Built for the PayPal AI Hackathon 2026. **Live demo: https://kickinit.onrender.com** (PayPal sandbox, no real money moves).
 
@@ -11,13 +11,16 @@ Nothing to install and no sign-up: the site gives each browser an anonymous visi
 You'll need a **PayPal sandbox personal (buyer) account** to approve payments. Every PayPal developer account comes with one: developer.paypal.com > Testing Tools > Sandbox Accounts. The PayPal window also offers *Debit or Credit Card* with a test card from PayPal's [card generator](https://developer.paypal.com/tools/sandbox/card-testing/).
 
 1. **Free restaurant booking.** On the home page, type *"jazz tonight for two"* in **Or just say it** and press **Make it happen**. Pick **Vibrato Grill Jazz**, choose a time and press **Book this table**. No payment: the booking page shows "You're booked" and that you pay the venue's bill at the end.
-2. **Paid instant booking (partner).** Ask for *"a spa day for two"* and pick **Hugh Spa**. The checkout shows the venue price, the 20% concierge fee and the total. Pay with PayPal: the money is authorized, the server checks the amount against its own price, then captures it.
-3. **Exact prices from any real venue, anywhere.** Ask for something outside Los Angeles, for example *"massage in San Diego Saturday"*. Results marked **Request to book** come from Google Places. On a venue's page, Claude reads **the venue's own published prices** (its website or official booking page) and lists them with a link to where each price came from; only prices that appear word for word on a page it opened are kept. Pick one and PayPal **holds** that exact price + fee. A venue that doesn't publish prices says so instead of guessing. Restaurants found this way are free to request.
-4. **The concierge desk confirms.** Open **/admin** and enter the **Admin key** from the Devpost testing instructions. **Confirm & charge** captures the held amount once the venue has said yes; **Decline & release** voids it, so the guest is never charged. Free restaurant requests are just confirmed.
+2. **Paid booking.** Ask for *"a spa day for two"* and pick **Hugh Spa**. The checkout shows the venue price, the 20% concierge fee and the total. Pay with PayPal: the money is authorized, the server checks the amount against its own price, then captures it.
+3. **Exact prices from any real venue, anywhere.** Ask for something outside Los Angeles, for example *"massage in San Diego Saturday"*. Results beyond our LA catalog come live from Google Places. On a venue's page, Claude reads **the venue's own published prices** (its website or official booking page) and lists them with a link to where each price came from; only prices that appear word for word on a page it opened are kept. Pick one and PayPal **holds** that exact price + fee. A venue that doesn't publish prices says so instead of guessing. Restaurants found this way are free to book.
+4. **The concierge desk confirms.** Open **/admin** and enter the **Admin key** from the Devpost testing instructions. **Confirm & charge** captures the held amount once the venue has said yes; **Decline & release** voids it, so the guest is never charged. Free restaurant bookings are just confirmed. If the venue can't do that time, **Offer another time** proposes a new one: the guest sees it on their booking page and accepts (the hold is captured at the new time) or declines (the hold is voided).
 5. **Membership.** Open **Membership** in the menu and subscribe with PayPal ($9.99/month, PayPal Subscriptions). Every checkout then shows "Concierge fee (members pay none) $0", and the server prices it that way. Cancel from the same page.
-6. **Gift it, with a group pool.** Choose **For them** on the home page, describe who it's for, and on a pick choose **Gift this**, then **Start a group pool, friends chip in**. Share the gift link; each person who chips in places their own PayPal hold. When the total is reached every hold is captured at once; if the deadline passes first, every hold is voided. The gift page also suggests a small add-on under $75, found live through Channel3.
-7. **Redeem and check in.** The recipient opens the redeem link and books a time; the gift pays for it. On the booking page, **I'm here: check in** works from 2 hours before the booking until 24 hours after (the venue desk can also check guests in from **Arrivals**).
-8. **See it count.** **/passport** shows your level, XP, stamps by category, quests in progress and badges. **/profile** shows your upcoming plans on a calendar, plus your name, photo and home city. **/gifts** lists gifts you started and chipped in to.
+6. **Concerts and shows.** Ask for *"concerts in Las Vegas this weekend"*, or open a stage venue such as the Colosseum at Caesars Palace: you get its actual upcoming events from Ticketmaster, with dates, prices where published and a **Get tickets** link (tickets are bought on Ticketmaster; we don't resell).
+7. **Venue pages.** Every venue page has a short description of what the place is and what stands out, written by Claude from the venue's Google Maps details, and a **Quests** section listing 4 quests a visit there counts toward (**Show more** adds 4 at a time).
+8. **Gift it, with a group pool.** Choose **For them** on the home page, describe who it's for, and on a pick choose **Gift this**, then **Start a group pool, friends chip in**. Share the gift link; each person who chips in places their own PayPal hold. When the total is reached every hold is captured at once; if the deadline passes first, every hold is voided. The gift page also suggests a small add-on under $75, found live through Channel3.
+9. **Redeem and check in.** The recipient opens the redeem link and books a time; the gift pays for it. On the booking page, **I'm here: check in** works from 2 hours before the booking until 24 hours after (the venue desk can also check guests in from **Arrivals**).
+10. **See it count.** **/passport** shows your level, XP, stamps by category, quests in progress and badges; each category opens its own page listing every quest in it. **/profile** shows your upcoming plans on a calendar, plus your name, photo and home city. **/gifts** lists gifts you started and chipped in to.
+11. **While you wait.** After you search, the results screen shows what the concierge is doing step by step, a rotating **More to explore!** carousel and quest teasers until the options arrive (20 to 30 per search, each card laid out the same way).
 
 Only confirmed, checked-in bookings count toward quests, so a booking that's cancelled or never attended can't farm badges. A visitor can hold at most 5 upcoming free restaurant bookings at once.
 
@@ -27,8 +30,8 @@ Only confirmed, checked-in bookings count toward quests, so a booking that's can
 |---|---|
 | Checkout | JavaScript SDK Buttons (`@paypal/react-paypal-js`) with `intent=authorize` |
 | You approve | Orders v2: create order (`intent=AUTHORIZE`), then authorize. The server compares the authorized amount with its own price and voids it on any mismatch |
-| Partner venue | Venue price + 20% concierge fee; capture the authorization right away |
-| Request-to-book venue | Hold = the venue's exact published price + 20% fee. Venue confirms: capture. Declined: void |
+| Catalog venue | Venue price + 20% concierge fee; capture the authorization right away |
+| Venue priced from its own website | Hold = the venue's exact published price + 20% fee. Venue confirms: capture. Declined: void. Venue offers another time: the guest accepts (capture) or declines (void) |
 | Restaurants and bars | No PayPal at all: free to book, the guest pays the bill at the venue |
 | Membership | PayPal Subscriptions: the product and a $9.99 monthly plan are created on first use; the subscription is created on the server with the visitor as `custom_id`, approved with the JS SDK (`intent=subscription`), then verified (`GET /v1/billing/subscriptions/{id}`: our plan, this visitor, ACTIVE) before members pay no fee. Status is re-checked every 12 hours; cancel calls `/cancel` |
 | Gifts | A gift is prepaid: the experience price + 20% fee (none if the organizer is a member) |
@@ -41,8 +44,9 @@ Every PayPal call uses an idempotency key, so a retried request can't charge twi
 
 The concierge (`POST /api/concierge`) runs **Claude** (Anthropic) through the Vercel AI SDK as a tool-using agent:
 
-- `search_experiences` searches the partner catalog by text, category, tags, party size, budget and distance.
-- `search_live_places` searches real venues anywhere through the Google Places API (New), for request-to-book.
+- `search_experiences` searches the 50-venue LA catalog by text, category, tags, party size, budget and distance.
+- `search_live_places` searches real venues anywhere through the Google Places API (New).
+- `search_events` finds concerts, shows and games through the Ticketmaster Discovery API; stage and arena venues are never returned as results themselves, only their events.
 - `present_options` returns structured picks with a reason for each.
 - PayPal Agent Toolkit `get_order` checks an order's status.
 
@@ -57,6 +61,8 @@ Every pick is re-checked against the catalog or Google and **re-priced on the se
 - **Render:** web service, Render Postgres and a cron job, all defined in [`render.yaml`](render.yaml).
 - **Bryntum Calendar:** the month calendar of your plans on `/profile` (trial package, so it shows a watermark).
 - **Channel3:** product search for gift add-ons on the gift page.
+
+Also used: **Google Places API (New)** (live venues, photos with credit, the facts behind each description) and the **Ticketmaster Discovery API** (events).
 
 ## Run it yourself
 
@@ -75,7 +81,9 @@ npm run dev                  # http://localhost:3000
 | `ANTHROPIC_API_KEY` | Concierge | console.anthropic.com |
 | `DATABASE_URL` | Bookings, gifts, profiles | Any Postgres; tables are created on first use |
 | `ADMIN_API_KEY` | Venue desk, pool cron | Any long random string |
-| `GOOGLE_PLACES_API_KEY` | Venue photos and request-to-book search (optional; cards fall back to a colour tile) | Google Cloud, Places API (New) |
+| `GOOGLE_PLACES_API_KEY` | Live venue search, photos and descriptions (optional; cards fall back to a colour tile) | Google Cloud, Places API (New) |
+| `TICKETMASTER_API_KEY` | Concerts and shows (optional) | developer.ticketmaster.com, Consumer Key |
+| `CONCIERGE_MODEL`, `PRICING_MODEL`, `ABOUT_MODEL` | Optional model overrides | e.g. `claude-haiku-5-5` |
 | `CHANNEL3_API_KEY` | Gift add-ons (optional) | trychannel3.com |
 
 To deploy your own copy, create a Render Blueprint from this repo; `render.yaml` sets up the web service, database and cron job.
@@ -83,16 +91,16 @@ To deploy your own copy, create a Render Blueprint from this repo; `render.yaml`
 ## Tests
 
 ```bash
-npm test          # 1197 unit + integration tests
+npm test          # 1,424 unit + integration tests
 npm run coverage  # 100% statements, branches, functions and lines
 npm run lint
 ```
 
-Database tests run against an in-memory Postgres (PGlite); PayPal, Claude, Google and Channel3 are mocked at the HTTP layer, so the suite needs no keys.
+Database tests run against an in-memory Postgres (PGlite); PayPal, Claude, Google, Ticketmaster and Channel3 are mocked at the HTTP layer, so the suite needs no keys.
 
 ## Data
 
-- `data/experiences.json`: demo partner catalog of 50 real, top-rated Los Angeles-area venues picked from Google Maps ratings (generated by `scripts/build_experiences.py`). kickinit has no partnership with them: prices are illustrative and bookings are simulated in the PayPal sandbox. The 16 restaurants and bars among them are free to book. Each card shows the venue's Google photo with the photographer's credit.
+- `data/experiences.json`: demo catalog of 50 real, top-rated Los Angeles-area venues picked from Google Maps ratings (generated by `scripts/build_experiences.py`). kickinit has no partnership with them: prices are illustrative and bookings are simulated in the PayPal sandbox. The 16 restaurants and bars among them are free to book. Each card shows the venue's Google photo with the photographer's credit.
 - `data/quests.json`: 403 quests across 8 categories
 - `data/achievements.json`: 7 levels and 58 badges
 
