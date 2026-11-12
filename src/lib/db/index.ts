@@ -118,6 +118,11 @@ CREATE TABLE IF NOT EXISTS venue_menus (
   items       JSONB NOT NULL,
   checked_at  TIMESTAMPTZ NOT NULL
 );
+CREATE TABLE IF NOT EXISTS venue_about (
+  place_id    TEXT PRIMARY KEY,
+  about       TEXT,
+  checked_at  TIMESTAMPTZ NOT NULL
+);
 CREATE TABLE IF NOT EXISTS memberships (
   user_id          TEXT PRIMARY KEY,
   subscription_id  TEXT NOT NULL UNIQUE,

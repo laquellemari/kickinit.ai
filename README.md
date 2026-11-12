@@ -48,6 +48,8 @@ The concierge (`POST /api/concierge`) runs **Claude** (Anthropic) through the Ve
 
 Every pick is re-checked against the catalog or Google and **re-priced on the server**, so the agent can't invent a venue or a price.
 
+**Venue descriptions** (`GET /api/places/:id/about`): every venue page (the 50 LA venues and any Google result) shows a 1–2 sentence description that Claude writes from the venue's Google Maps details: Google's own summaries, the review summary, up to 5 reviews, its type, neighborhood, price level and features (cocktails, live music, outdoor seating and so on). Claude may use only those facts, and replies NONE when they're too thin; the page then keeps Google's summary (or our catalog text). Descriptions are cached for 30 days (a NONE for 7). Set `ABOUT_MODEL` to choose the model (defaults to `CONCIERGE_MODEL`). Only new descriptions are rate-limited: 10 per minute per visitor.
+
 **Exact prices without a venue deal** (`GET /api/places/:id/menu`): Claude uses Anthropic's web search and web fetch tools to find and open the venue's own price list. The server keeps a price only when it appears word for word, next to the service's name, on a page Claude actually fetched from the venue's own domain or an official booking platform (Vagaro, Mindbody, Boulevard, Square, Fresha and similar). Menus are cached for a week ("no prices published" for a day). Set `PRICING_MODEL` to choose the model (defaults to `CONCIERGE_MODEL`). Requests are rate-limited to 20 per minute per visitor. The live site uses `claude-haiku-5-5` (set by `CONCIERGE_MODEL`).
 
 ## Sponsor tools

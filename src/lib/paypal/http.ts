@@ -4,6 +4,7 @@ import { BookingError } from "@/lib/bookings/service";
 import { PriceError } from "@/lib/bookings/pricing";
 import { PlacesError } from "@/lib/places/client";
 import { MenuError } from "@/lib/pricing/menu";
+import { AboutError } from "@/lib/about/about";
 import { PayPalError } from "./client";
 
 const CONFIG_ERRORS = [
@@ -40,7 +41,7 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
 }
 
 export function toResponse(err: unknown): NextResponse {
-  if (err instanceof HttpError || err instanceof BookingError || err instanceof PriceError || err instanceof MenuError) return NextResponse.json({ error: err.message }, { status: err.status });
+  if (err instanceof HttpError || err instanceof BookingError || err instanceof PriceError || err instanceof MenuError || err instanceof AboutError) return NextResponse.json({ error: err.message }, { status: err.status });
   if (err instanceof PlacesError) {
     return err.status === 404
       ? NextResponse.json({ error: "Place not found" }, { status: 404 })

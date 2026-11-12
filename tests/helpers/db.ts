@@ -10,7 +10,7 @@ export async function useTestDb() {
     pg,
     reset: async () => {
       setDb(db);
-      await pg.exec("DROP TABLE IF EXISTS contributions; DROP TABLE IF EXISTS gifts; DROP TABLE IF EXISTS bookings; DROP TABLE IF EXISTS profiles; DROP TABLE IF EXISTS searches; DROP TABLE IF EXISTS ratings; DROP TABLE IF EXISTS venue_menus; DROP TABLE IF EXISTS memberships; DROP TABLE IF EXISTS app_settings;");
+      await pg.exec("DROP TABLE IF EXISTS contributions; DROP TABLE IF EXISTS gifts; DROP TABLE IF EXISTS bookings; DROP TABLE IF EXISTS profiles; DROP TABLE IF EXISTS searches; DROP TABLE IF EXISTS ratings; DROP TABLE IF EXISTS venue_menus; DROP TABLE IF EXISTS venue_about; DROP TABLE IF EXISTS memberships; DROP TABLE IF EXISTS app_settings;");
     },
   };
 }
