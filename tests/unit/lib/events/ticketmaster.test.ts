@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  searchEvents, findVenueIds, venueNames, toLiveEvent, bestImage, isEventVenue, eventWhen, eventPrice, clearEventCache, EventsError, MAX_EVENTS, CACHE_MS,
+  searchEvents, findVenueIds, venueNames, toLiveEvent, bestImage, isEventVenue, eventWhen, eventPrice, clearEventCache, EventsError, MAX_EVENTS, MAX_VENUES, CACHE_MS,
 } from "@/lib/events/ticketmaster";
 
 const NOW = new Date("2026-11-11T20:00:00Z");
@@ -89,14 +89,17 @@ describe("searchEvents", () => {
     });
   });
   it("by venue: finds the venue (preferring the city), then lists its events", async () => {
+    const venues = json({ _embedded: { venues: [{ id: "KovZ1", name: "The Colosseum", city: { name: "Atlantic City" } }, { id: "KovZ2", name: "The Colosseum at Caesars", city: { name: "Las Vegas" } }] } });
     const f = vi.fn()
-      .mockResolvedValueOnce(json({ _embedded: { venues: [{ id: "KovZ1", name: "The Colosseum", city: { name: "Atlantic City" } }, { id: "KovZ2", name: "The Colosseum at Caesars", city: { name: "Las Vegas" } }] } }))
+      .mockResolvedValueOnce(venues)
+      .mockResolvedValueOnce(json({ _embedded: { venues: [{ id: "KovZ2", name: "The Colosseum at Caesars", city: { name: "Las Vegas" } }] } }))
       .mockResolvedValueOnce(json({ _embedded: { events: [tm()] } }));
     vi.stubGlobal("fetch", f);
     expect(await searchEvents({ venue: "The Colosseum", city: "Las Vegas" }, NOW)).toHaveLength(1);
     expect(Object.fromEntries(urlOf(f, 0).searchParams)).toMatchObject({ keyword: "The Colosseum", size: "10", countryCode: "US" });
-    expect(urlOf(f, 1).searchParams.get("venueId")).toBe("KovZ2");
-    expect(urlOf(f, 1).searchParams.get("city")).toBeNull();
+    expect(urlOf(f, 1).searchParams.get("keyword")).toBe("Colosseum");
+    expect(urlOf(f, 2).searchParams.get("venueId")).toBe("KovZ2");
+    expect(urlOf(f, 2).searchParams.get("city")).toBeNull();
   });
   it("a venue that Ticketmaster doesn't know: no events, and no event search", async () => {
     const f = vi.fn(async () => json({}));
@@ -104,16 +107,18 @@ describe("searchEvents", () => {
     expect(await searchEvents({ venue: "Nowhere Hall" }, NOW)).toEqual([]);
     expect(f.mock.calls.every((c) => String((c as unknown as [URL])[0]).includes("/venues.json"))).toBe(true);
   });
-  it("Google's name differs from Ticketmaster's: tries a plainer name, then the short name in the same city", async () => {
+  it("Google's name differs from Ticketmaster's: every spelling is tried and the matching listings pooled (parking listing included)", async () => {
     const f = vi.fn()
-      .mockResolvedValueOnce(json({ _embedded: { venues: [{ id: "KovCaesars", name: "Caesars Palace Pool", city: { name: "Las Vegas" } }] } }))
-      .mockResolvedValueOnce(json({ _embedded: { venues: [{ id: "KovColo", name: "The Colosseum at Caesars Palace", city: { name: "Las Vegas" } }] } }))
+      .mockResolvedValueOnce(json({ _embedded: { venues: [{ id: "KovPark", name: "Colosseum at Caesars Parking", city: { name: "Las Vegas" } }, { id: "KovPool", name: "Caesars Palace Pool", city: { name: "Las Vegas" } }] } }))
+      .mockResolvedValueOnce(json({ _embedded: { venues: [{ id: "KovColo", name: "The Colosseum at Caesars Palace", city: { name: "Las Vegas" } }, { id: "KovPark", name: "Colosseum at Caesars Parking", city: { name: "Las Vegas" } }] } }))
+      .mockResolvedValueOnce(json({}))
       .mockResolvedValueOnce(json({ _embedded: { events: [tm()] } }));
     vi.stubGlobal("fetch", f);
     expect(await searchEvents({ venue: "The Colosseum Theater at Caesars Palace", city: "Las Vegas" }, NOW)).toHaveLength(1);
     expect(urlOf(f, 0).searchParams.get("keyword")).toBe("The Colosseum Theater at Caesars Palace");
     expect(urlOf(f, 1).searchParams.get("keyword")).toBe("Colosseum at Caesars Palace");
-    expect(urlOf(f, 2).searchParams.get("venueId")).toBe("KovColo");
+    expect(urlOf(f, 2).searchParams.get("keyword")).toBe("Colosseum");
+    expect(urlOf(f, 3).searchParams.get("venueId")).toBe("KovPark,KovColo");
   });
   it("a date range: Ticketmaster's window, then only events on those local dates", async () => {
     const f = vi.fn(async () => json({ _embedded: { events: [tm(), tm({ id: "late", name: "Late show", dates: { start: { localDate: "2026-11-16" } } })] } }));
@@ -198,11 +203,13 @@ describe("findVenueIds", () => {
     expect(await findVenueIds("The Colosseum Theater at Caesars Palace")).toEqual([]);
     expect(g).toHaveBeenCalledTimes(2);
   });
-  it("up to 3 matches, any city when none match, filtered by state when given", async () => {
-    const f = vi.fn(async () => json({ _embedded: { venues: [{ id: "a", name: "Big Arena" }, { id: "b", name: "Big Arena North", city: { name: "Reno" } }, { id: "c", name: "big arena" }, { id: "d", name: "Big Arena 4" }, { id: "x", name: "Small Hall" }, { id: "y" }] } }));
+  it("any city when none match, named venues only, filtered by state when given, capped at MAX_VENUES", async () => {
+    const f = vi.fn(async () => json({ _embedded: { venues: [{ id: "a", name: "Big Arena" }, { id: "b", name: "Big Arena North", city: { name: "Reno" } }, { id: "x", name: "Small Hall" }, { id: "y" }] } }));
     vi.stubGlobal("fetch", f);
-    expect(await findVenueIds("Big Arena", { city: "Las Vegas", stateCode: "NV" })).toEqual(["a", "b", "c"]);
+    expect(await findVenueIds("Big Arena", { city: "Las Vegas", stateCode: "NV" })).toEqual(["a", "b"]);
     expect(urlOf(f, 0).searchParams.get("stateCode")).toBe("NV");
-    expect(await findVenueIds("Big Arena")).toEqual(["a", "b", "c"]);
+    const many = vi.fn(async () => json({ _embedded: { venues: Array.from({ length: 12 }, (_, i) => ({ id: `v${i}`, name: `Big Arena ${i}` })) } }));
+    vi.stubGlobal("fetch", many);
+    expect(await findVenueIds("Big Arena")).toHaveLength(MAX_VENUES);
   });
 });
