@@ -27,6 +27,12 @@ beforeEach(() => { vi.stubEnv("NEXT_PUBLIC_PAYPAL_CLIENT_ID", "cid"); vi.stubGlo
 afterEach(() => { vi.unstubAllEnvs(); vi.mocked(getLivePlace).mockReset(); vi.unstubAllGlobals(); });
 
 describe("/request/[placeId]", () => {
+  it("lists the quests a visit here counts toward, by the place's tags", async () => {
+    vi.mocked(getLivePlace).mockResolvedValue({ ...place, category: "wellness", primaryType: "spa", dining: false });
+    await requestPage("ChIJ1");
+    expect(screen.getByRole("region", { name: "Quests" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith("/api/passport/quests?tags=wellness%2Cspa%2Cspa");
+  });
   it("a restaurant: free to request, with the party from the URL, and no price lookup", async () => {
     vi.mocked(getLivePlace).mockResolvedValue(place);
     await requestPage("ChIJ1", { party: ["3"] });
@@ -43,7 +49,7 @@ describe("/request/[placeId]", () => {
   it("anything else: reads the venue's own published prices, and links its website", async () => {
     vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "Spa Uno", dining: false, typeLabel: "Spa", website: "https://spauno.com" });
     await requestPage("ChIJ1");
-    expect(screen.getByRole("status")).toHaveTextContent("Reading Spa Uno’s published prices…");
+    expect(screen.getByText(/Reading Spa Uno’s published prices…/)).toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith("/api/places/ChIJ1/menu");
     expect(screen.getByText(/we book it for you at the exact price it publishes/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Their website" })).toHaveAttribute("href", "https://spauno.com");
@@ -80,7 +86,7 @@ describe("/request/[placeId]", () => {
     vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "Sphere", primaryType: "arena", dining: false });
     await requestPage("ChIJ1");
     expect(screen.queryByRole("complementary", { name: "Upcoming events" })).toBeNull();
-    expect(screen.getByRole("status")).toHaveTextContent("published prices");
+    expect(screen.getByText(/published prices…/)).toBeInTheDocument();
   });
   it("about: Google's description and rating, and no estimate anywhere", async () => {
     vi.mocked(getLivePlace).mockResolvedValue({ ...place, summary: "Lively Italian spot with handmade pasta.", rating: 4.6, ratingCount: 1234 });
@@ -136,7 +142,7 @@ describe("/request/[placeId]", () => {
     delete process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
     vi.mocked(getLivePlace).mockResolvedValue({ ...place, dining: false });
     await requestPage("ChIJ1");
-    expect(screen.getByRole("status")).toHaveTextContent("published prices");
+    expect(screen.getByText(/published prices…/)).toBeInTheDocument();
   });
   it.each([
     ["Google says not found", new PlacesError(404, "x")],

@@ -4,6 +4,7 @@ import { CheckoutPanel } from "@/components/CheckoutPanel";
 import { getExperience } from "@/lib/catalog/catalog";
 import { duration, guests, money } from "@/lib/format";
 import { VenuePhoto } from "@/components/VenuePhoto";
+import { VenueQuests } from "@/components/VenueQuests";
 import { averageFor } from "@/lib/ratings/ratings";
 import { isDiningExperience } from "@/lib/pricing/fees";
 
@@ -57,6 +58,7 @@ export default async function ExperiencePage({ params, searchParams }: Props) {
             clientId={process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? ""}
           />
         </div>
+        <VenueQuests tags={e.tags} />
       </main>
     </div>
   );

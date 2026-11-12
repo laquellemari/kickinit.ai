@@ -1,6 +1,7 @@
 import { ALL_ACHIEVEMENTS, evaluateAllAchievements, totalXp, type ActivityInput } from "@/lib/quests/achievements";
 import { ALL_QUESTS, evaluateAllQuests } from "@/lib/quests/engine";
 import { levelForXp } from "@/lib/quests/levels";
+import type { Quest } from "@/lib/quests/types";
 import questData from "../../../data/quests.json";
 
 type CategoryInfo = { id: string; name: string; emoji: string };
@@ -35,6 +36,34 @@ export function computeCategory(activity: ActivityInput, categoryId: string) {
   };
 }
 export type CategoryPage = NonNullable<ReturnType<typeof computeCategory>>;
+
+/** The most venue tags a quest lookup takes. */
+export const MAX_TAGS = 20;
+
+/** Filters that depend on when or with whom you go, so any venue can meet them; anything else names a venue tag. */
+const TIME_OR_PARTY = new Set(["evening", "late", "early", "duo", "party4", "home_city", "traveling", "international", "last_minute"]);
+const DIFFICULTY_RANK: Record<string, number> = { Easy: 0, Medium: 1, Hard: 2, Legendary: 3 };
+
+/** Would a visit to a venue with these tags count toward this quest? */
+export function questFits(q: Pick<Quest, "requirement">, tags: readonly string[]): boolean {
+  const r = q.requirement;
+  if (r.type === "gift") return tags.includes(r.filter!);
+  const tagged = r.tags.some((t) => tags.includes(t));
+  return tagged && (!r.filter || TIME_OR_PARTY.has(r.filter) || tags.includes(r.filter));
+}
+
+/**
+ * The quests a visit to a venue with these tags would count toward, best to show first:
+ * ones already started (closest to done first), then not started (easiest first), then collected.
+ */
+export function computeRelevant(activity: ActivityInput, tags: readonly string[]) {
+  const byId = new Map(ALL_QUESTS.map((q) => [q.id, q]));
+  const rank = (q: ReturnType<typeof questRows>[number]) => (q.complete ? 2 : q.current > 0 ? 0 : 1);
+  return questRows(activity)
+    .filter((q) => questFits(byId.get(q.id)!, tags))
+    .sort((a, b) => rank(a) - rank(b) || b.current / b.target - a.current / a.target || DIFFICULTY_RANK[a.difficulty] - DIFFICULTY_RANK[b.difficulty] || a.order - b.order);
+}
+export type RelevantQuest = ReturnType<typeof computeRelevant>[number];
 
 /** Everything the Passport page shows, computed from real activity. */
 export function computePassport(activity: ActivityInput) {

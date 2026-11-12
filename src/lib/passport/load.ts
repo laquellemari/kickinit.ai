@@ -3,7 +3,7 @@ import { listContributionsBy, listGiftsByOrganizer } from "@/lib/gifts/repo";
 import { getProfile } from "@/lib/profile/repo";
 import { countRatings } from "@/lib/ratings/ratings";
 import { buildActivity } from "./activity";
-import { computeCategory, computePassport } from "./passport";
+import { computeCategory, computePassport, computeRelevant } from "./passport";
 
 async function loadActivity(userId: string) {
   const [profile, bookings, organized, contributions, ratings] = await Promise.all([
@@ -15,6 +15,11 @@ async function loadActivity(userId: string) {
 /** A visitor's passport, from everything they've booked, gifted and chipped in to. */
 export async function loadPassport(userId: string) {
   return computePassport(await loadActivity(userId));
+}
+
+/** The quests a visit to a venue with these tags would count toward, with this visitor's progress. */
+export async function loadRelevant(userId: string, tags: readonly string[]) {
+  return computeRelevant(await loadActivity(userId), tags);
 }
 
 /** One passport category with all its quests and this visitor's progress. Null for an unknown category. */

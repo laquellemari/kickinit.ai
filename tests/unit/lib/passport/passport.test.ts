@@ -1,8 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { questBooking, giftAsBooking, buildActivity } from "@/lib/passport/activity";
-import { computePassport, computeCategory, categoryInfo, CATEGORY_INFO } from "@/lib/passport/passport";
-import { loadPassport, loadCategory } from "@/lib/passport/load";
+import { computePassport, computeCategory, categoryInfo, CATEGORY_INFO, computeRelevant, questFits, MAX_TAGS } from "@/lib/passport/passport";
+import { loadPassport, loadCategory, loadRelevant } from "@/lib/passport/load";
+import { GET as relevantRoute } from "@/app/api/passport/quests/route";
 import { GET as categoryRoute } from "@/app/api/passport/[category]/route";
 import { getProfile, saveProfile, MAX_AVATAR_CHARS } from "@/lib/profile/repo";
 import { GET as passportRoute } from "@/app/api/passport/route";
@@ -139,8 +140,8 @@ describe("profile", () => {
 });
 
 describe("routes", () => {
-  const req = (o: { method?: string; body?: unknown; cookie?: boolean } = {}) =>
-    new Request("http://x", { method: o.method ?? "GET", headers: { "content-type": "application/json", ...(o.cookie === false ? {} : { cookie: `kid=${U}` }) }, body: o.body === undefined ? undefined : JSON.stringify(o.body) });
+  const req = (o: { method?: string; body?: unknown; cookie?: boolean; url?: string } = {}) =>
+    new Request(o.url ?? "http://x", { method: o.method ?? "GET", headers: { "content-type": "application/json", ...(o.cookie === false ? {} : { cookie: `kid=${U}` }) }, body: o.body === undefined ? undefined : JSON.stringify(o.body) });
   it("GET /api/passport returns my passport", async () => {
     await attended();
     const res = await passportRoute(req());
@@ -159,6 +160,32 @@ describe("routes", () => {
   it("GET /api/passport/:category: 404 for an unknown category, 401 without a visitor", async () => {
     expect((await categoryRoute(req(), { params: Promise.resolve({ category: "nope" }) })).status).toBe(404);
     expect((await categoryRoute(req({ cookie: false }), { params: Promise.resolve({ category: "culinary" }) })).status).toBe(401);
+  });
+  it("GET /api/passport/quests?tags= lists the quests a visit with those tags counts toward, with my progress", async () => {
+    await attended();
+    const res = await relevantRoute(req({ url: "http://x/api/passport/quests?tags=restaurant,italian" }));
+    expect(res.status).toBe(200);
+    const { quests } = await res.json();
+    expect(quests.find((q: { id: string }) => q.id === "culinary-pasta-pilgrim")).toMatchObject({ current: 1, target: 3 });
+    expect(quests[0].current).toBeGreaterThan(0);
+    expect(quests.length).toBeGreaterThan(4);
+  });
+  it.each([
+    ["no tags", "", "Tags are required"],
+    ["only commas", "?tags=,,", "Tags are required"],
+    ["too many", `?tags=${Array.from({ length: MAX_TAGS + 1 }, (_, i) => `t${i}`).join(",")}`, `At most ${MAX_TAGS} tags`],
+    ["a bad tag", "?tags=spa,Not%20OK", "Tags are lowercase words like spa or live_music"],
+  ])("GET /api/passport/quests: 400 for %s", async (_l, qs, error) => {
+    const res = await relevantRoute(req({ url: `http://x/api/passport/quests${qs}` }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error });
+  });
+  it(`GET /api/passport/quests: boundary, ${MAX_TAGS} tags is fine; 401 without a visitor`, async () => {
+    expect((await relevantRoute(req({ url: `http://x/api/passport/quests?tags=${Array.from({ length: MAX_TAGS }, (_, i) => `t${i}`).join(",")}` }))).status).toBe(200);
+    expect((await relevantRoute(req({ cookie: false, url: "http://x/api/passport/quests?tags=spa" }))).status).toBe(401);
+  });
+  it("loadRelevant works on its own", async () => {
+    expect((await loadRelevant(U, ["spa"])).length).toBeGreaterThan(0);
   });
   it("loadCategory: null for an unknown category", async () => {
     expect(await loadCategory(U, "nope")).toBeNull();
@@ -214,5 +241,35 @@ describe("computeCategory", () => {
   it("an unknown category is null", () => {
     expect(computeCategory(activity(), "nope")).toBeNull();
     expect(categoryInfo("nope")).toBeNull();
+  });
+});
+
+describe("which quests fit a venue", () => {
+  const q = (requirement: Record<string, unknown>) => ({ requirement: { type: "count", count: 1, tags: [], window_days: null, ...requirement } as never });
+  it.each([
+    ["a shared tag", { tags: ["spa", "sauna"] }, ["spa"], true],
+    ["no shared tag", { tags: ["yoga"] }, ["spa"], false],
+    ["a time or party filter any venue can meet", { tags: ["spa"], filter: "evening" }, ["spa"], true],
+    ["a venue-tag filter the venue has", { tags: ["restaurant"], filter: "sushi" }, ["restaurant", "sushi"], true],
+    ["a venue-tag filter the venue lacks", { tags: ["restaurant"], filter: "sushi" }, ["restaurant"], false],
+    ["a gift quest for this kind of place", { type: "gift", filter: "spa" }, ["spa"], true],
+    ["a gift quest for another kind", { type: "gift", filter: "spa" }, ["yoga"], false],
+  ])("%s → %s", (_l, r, tags, fits) => expect(questFits(q(r), tags)).toBe(fits));
+
+  it("orders started quests first (closest to done), then not started (easiest first), then collected", () => {
+    const at = (h: number) => new Date(Date.UTC(2026, 10, 1 + h, 19));
+    const b = (i: number, tags: string[]) => ({ id: `b${i}`, status: "captured" as const, checkedIn: true, source: "in_app" as const, tags, startsAt: at(i), bookedAt: at(i), localHour: 19, partySize: 2, venue: `v${i}`, city: "Los Angeles", country: "US", cuisine: "italian", isGift: false });
+    const activity = { bookings: [b(1, ["restaurant", "italian"]), b(2, ["restaurant", "italian"]), b(3, ["restaurant", "italian"])], ctx: { homeCity: "Los Angeles", homeCountry: "US" }, questProgress: [], counters: { poolsFundedAsOrganizer: 0, poolContributions: 0, giftsRedeemed: 0, referralsConverted: 0, reviews: 0 } };
+    const list = computeRelevant(activity, ["restaurant", "italian"]);
+    const firstNotStarted = list.findIndex((x) => x.current === 0 && !x.complete);
+    const firstDone = list.findIndex((x) => x.complete);
+    expect(list.slice(0, firstNotStarted).every((x) => x.current > 0 && !x.complete)).toBe(true);
+    expect(firstDone).toBeGreaterThan(firstNotStarted);
+    expect(list.slice(firstDone).every((x) => x.complete)).toBe(true);
+    const started = list.slice(0, firstNotStarted).map((x) => x.current / x.target);
+    expect(started).toEqual([...started].sort((x, y) => y - x));
+    const rank = { Easy: 0, Medium: 1, Hard: 2, Legendary: 3 } as const;
+    const fresh = list.slice(firstNotStarted, firstDone).map((x) => rank[x.difficulty]);
+    expect(fresh).toEqual([...fresh].sort((x, y) => x - y));
   });
 });

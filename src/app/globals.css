@@ -218,3 +218,4 @@ a:hover { color: var(--navy-deep); }
 .explore-name { font-family: var(--display); font-weight: 800; font-size: 18px; text-transform: uppercase; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .explore-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quest-teaser { flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; }
+.venue-quests { margin-top: 40px; }

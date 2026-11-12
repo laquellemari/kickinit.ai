@@ -29,9 +29,14 @@ export function partnerFacts(experienceId: string, startsAt: Date): VenueFacts {
   };
 }
 
+/** What a booking at a Google place is tagged with, for quests: its category's tags plus its Google type. */
+export function placeTags(place: Pick<LivePlace, "category" | "primaryType">): string[] {
+  return [...CATEGORY_TAGS[place.category], ...(place.primaryType ? [place.primaryType] : [])];
+}
+
 export function liveFacts(place: LivePlace, startsAt: Date): VenueFacts {
   const offset = place.utcOffsetMinutes ?? 0;
   const local = new Date(startsAt.getTime() + offset * 60_000);
-  const tags = [...CATEGORY_TAGS[place.category], ...(place.primaryType ? [place.primaryType] : [])];
+  const tags = placeTags(place);
   return { tags, city: place.city, country: place.country, neighborhood: null, cuisine: null, localHour: local.getUTCHours() };
 }

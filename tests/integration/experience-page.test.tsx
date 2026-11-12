@@ -29,6 +29,14 @@ describe("/experience/[id]", () => {
     expect(screen.getByText("Instant book · kickinit partner")).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
+  it("lists the quests a visit here counts toward, by the experience's tags", async () => {
+    const f = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal("fetch", f);
+    await page("hugh-spa");
+    expect(screen.getByRole("region", { name: "Quests" })).toBeInTheDocument();
+    expect(f).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/passport\/quests\?tags=wellness%2Cspa%2Cbathhouse%2Csauna/));
+    vi.unstubAllGlobals();
+  });
   it("per-group pricing and a fixed party size read naturally", async () => {
     await page("mic-drop-karaoke");
     expect(screen.getByText("$120 per group")).toBeInTheDocument();
