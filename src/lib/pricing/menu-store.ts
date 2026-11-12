@@ -7,9 +7,13 @@ const DAY = 86_400_000;
 export const FOUND_TTL_DAYS = 7;
 export const EMPTY_TTL_DAYS = 1;
 
+/** Bumped when the lookup changes, so menus read by an older version are looked up again. */
+export const MENU_VERSION = "v2";
+const keyOf = (placeId: string) => `${MENU_VERSION}:${placeId}`;
+
 export async function cachedMenu(placeId: string, now: Date): Promise<Menu | null> {
   const { rows } = await (await getDb()).query<{ items: MenuItem[] | string; checked_at: Date | string }>(
-    "SELECT items, checked_at FROM venue_menus WHERE place_id = $1", [placeId],
+    "SELECT items, checked_at FROM venue_menus WHERE place_id = $1", [keyOf(placeId)],
   );
   const r = rows[0];
   if (!r) return null;
@@ -22,7 +26,7 @@ export async function cachedMenu(placeId: string, now: Date): Promise<Menu | nul
 export async function saveMenu(placeId: string, menu: Menu): Promise<void> {
   await (await getDb()).query(
     "INSERT INTO venue_menus (place_id, items, checked_at) VALUES ($1, $2, $3) ON CONFLICT (place_id) DO UPDATE SET items = EXCLUDED.items, checked_at = EXCLUDED.checked_at",
-    [placeId, JSON.stringify(menu.items), menu.checkedAt.toISOString()],
+    [keyOf(placeId), JSON.stringify(menu.items), menu.checkedAt.toISOString()],
   );
 }
 
@@ -35,8 +39,9 @@ export async function menuFor(place: Pick<LivePlace, "placeId" | "name" | "addre
   let p = inflight.get(place.placeId);
   if (!p) {
     p = lookupMenu({ name: place.name, address: place.address, website: place.website, typeLabel: place.typeLabel }, now)
-      .then(async (m) => {
-        await saveMenu(place.placeId, m);
+      .then(async ({ cacheable, ...m }) => {
+        // A lookup that couldn't open any page isn't remembered, so the next visit tries again.
+        if (cacheable) await saveMenu(place.placeId, m);
         return m;
       })
       .finally(() => inflight.delete(place.placeId));

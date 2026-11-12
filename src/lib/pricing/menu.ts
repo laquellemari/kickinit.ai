@@ -7,6 +7,8 @@
 
 export type MenuItem = { id: string; name: string; price: string; per: "person" | "group"; durationMinutes: number | null; sourceUrl: string };
 export type Menu = { items: MenuItem[]; checkedAt: Date };
+/** `cacheable` is false when Claude couldn't open any page and didn't conclude NONE: worth trying again soon. */
+export type LookupResult = Menu & { cacheable: boolean };
 export type MenuVenue = { name: string; address: string; website: string | null; typeLabel: string };
 
 export class MenuError extends Error {
@@ -134,7 +136,7 @@ export function verify(candidates: Candidate[], pages: { url: string; text: stri
 type ApiResponse = { content?: Block[]; stop_reason?: string; error?: { type?: string; message?: string } };
 
 /** Ask Claude to find and read the venue's published prices, then verify them. */
-export async function lookupMenu(v: MenuVenue, now: Date = new Date()): Promise<Menu> {
+export async function lookupMenu(v: MenuVenue, now: Date = new Date()): Promise<LookupResult> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new MenuError(503, "Price lookup is not configured");
   const messages: { role: "user" | "assistant"; content: string | Block[] }[] = [{ role: "user", content: menuPrompt(v) }];
@@ -164,5 +166,14 @@ export async function lookupMenu(v: MenuVenue, now: Date = new Date()): Promise<
     messages.push({ role: "assistant", content });
   }
   const answer = blocks.filter((b): b is { type: "text"; text: string } => b.type === "text").map((b) => b.text).join("\n");
-  return { items: verify(parseItems(answer), fetchedPages(blocks), v.website), checkedAt: now };
+  const pages = fetchedPages(blocks);
+  const candidates = parseItems(answer);
+  const items = verify(candidates, pages, v.website);
+  // One line per lookup, so a venue that comes back empty can be understood from the logs.
+  console.info("[menu]", JSON.stringify({
+    venue: v.name, website: v.website, searches: blocks.filter((b) => b.type === "server_tool_use").length,
+    fetched: pages.map((p) => p.url), toolErrors: blocks.filter((b) => JSON.stringify(b).includes("_error")).length,
+    candidates: candidates.length, verified: items.length, answer: answer.slice(-400),
+  }));
+  return { items, checkedAt: now, cacheable: pages.length > 0 || /\bNONE\b/.test(answer) };
 }
