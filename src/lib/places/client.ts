@@ -191,3 +191,60 @@ export async function getPlacePhoto(placeId: string, now = Date.now()): Promise<
   photoCache.set(placeId, { at: now, photo });
   return photo;
 }
+
+/** Google's yes/no facts about a venue, and how each reads in a description. */
+export const FEATURES: [string, string][] = [
+  ["servesBreakfast", "serves breakfast"], ["servesBrunch", "serves brunch"], ["servesLunch", "serves lunch"], ["servesDinner", "serves dinner"],
+  ["servesCocktails", "serves cocktails"], ["servesWine", "serves wine"], ["servesBeer", "serves beer"], ["servesCoffee", "serves coffee"],
+  ["servesDessert", "serves dessert"], ["servesVegetarianFood", "has vegetarian dishes"], ["outdoorSeating", "has outdoor seating"],
+  ["liveMusic", "has live music"], ["goodForGroups", "is good for groups"], ["goodForChildren", "is good for children"],
+  ["goodForWatchingSports", "shows sports"], ["allowsDogs", "allows dogs"], ["reservable", "takes reservations"],
+];
+export const MAX_REVIEWS = 5;
+export const MAX_REVIEW_CHARS = 500;
+
+/** Everything Google Maps says about a venue that helps describe it. */
+export type PlaceFacts = {
+  name: string; typeLabel: string; types: string[]; neighborhood: string; city: string;
+  editorial: string | null; overview: string | null; reviewSummary: string | null;
+  reviews: string[]; rating: number | null; ratingCount: number; priceLevel: string | null; features: string[];
+};
+
+export const FACTS_MASK = [
+  "displayName", "primaryTypeDisplayName", "types", "addressComponents", "editorialSummary", "generativeSummary", "reviewSummary",
+  "reviews", "rating", "userRatingCount", "priceLevel", ...FEATURES.map(([k]) => k),
+].join(",");
+
+type GFacts = GPlace & {
+  types?: string[];
+  reviewSummary?: { text?: { text?: string } };
+  reviews?: { text?: { text?: string }; originalText?: { text?: string } }[];
+} & Record<string, unknown>;
+
+const text = (s: string | undefined) => (s ?? "").replace(/\s+/g, " ").trim() || null;
+
+/** A venue's Google Maps details for writing its description. Enterprise + Atmosphere priced, so callers cache the result. */
+export async function getPlaceFacts(placeId: string): Promise<PlaceFacts> {
+  if (!ID_RE.test(placeId)) throw new Error("Place id has invalid characters");
+  const p = (await call(`${BASE}/places/${placeId}`, { method: "GET" }, FACTS_MASK)) as GFacts;
+  const reviews = (p.reviews ?? [])
+    .map((r) => text(r.originalText?.text ?? r.text?.text))
+    .filter((r): r is string => r !== null)
+    .slice(0, MAX_REVIEWS)
+    .map((r) => r.slice(0, MAX_REVIEW_CHARS));
+  return {
+    name: p.displayName?.text ?? "Unnamed place",
+    typeLabel: p.primaryTypeDisplayName?.text ?? "Place",
+    types: (p.types ?? []).filter((t) => t !== "point_of_interest" && t !== "establishment"),
+    neighborhood: component(p, "neighborhood") || component(p, "sublocality_level_1") || component(p, "sublocality"),
+    city: component(p, "locality") || component(p, "postal_town"),
+    editorial: text(p.editorialSummary?.text),
+    overview: text(p.generativeSummary?.overview?.text),
+    reviewSummary: text(p.reviewSummary?.text?.text),
+    reviews,
+    rating: p.rating ?? null,
+    ratingCount: p.userRatingCount ?? 0,
+    priceLevel: (p.priceLevel && PRICE_LEVEL_USD[p.priceLevel]?.[1]) || null,
+    features: FEATURES.filter(([k]) => p[k] === true).map(([, label]) => label),
+  };
+}

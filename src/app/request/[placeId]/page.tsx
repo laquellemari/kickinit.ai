@@ -7,6 +7,7 @@ import { VenueEvents } from "@/components/VenueEvents";
 import { VenuePhoto } from "@/components/VenuePhoto";
 import { STAMP } from "@/lib/catalog/labels";
 import { VenueQuests } from "@/components/VenueQuests";
+import { VenueAbout } from "@/components/VenueAbout";
 import { placeTags } from "@/lib/bookings/venue";
 import { isEventVenue, searchEvents, type LiveEvent } from "@/lib/events/ticketmaster";
 import { getLivePlace, PlacesError } from "@/lib/places/client";
@@ -58,7 +59,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
             </VenuePhoto>
             <p className="concierge-reply">{place.address}</p>
             <section aria-label="About this place" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <p className="google-about">{place.summary ?? `${place.typeLabel} in ${place.city || "the area"}.`}</p>
+              <VenueAbout placeId={place.placeId} fallback={place.summary ?? `${place.typeLabel} in ${place.city || "the area"}.`} className="google-about" />
               {place.rating !== null && (
                 <p className="google-meta">★ {place.rating.toFixed(1)} on Google · {place.ratingCount.toLocaleString("en-US")} {place.ratingCount === 1 ? "review" : "reviews"}</p>
               )}

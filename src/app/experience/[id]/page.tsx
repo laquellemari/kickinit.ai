@@ -5,6 +5,7 @@ import { getExperience } from "@/lib/catalog/catalog";
 import { duration, guests, money } from "@/lib/format";
 import { VenuePhoto } from "@/components/VenuePhoto";
 import { VenueQuests } from "@/components/VenueQuests";
+import { VenueAbout } from "@/components/VenueAbout";
 import { averageFor } from "@/lib/ratings/ratings";
 import { isDiningExperience } from "@/lib/pricing/fees";
 
@@ -39,7 +40,7 @@ export default async function ExperiencePage({ params, searchParams }: Props) {
             <VenuePhoto placeId={e.placeId} alt={e.name} height={320} bg={e.bg}>
               <span className="stamp stamp-wide">{e.category.toUpperCase()}</span>
             </VenuePhoto>
-            <p className="concierge-reply">{e.description}</p>
+            <VenueAbout placeId={e.placeId} fallback={e.description} className="concierge-reply" />
             {score && <p className="google-meta">★ {score.average.toFixed(1)} from {score.count} kickinit {score.count === 1 ? "guest" : "guests"}</p>}
             <p className="pick-meta" style={{ margin: 0 }}>Demo: prices are illustrative and bookings run in the PayPal sandbox, so no real money moves.</p>
             <dl className="fact-list">
