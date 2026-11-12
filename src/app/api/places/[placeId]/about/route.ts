@@ -16,7 +16,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ placeId: string
       if (!limiter.take(clientKey(req))) throw new HttpError(429, "Too many venues at once. Try again in a minute.");
       return aboutFor(placeId);
     })());
-    return NextResponse.json({ about: a.about }, { headers: { "cache-control": "public, max-age=3600" } });
+    // Only a written description is worth keeping in the browser; an empty answer may be filled in soon.
+    return NextResponse.json({ about: a.about }, { headers: { "cache-control": a.about ? "public, max-age=3600" : "no-store" } });
   } catch (err) {
     return toResponse(err);
   }

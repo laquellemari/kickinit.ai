@@ -42,7 +42,9 @@ describe("GET /api/places/:placeId/about", () => {
   it("200 with null when Google knows too little", async () => {
     const me = ip();
     apis(() => json(200, { content: [{ type: "text", text: "NONE" }] }));
-    expect(await (await GET(req(me), params("ChIJ1"))).json()).toEqual({ about: null });
+    const res = await GET(req(me), params("ChIJ1"));
+    expect(await res.json()).toEqual({ about: null });
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
   it("400 for a bad id", async () => {
     const me = ip();
