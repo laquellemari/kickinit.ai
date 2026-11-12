@@ -42,7 +42,7 @@ type TmEvent = {
   images?: TmImage[];
   priceRanges?: { min?: number; max?: number; currency?: string }[];
   classifications?: { genre?: { name?: string }; segment?: { name?: string } }[];
-  _embedded?: { venues?: { name?: string; city?: { name?: string }; state?: { stateCode?: string } }[] };
+  _embedded?: { venues?: { name?: string; city?: { name?: string }; state?: { stateCode?: string }; location?: { latitude?: string; longitude?: string } }[] };
 };
 
 /** The widest 16:9 image (cards are wide), else any image. */
@@ -197,6 +197,39 @@ export async function searchEvents(q: EventQuery, now: Date = new Date()): Promi
     });
   cache.set(key, { at: now.getTime(), events });
   return events;
+}
+
+/** An event and where its venue is (null when Ticketmaster doesn't say), for planning the night around it. */
+export type EventDetail = { event: LiveEvent; lat: number | null; lng: number | null };
+const EVENT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const eventCache = new Map<string, { at: number; detail: EventDetail | null }>();
+export const clearEventDetailCache = () => eventCache.clear();
+
+const coord = (v: string | undefined, max: number) => {
+  const n = Number(v);
+  return v !== undefined && v.trim() !== "" && Number.isFinite(n) && Math.abs(n) <= max ? n : null;
+};
+
+/** One event by its Ticketmaster id ("tm:" prefix optional). Null when it doesn't exist, was cancelled or has no ticket page. */
+export async function getEvent(id: string, now: Date = new Date()): Promise<EventDetail | null> {
+  const raw = id.replace(/^tm:/, "");
+  if (!EVENT_ID_RE.test(raw)) throw new EventsError(400, "Event id has invalid characters");
+  const hit = eventCache.get(raw);
+  if (hit && now.getTime() - hit.at < CACHE_MS) return hit.detail;
+  let e: TmEvent;
+  try {
+    e = await get<TmEvent>(`/events/${raw}.json`, {});
+  } catch (err) {
+    if (err instanceof EventsError && /HTTP 404|not found/i.test(err.message)) return null;
+    throw err;
+  }
+  const event = toLiveEvent(e);
+  const loc = e._embedded?.venues?.[0]?.location;
+  const lat = coord(loc?.latitude, 90);
+  const lng = coord(loc?.longitude, 180);
+  const detail = event && { event, lat: lat !== null && lng !== null ? lat : null, lng: lat !== null && lng !== null ? lng : null };
+  eventCache.set(raw, { at: now.getTime(), detail });
+  return detail;
 }
 
 const EVENT_VENUE_TYPE = /^(performing_arts_theater|concert_hall|opera_house|stadium|arena|amphitheatre|amphitheater|live_music_venue|event_venue|comedy_club|sports_complex|auditorium)$/;

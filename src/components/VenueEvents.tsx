@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { eventPrice, eventWhen, type LiveEvent } from "@/lib/events/ticketmaster";
 
 /** What's on at a stage or arena, from Ticketmaster. Tickets are bought there. `events` is null when the lookup failed. */
@@ -20,7 +21,10 @@ export function VenueEvents({ name, events, mapsUrl }: { name: string; events: L
                 <strong>{e.name}</strong>
                 <div className="pick-meta">{eventWhen(e)}{eventPrice(e) ? ` · ${eventPrice(e)}` : ""}</div>
               </div>
-              <a className="btn-navy" href={e.url} target="_blank" rel="noopener noreferrer sponsored">Get tickets</a>
+              <div className="event-actions">
+                <a className="btn-navy" href={e.url} target="_blank" rel="noopener noreferrer sponsored">Get tickets</a>
+                <Link className="btn-line" href={`/night/${e.id.replace(/^tm:/, "")}`}>Plan the night</Link>
+              </div>
             </li>
           ))}
         </ul>

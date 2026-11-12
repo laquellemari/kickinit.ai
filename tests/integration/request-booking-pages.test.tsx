@@ -46,6 +46,23 @@ describe("/request/[placeId]", () => {
     expect(screen.queryByRole("link", { name: "Their website" })).toBeNull();
     expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining("/menu"));
   });
+  it("a planned night links here with dinner's day and time filled in", async () => {
+    vi.mocked(getLivePlace).mockResolvedValue(place);
+    await requestPage("ChIJ1", { party: "4", day: "2026-11-14", time: "18:00" });
+    expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-11-14");
+    expect((screen.getByLabelText("Time") as HTMLSelectElement).value).toBe("18:00");
+  });
+  it.each([
+    ["a day that isn't a date", { day: "tomorrow", time: "18:00" }, "", "18:00"],
+    ["a time that isn't a bookable slot", { day: "2026-11-14", time: "18:15" }, "2026-11-14", ""],
+    ["a time past the last slot", { day: "2026-11-14", time: "22:30" }, "2026-11-14", ""],
+    ["lists: the first value counts", { day: ["2026-11-14", "x"], time: ["18:00"] }, "2026-11-14", "18:00"],
+  ])("ignores %s", async (_, sp, day, time) => {
+    vi.mocked(getLivePlace).mockResolvedValue(place);
+    await requestPage("ChIJ1", sp as Record<string, string | string[]>);
+    expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe(day);
+    expect((screen.getByLabelText("Time") as HTMLSelectElement).value).toBe(time);
+  });
   it("anything else: reads the venue's own published prices, and links its website", async () => {
     vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "Spa Uno", dining: false, typeLabel: "Spa", website: "https://spauno.com" });
     await requestPage("ChIJ1");

@@ -11,6 +11,7 @@ describe("VenueEvents", () => {
     const adele = within(panel).getByRole("listitem", { name: "Adele" });
     expect(adele).toHaveTextContent("Sat, Nov 14 · 8:00 PM · $60–$250");
     expect(within(adele).getByRole("link", { name: "Get tickets" })).toHaveAttribute("href", "https://www.ticketmaster.com/event/G5v1");
+    expect(within(adele).getByRole("link", { name: "Plan the night" })).toHaveAttribute("href", "/night/G5v1");
     expect(within(panel).getByRole("listitem", { name: "Eagles" })).toHaveTextContent("Sat, Nov 14 · time TBA");
     expect(within(panel).getByRole("listitem", { name: "Eagles" })).not.toHaveTextContent("$");
     expect(panel).toHaveTextContent("Tickets are sold by Ticketmaster");
