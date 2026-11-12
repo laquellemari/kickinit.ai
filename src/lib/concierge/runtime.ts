@@ -1,8 +1,9 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { PayPalAgentToolkit } from "@paypal/agent-toolkit/ai-sdk";
 import { wrapLanguageModel, type LanguageModelV1Middleware, type ToolSet } from "ai";
+import { searchEvents } from "@/lib/events/ticketmaster";
 import { searchLivePlaces } from "@/lib/places/client";
-import type { SearchLive } from "./agent";
+import type { SearchEvents, SearchLive } from "./agent";
 
 export const DEFAULT_MODEL = "claude-sonnet-5-5";
 
@@ -35,4 +36,9 @@ export function paypalTools(): ToolSet {
 /** Google Places live search, when a key is configured. */
 export function liveSearch(): SearchLive | undefined {
   return process.env.GOOGLE_PLACES_API_KEY ? searchLivePlaces : undefined;
+}
+
+/** Ticketmaster event search, when a key is configured. */
+export function eventSearch(): SearchEvents | undefined {
+  return process.env.TICKETMASTER_API_KEY ? (q) => searchEvents(q) : undefined;
 }

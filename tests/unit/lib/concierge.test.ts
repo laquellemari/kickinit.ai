@@ -4,7 +4,7 @@ import { runConcierge, validateInput, systemPrompt, resolvePicks, withMoreOption
 import { searchExperiences, getExperience, getExperienceByPlaceId } from "@/lib/catalog/catalog";
 import { tool } from "ai";
 import { z } from "zod";
-import { createScriptedModel, createLivePlace } from "../../helpers/factories";
+import { createScriptedModel, createLivePlace, createLiveEvent } from "../../helpers/factories";
 import { verifyConcierge } from "../../helpers/verification";
 
 const ids = (r: { options: { kind: string; experience?: { id: string }; place?: { id: string } }[] }) => r.options.map((o) => (o.kind === "partner" ? o.experience!.id : o.place!.id));
@@ -304,3 +304,86 @@ describe("a Google result that is one of our partners", () => {
   });
 });
 
+
+describe("events (Ticketmaster)", () => {
+  const shows = [createLiveEvent(), createLiveEvent({ id: "tm:G2", name: "Usher", localTime: null, priceMin: null, priceMax: null })];
+  const sphere = createLivePlace({ placeId: "ChIJsphere", name: "Sphere", primaryType: "arena", dining: false });
+
+  it("is only offered to the model, and explained, when event search is on", async () => {
+    const off = createScriptedModel([{ text: "ok" }]);
+    await runConcierge(input(), { model: off.model });
+    expect(off.toolNames[0]).not.toContain("search_events");
+    expect(systemPrompt(input())).not.toContain("search_events");
+    const on = createScriptedModel([{ text: "ok" }]);
+    await runConcierge(input(), { model: on.model, searchEvents: async () => [] });
+    expect(on.toolNames[0]).toContain("search_events");
+    expect(systemPrompt(input(), { events: true })).toContain("recommend the actual events, never the venue building");
+  });
+
+  it("happy: what's on at a venue comes back as events, and the model sees when, where and price", async () => {
+    let asked: unknown;
+    const { model, prompts } = createScriptedModel([
+      { tool: "search_events", args: { venue: "The Colosseum", city: "Las Vegas" } },
+      present([{ experienceId: "tm:G5v1", why: "Her residency." }, { experienceId: "tm:G2", why: "Big voice." }]),
+    ]);
+    const r = await runConcierge(input({ message: "what's on at the Colosseum", where: "Las Vegas, NV" }), { model, searchEvents: async (q) => { asked = q; return shows; } });
+    expect(asked).toEqual({ venue: "The Colosseum", city: "Las Vegas" });
+    verifyConcierge(r, { partySize: 2, picks: [{ id: "tm:G5v1", total: null }, { id: "tm:G2", total: null }] });
+    expect(r.options[0]).toMatchObject({ kind: "event", why: "Her residency." });
+    const toolMsg = (prompts[1] as { role: string; content: { result: unknown }[] }[]).at(-1)!;
+    expect(toolMsg.content[0].result).toEqual([
+      { id: "tm:G5v1", name: "Adele", when: "Sat, Nov 14 · 8:00 PM", venue: "The Colosseum at Caesars Palace", city: "Las Vegas", price: "$60–$250", genre: "Pop" },
+      { id: "tm:G2", name: "Usher", when: "Sat, Nov 14 · time TBA", venue: "The Colosseum at Caesars Palace", city: "Las Vegas", price: null, genre: "Pop" },
+    ]);
+  });
+
+  it("events the model didn't pick are shown after its picks, with when and where as the reason", async () => {
+    const { model } = createScriptedModel([{ tool: "search_events", args: { keyword: "concerts", city: "Las Vegas" } }, present([{ experienceId: "tm:G2", why: "x" }])]);
+    const r = await runConcierge(input(), { model, searchEvents: async () => shows });
+    const extra = r.options.find((o) => o.kind === "event" && o.event.id === "tm:G5v1")!;
+    expect(extra.why).toBe("The Colosseum at Caesars Palace, Las Vegas · Sat, Nov 14 · 8:00 PM");
+  });
+
+  it("an event with no city reads cleanly", () => {
+    const e = createLiveEvent({ city: "" });
+    const out = withMoreOptions([], [e.id], 2, new Map(), new Map([[e.id, e]]));
+    expect(out[0].why).toBe("The Colosseum at Caesars Palace · Sat, Nov 14 · 8:00 PM");
+  });
+
+  it("once there are real events, the arena building itself is dropped (but not restaurants)", async () => {
+    const { model } = createScriptedModel([
+      { tool: "search_live_places", args: { query: "concert venues Las Vegas" } },
+      { tool: "search_events", args: { keyword: "concerts", city: "Las Vegas" } },
+      present([{ experienceId: "gp:ChIJsphere", why: "Big room." }, { experienceId: "tm:G5v1", why: "Show." }, { experienceId: "gp:ChIJsd1", why: "Dinner first." }]),
+    ]);
+    const r = await runConcierge(input(), { model, searchLive: async () => [sphere, createLivePlace()], searchEvents: async () => shows });
+    const kinds = r.options.map((o) => (o.kind === "event" ? o.event.id : o.kind === "live" ? o.place.id : o.experience.id));
+    expect(kinds).not.toContain("gp:ChIJsphere");
+    expect(kinds.slice(0, 2)).toEqual(["tm:G5v1", "gp:ChIJsd1"]);
+  });
+
+  it("without events, an arena can still be shown (its page lists what's on)", () => {
+    const out = resolvePicks([{ experienceId: "gp:ChIJsphere", why: "x" }], 2, new Map([["gp:ChIJsphere", sphere]]));
+    expect(out).toHaveLength(1);
+  });
+
+  it("respects the pick limit with events", () => {
+    const many = Array.from({ length: 3 }, (_, i) => createLiveEvent({ id: `tm:E${i}` }));
+    const out = resolvePicks(many.map((e) => ({ experienceId: e.id, why: "x" })), 2, new Map(), 2, new Map(many.map((e) => [e.id, e])));
+    expect(out).toHaveLength(2);
+  });
+
+  it.each([
+    ["an input problem is passed to the model as is", new Error("Say what, where or which venue"), "Say what, where or which venue"],
+    ["a date problem too", new Error("Dates must look like 2026-11-14"), "Dates must look like 2026-11-14"],
+    ["anything else is 'unavailable', and logged", new Error("Ticketmaster: HTTP 500"), "Event search is unavailable right now."],
+  ])("%s", async (_l, err, msg) => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { model, prompts } = createScriptedModel([{ tool: "search_events", args: { keyword: "x" } }, present([{ experienceId: "hugh-spa", why: "y" }])]);
+    await runConcierge(input(), { model, searchEvents: async () => { throw err; } });
+    const toolMsg = (prompts[1] as { role: string; content: { result: { error: string } }[] }[]).at(-1)!;
+    expect(toolMsg.content[0].result.error).toBe(msg);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});

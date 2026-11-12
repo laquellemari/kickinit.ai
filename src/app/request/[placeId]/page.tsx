@@ -3,7 +3,9 @@ import { CheckoutPanel } from "@/components/CheckoutPanel";
 import { LiveMenu } from "@/components/LiveMenu";
 import { Nav } from "@/components/Nav";
 import { Recommendations } from "@/components/Recommendations";
+import { VenueEvents } from "@/components/VenueEvents";
 import { VenuePhoto } from "@/components/VenuePhoto";
+import { isEventVenue, searchEvents, type LiveEvent } from "@/lib/events/ticketmaster";
 import { getLivePlace, PlacesError } from "@/lib/places/client";
 import { similarTo } from "@/lib/places/similar";
 import type { LivePlace } from "@/lib/places/types";
@@ -25,6 +27,15 @@ export default async function RequestPage({ params, searchParams }: Props) {
   const party = Number(Array.isArray(raw) ? raw[0] : raw) || 2;
   const recs = await similarTo(place, Math.min(Math.max(Math.trunc(party), 1), 20));
   const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? "";
+  // A stage or arena: show what's on there (when event search is set up), not a booking form for the building.
+  const stage = isEventVenue(place.primaryType) && !!process.env.TICKETMASTER_API_KEY;
+  let events: LiveEvent[] | null = null;
+  if (stage) {
+    events = await searchEvents({ venue: place.name, city: place.city || undefined }).catch((err) => {
+      console.error("Venue events failed:", err);
+      return null;
+    });
+  }
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -49,7 +60,9 @@ export default async function RequestPage({ params, searchParams }: Props) {
               )}
             </section>
             <p className="pick-why">
-              {place.dining
+              {stage
+                ? "Here's what's coming up at this venue. Pick a show to get tickets on Ticketmaster."
+                : place.dining
                 ? "Restaurants and bars are free to book on kickinit. We ask the venue for your table and tell you when it's confirmed; you pay the bill at the end, as usual."
                 : "This venue isn't a kickinit partner, so we book it for you at the exact price it publishes. PayPal holds the total and only charges once we've confirmed with the venue; if they can't take you, the hold is released."}
             </p>
@@ -58,7 +71,9 @@ export default async function RequestPage({ params, searchParams }: Props) {
               {place.website && <a className="btn-line" href={place.website} target="_blank" rel="noopener noreferrer">Their website</a>}
             </div>
           </article>
-          {place.dining ? (
+          {stage ? (
+            <VenueEvents name={place.name} events={events} mapsUrl={place.mapsUrl} />
+          ) : place.dining ? (
             <CheckoutPanel
               item={{ kind: "live", itemId: place.id, name: place.name, unitPrice: "0.00", perGroup: false, partyMin: 1, partyMax: 20, free: true }}
               initialParty={party}

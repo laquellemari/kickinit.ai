@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { conciergeModel, paypalTools, liveSearch, DEFAULT_MODEL } from "@/lib/concierge/runtime";
+import { conciergeModel, paypalTools, liveSearch, eventSearch, DEFAULT_MODEL } from "@/lib/concierge/runtime";
 import { generateText } from "ai";
 import { searchLivePlaces } from "@/lib/places/client";
 import { createLimiter, clientKey } from "@/lib/concierge/rate-limit";
@@ -97,5 +97,20 @@ describe("liveSearch", () => {
   it("uses Google Places when the key is set", () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "g");
     expect(liveSearch()).toBe(searchLivePlaces);
+  });
+});
+
+describe("eventSearch", () => {
+  it("is off without a Ticketmaster key", () => {
+    vi.stubEnv("TICKETMASTER_API_KEY", "");
+    expect(eventSearch()).toBeUndefined();
+  });
+  it("searches Ticketmaster when the key is set", async () => {
+    vi.stubEnv("TICKETMASTER_API_KEY", "tm");
+    const f = vi.fn(async () => new Response(JSON.stringify({})));
+    vi.stubGlobal("fetch", f);
+    expect(await eventSearch()!({ keyword: "runtime-check" })).toEqual([]);
+    expect(String((f.mock.calls[0] as unknown as [URL])[0])).toContain("app.ticketmaster.com");
+    vi.unstubAllGlobals();
   });
 });

@@ -143,3 +143,15 @@ export const createNewContribution = (giftId: string, overrides: Partial<NewCont
   giftId, contributorId: "friend-1", name: "Ana", amountCents: 5000,
   paypalOrderId: `CORDER${++contribSeq}`, authorizationId: `CAUTH${contribSeq}`, ...overrides,
 });
+
+import type { LiveEvent } from "@/lib/events/ticketmaster";
+
+export const createLiveEvent = (overrides: Partial<LiveEvent> = {}): LiveEvent => {
+  const id = overrides.id ?? "tm:G5v1";
+  return {
+    id, name: "Adele", url: `https://www.ticketmaster.com/event/${id.slice(3)}`, localDate: "2026-11-14", localTime: "20:00:00",
+    venue: "The Colosseum at Caesars Palace", city: "Las Vegas", state: "NV", image: "https://s1.ticketm.net/a.jpg",
+    priceMin: 59.5, priceMax: 250, currency: "USD", genre: "Pop", ...overrides,
+  };
+};
+export const eventPick = (overrides: Partial<LiveEvent> = {}, why = "A big night."): PlanPick => ({ kind: "event", event: createLiveEvent(overrides), why });

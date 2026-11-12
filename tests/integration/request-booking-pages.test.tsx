@@ -11,8 +11,13 @@ vi.mock("@/lib/places/client", async (orig) => {
   const real = await orig<typeof import("@/lib/places/client")>();
   return { ...real, getLivePlace: vi.fn(), searchLivePlaces: vi.fn(async () => []) };
 });
+vi.mock("@/lib/events/ticketmaster", async (orig) => {
+  const real = await orig<typeof import("@/lib/events/ticketmaster")>();
+  return { ...real, searchEvents: vi.fn(async () => []) };
+});
+import { searchEvents } from "@/lib/events/ticketmaster";
 import { getLivePlace, searchLivePlaces, PlacesError } from "@/lib/places/client";
-import { createLivePlace } from "../helpers/factories";
+import { createLivePlace, createLiveEvent } from "../helpers/factories";
 
 const place = createLivePlace({ placeId: "ChIJ1", name: "Barbusa", address: "1917 India St, San Diego", lat: 32.72, lng: -117.17, mapsUrl: "https://maps.google.com/x", estimatePerPerson: "60.00", estimateBasis: "Google rates it $$$" });
 const requestPage = async (placeId: string, sp: Record<string, string | string[]> = {}) =>
@@ -42,6 +47,34 @@ describe("/request/[placeId]", () => {
     expect(fetch).toHaveBeenCalledWith("/api/places/ChIJ1/menu");
     expect(screen.getByText(/we book it for you at the exact price it publishes/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Their website" })).toHaveAttribute("href", "https://spauno.com");
+  });
+  it("a stage or arena: shows what's on there from Ticketmaster instead of a booking form", async () => {
+    vi.stubEnv("TICKETMASTER_API_KEY", "tm");
+    vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "The Colosseum", primaryType: "performing_arts_theater", dining: false, city: "Las Vegas" });
+    vi.mocked(searchEvents).mockResolvedValueOnce([createLiveEvent()]);
+    await requestPage("ChIJ1");
+    expect(searchEvents).toHaveBeenCalledWith({ venue: "The Colosseum", city: "Las Vegas" });
+    expect(screen.getByRole("complementary", { name: "Upcoming events" })).toHaveTextContent("Adele");
+    expect(screen.getByText(/Pick a show to get tickets on Ticketmaster/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Guests")).toBeNull();
+  });
+  it("a stage with no city, and a failed event lookup: logged, says try again", async () => {
+    vi.stubEnv("TICKETMASTER_API_KEY", "tm");
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "Sphere", primaryType: "arena", dining: false, city: "" });
+    vi.mocked(searchEvents).mockRejectedValueOnce(new Error("Ticketmaster: HTTP 500"));
+    await requestPage("ChIJ1");
+    expect(searchEvents).toHaveBeenCalledWith({ venue: "Sphere", city: undefined });
+    expect(screen.getByText(/couldn’t load this venue’s events/)).toBeInTheDocument();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+  it("a stage without event search set up falls back to the venue's price menu", async () => {
+    vi.stubEnv("TICKETMASTER_API_KEY", "");
+    vi.mocked(getLivePlace).mockResolvedValue({ ...place, name: "Sphere", primaryType: "arena", dining: false });
+    await requestPage("ChIJ1");
+    expect(screen.queryByRole("complementary", { name: "Upcoming events" })).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("published prices");
   });
   it("about: Google's description and rating, and no estimate anywhere", async () => {
     vi.mocked(getLivePlace).mockResolvedValue({ ...place, summary: "Lively Italian spot with handmade pasta.", rating: 4.6, ratingCount: 1234 });
