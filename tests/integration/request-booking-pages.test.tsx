@@ -38,7 +38,7 @@ describe("/request/[placeId]", () => {
     await requestPage("ChIJ1", { party: ["3"] });
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Barbusa");
     expect(screen.getByText("1917 India St, San Diego")).toBeInTheDocument();
-    expect(screen.getByText("Request a table · free")).toBeInTheDocument();
+    expect(screen.getByText("Book a table · free")).toBeInTheDocument();
     expect((screen.getByLabelText("Guests") as HTMLSelectElement).value).toBe("3");
     expect(screen.getByTestId("total")).toHaveTextContent("Free");
     expect(screen.getByText(/Restaurants and bars are free to book on kickinit/)).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("/request/[placeId]", () => {
     await requestPage("ChIJ1");
     expect(screen.getByText(/Reading Spa Uno’s published prices…/)).toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith("/api/places/ChIJ1/menu");
-    expect(screen.getByText(/we book it for you at the exact price it publishes/)).toBeInTheDocument();
+    expect(screen.getByText(/You pay the venue's exact price plus our concierge fee/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Their website" })).toHaveAttribute("href", "https://spauno.com");
   });
   it("a stage or arena: shows what's on there from Ticketmaster instead of a booking form", async () => {
@@ -134,7 +134,7 @@ describe("/request/[placeId]", () => {
     vi.stubEnv("NEXT_PUBLIC_PAYPAL_CLIENT_ID", "");
     vi.mocked(getLivePlace).mockResolvedValue(place);
     await requestPage("ChIJ1");
-    expect(screen.getByText("Request a table · free")).toBeInTheDocument();
+    expect(screen.getByText("Book a table · free")).toBeInTheDocument();
     expect(screen.queryByText("Payments aren’t set up yet.")).toBeNull();
   });
   it("no PayPal client id, no env var at all: the menu checkout still renders", async () => {

@@ -66,7 +66,7 @@ describe("POST /api/paypal/orders", () => {
       { status: 200, body: pp.token() },
       { status: 201, body: pp.order() },
     );
-    await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJ1", partySize: 3, serviceId: "massage-150" })), { status: 201, body: { quote: { total: "540.00", description: "Spa Uno: Massage · 3 guests (request)" } } });
+    await verifyResponse(await createOrder(post({ kind: "live", itemId: "gp:ChIJ1", partySize: 3, serviceId: "massage-150" })), { status: 201, body: { quote: { total: "540.00", description: "Spa Uno: Massage · 3 guests" } } });
     expect(JSON.parse((f.mock.calls[2] as unknown as [string, RequestInit])[1].body as string).purchase_units[0].amount.value).toBe("540.00");
   });
   it.each([

@@ -10,7 +10,7 @@ export type QuestTeaser = { id: string; emoji: string; title: string; descriptio
 /** What the concierge is doing, shown one after another while the answer comes in. */
 export const STEPS = [
   "Reading what you asked for",
-  "Searching kickinit partners",
+  "Searching kickinit experiences",
   "Checking real venues, menus and events nearby",
   "Picking the best fits for you",
 ] as const;

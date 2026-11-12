@@ -11,7 +11,7 @@ export default async function GiftRoute({ params }: { params: Promise<{ id: stri
   return (
     <div style={{ minHeight: "100vh" }}>
       <section className="hero">
-        <Nav active="gifts" />
+        <Nav active="explore" />
         <div className="wrap plan-hero">
           <div className="eyebrow">Group gift</div>
           <h1 className="display">Chip in.</h1>

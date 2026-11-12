@@ -65,7 +65,7 @@ export function PlanView({ q, mode, where, explore, teasers }: { q: string; mode
   return (
     <div style={{ minHeight: "100vh" }}>
       <section className="hero">
-        <Nav active={mode === "them" ? "gifts" : "explore"} region={where} />
+        <Nav active="explore" region={where} />
         <div className="wrap plan-hero">
           <div className="eyebrow">{mode === "them" ? "For them" : "For you"} · {where}</div>
           <h1 className="display">{mode === "them" ? "Gift ideas." : "Here's the plan."}</h1>
@@ -108,8 +108,8 @@ export function PlanView({ q, mode, where, explore, teasers }: { q: string; mode
         {status === "done" && result && result.options.length > 0 && (
           <section aria-label="Options">
             <div className="legend">
-              <span><strong>Instant book</strong>: kickinit partner, fixed price.</span>
-              <span><strong>Request</strong>: the venue&rsquo;s own exact price, charged only once the venue confirms. Restaurants and bars are free to book.</span>
+              <span><strong>Restaurants and bars</strong>: free to book, you pay the bill at the end.</span>
+              <span><strong>Everything else</strong>: the exact price plus our concierge fee, charged once your booking is confirmed.</span>
               <span><strong>Tickets</strong>: real shows and games, bought on Ticketmaster.</span>
             </div>
             <p className="pick-meta" style={{ margin: "8px 0 0" }}>

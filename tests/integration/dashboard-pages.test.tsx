@@ -13,7 +13,7 @@ describe("nav pages", () => {
   it.each([
     ["/passport", PassportPage, "Stamps collected.", "Passport"],
     ["/profile", ProfilePage, "Your dashboard.", "Explore"],
-    ["/gifts", GiftsPage, "Gifts.", "Gifts"],
+    ["/gifts", GiftsPage, "Gifts.", "Explore"],
   ] as const)("%s renders with the right heading and active nav", (_p, Page, heading, active) => {
     pending();
     render(<Page />);

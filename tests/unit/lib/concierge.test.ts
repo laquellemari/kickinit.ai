@@ -210,11 +210,12 @@ describe("live search (Google Places)", () => {
   });
 
   it("the prompt explains live booking only when live search is on", () => {
-    expect(systemPrompt(input(), { live: true })).toContain("request to book");
+    expect(systemPrompt(input(), { live: true })).toContain("search_live_places");
+    expect(systemPrompt(input(), { live: true })).toContain("Never call a place a partner or not a partner, and never describe bookings as instant or as requests.");
     const off = systemPrompt(input());
     expect(off).toContain("Los Angeles and its beach towns");
     expect(off).not.toContain("search_live_places");
-    expect(off).toContain("doesn't have partners there yet");
+    expect(off).toContain("doesn't have experiences there yet");
   });
 });
 

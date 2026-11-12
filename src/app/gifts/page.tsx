@@ -7,7 +7,7 @@ export default function Page() {
   return (
     <div style={{ minHeight: "100vh" }}>
       <section className="hero">
-        <Nav active="gifts" />
+        <Nav active="explore" />
         <div className="wrap plan-hero">
           <div className="eyebrow">For them</div>
           <h1 className="display">Gifts.</h1>

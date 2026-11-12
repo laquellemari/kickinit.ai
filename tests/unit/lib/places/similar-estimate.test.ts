@@ -63,8 +63,8 @@ describe("similarTo", () => {
     expect(search).toHaveBeenCalledWith("Italian restaurant near 1 Spring St, Los Angeles");
     const partners = searchExperiences({ category: "culinary", partySize: 2, near: { lat: 34.05, lng: -118.25, radiusKm: NEARBY_KM }, limit: 6 });
     expect(r.slice(0, partners.length).map((x) => x.key)).toEqual(partners.map((p) => p.id));
-    expect(r[0]).toMatchObject({ kind: "partner", href: `/experience/${partners[0].id}?party=2`, meta: `${partners[0].neighborhood} · Instant book` });
-    expect(r.at(-1)).toEqual({ key: "gp:ChIJx", kind: "live", href: "/request/ChIJx?party=2", name: "Bestia", meta: "Italian restaurant · Request", price: "Free to book", placeId: "ChIJx", bg: "#E6EDF3" });
+    expect(r[0]).toMatchObject({ kind: "partner", href: `/experience/${partners[0].id}?party=2`, meta: `${partners[0].neighborhood}, ${partners[0].city}`, stamp: "DINE" });
+    expect(r.at(-1)).toEqual({ key: "gp:ChIJx", kind: "live", href: "/request/ChIJx?party=2", name: "Bestia", meta: "Italian restaurant", price: "Free to book", placeId: "ChIJx", bg: "#E6EDF3", stamp: "DINE" });
   });
   it("prices: restaurants are free to book; a spa shows its partner price, and a live spa says to see prices", async () => {
     const spa = createLivePlace({ placeId: "ChIJspa", typeLabel: "Spa", address: "1 Spring St, Los Angeles", lat: 34.05, lng: -118.25, category: "wellness", dining: false });

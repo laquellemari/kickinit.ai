@@ -17,7 +17,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("BookingStatus", () => {
   it.each([
     ["confirmed", "You're booked.", "CONFIRMED", "$180 charged to PayPal", "Paid"],
-    ["held", "Request sent.", "ON HOLD", "PayPal is holding $180", "Amount"],
+    ["held", "Confirming with the venue.", "ON HOLD", "PayPal is holding $180", "Amount"],
     ["declined", "Not available.", "RELEASED", "You weren't charged", "Amount"],
     ["failed", "Something went wrong.", "FAILED", "didn't go through", "Amount"],
   ])("%s", async (status, title, stamp, body, amountLabel) => {
@@ -61,7 +61,7 @@ describe("BookingStatus", () => {
     it("held bookings can't be checked in", async () => {
       seq({ status: 200, body: booking({ status: "held" }) });
       render(<BookingStatus id="b1" />);
-      await screen.findByRole("heading", { name: "Request sent." });
+      await screen.findByRole("heading", { name: "Confirming with the venue." });
       expect(screen.queryByRole("button", { name: "I’m here: check in" })).toBeNull();
     });
   });
@@ -95,7 +95,7 @@ describe("BookingStatus", () => {
   });
   it.each([
     ["confirmed", "You're booked.", "CONFIRMED", "There's nothing to pay kickinit"],
-    ["held", "Request sent.", "REQUESTED", "We're asking Barbusa for your table"],
+    ["held", "Confirming with the venue.", "PENDING", "We're confirming your table with Barbusa"],
     ["declined", "Not available.", "DECLINED", "The venue couldn't take this booking. Nothing was charged."],
     ["failed", "Something went wrong.", "FAILED", "This booking didn't go through. Nothing was charged."],
   ])("free restaurant booking, %s: no PayPal order, cost to book is free", async (status, title, stamp, body) => {

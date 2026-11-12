@@ -2,6 +2,7 @@ import { ALL_EXPERIENCES } from "@/lib/catalog/catalog";
 import { ALL_QUESTS } from "@/lib/quests/engine";
 import type { ExploreItem, QuestTeaser } from "@/components/PlanLoading";
 import { isDiningExperience } from "@/lib/pricing/fees";
+import { STAMP } from "@/lib/catalog/labels";
 
 /** A shuffled copy (Fisher–Yates), so each search shows a different mix. `rand` is injectable for tests. */
 export function shuffled<T>(list: readonly T[], rand: () => number = Math.random): T[] {
@@ -13,14 +14,11 @@ export function shuffled<T>(list: readonly T[], rand: () => number = Math.random
   return out;
 }
 
-const CATEGORY_LABEL: Record<string, string> = {
-  culinary: "DINE", wellness: "SPA", movement: "MOVE", culture: "ARTS", nightlife: "NIGHT", outdoors: "OUTSIDE", create: "MAKE", getaways: "AWAY",
-};
 
-/** Partner experiences for the "More to explore!" row while a search runs. */
+/** Experiences for the "More to explore!" row while a search runs. */
 export function exploreItems(count = 12, rand?: () => number): ExploreItem[] {
   return shuffled(ALL_EXPERIENCES, rand).slice(0, count).map((e) => ({
-    id: e.id, name: e.name, placeId: e.placeId, bg: e.bg, label: CATEGORY_LABEL[e.category],
+    id: e.id, name: e.name, placeId: e.placeId, bg: e.bg, label: STAMP[e.category],
     meta: `${e.neighborhood} · ${isDiningExperience(e) ? "Free to book" : `from $${Math.round(Number(e.price))}`}`,
   }));
 }

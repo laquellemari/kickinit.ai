@@ -23,7 +23,7 @@ export function Recommendations({ items, title = "You might also like" }: { item
         {items.map((r) => (
           <Link key={r.key} href={r.href} className="pick recs-card" aria-label={`${r.name}, ${r.meta}, ${r.price}`}>
             <VenuePhoto placeId={r.placeId} alt={r.name} height={150} bg={r.bg}>
-              <span className={`stamp${r.kind === "live" ? " stamp-live" : ""}`} style={{ width: 54, height: 60, fontSize: 9 }}>{r.kind === "live" ? "REQUEST" : "INSTANT BOOK"}</span>
+              <span className="stamp" style={{ width: 54, height: 60, fontSize: 9 }}>{r.stamp}</span>
             </VenuePhoto>
             <span className="pick-name" style={{ fontSize: 20 }}>{r.name}</span>
             <span className="pick-meta">{r.meta}</span>

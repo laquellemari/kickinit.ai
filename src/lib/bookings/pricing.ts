@@ -23,7 +23,7 @@ export class PriceError extends Error {
 
 const cents = (v: string) => Math.round(Number(v) * 100);
 const FREE = { venueTotal: "0.00", fee: "0.00", total: "0.00" };
-const suffixFor = (n: number) => ` · ${n} ${n === 1 ? "guest" : "guests"} (request)`;
+const suffixFor = (n: number) => ` · ${n} ${n === 1 ? "guest" : "guests"}`;
 
 export async function priceFor(kind: unknown, itemId: unknown, partySize: number, opts: { serviceId?: unknown; member?: boolean } = {}): Promise<Priced> {
   if (kind !== "partner" && kind !== "live") throw new PriceError(400, "Kind must be partner or live");

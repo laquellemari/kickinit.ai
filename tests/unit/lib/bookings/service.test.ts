@@ -121,7 +121,7 @@ describe("placeBooking (paid)", () => {
       expect(LIVE_MAX_DAYS).toBe(28);
       const f = mockPayPal({ status: 200, body: gSpa });
       await expect(placeBooking(liveInput({ startsAt: new Date(NOW.getTime() + 28 * DAY + 1).toISOString() })))
-        .rejects.toMatchObject({ status: 400, message: "Request-to-book dates open up to 28 days ahead" });
+        .rejects.toMatchObject({ status: 400, message: "Bookings at this venue open up to 28 days ahead" });
       expect(urls(f).some((u) => u.includes("/authorize"))).toBe(false);
     });
     it("boundary: exactly 28 days ahead is fine; partners can still book 89 days out", async () => {

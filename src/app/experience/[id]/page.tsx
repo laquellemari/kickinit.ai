@@ -41,7 +41,7 @@ export default async function ExperiencePage({ params, searchParams }: Props) {
             </VenuePhoto>
             <p className="concierge-reply">{e.description}</p>
             {score && <p className="google-meta">★ {score.average.toFixed(1)} from {score.count} kickinit {score.count === 1 ? "guest" : "guests"}</p>}
-            <p className="pick-meta" style={{ margin: 0 }}>Demo partner: a real venue, shown with its Google photo. kickinit has no partnership with it; prices are illustrative and bookings run in the PayPal sandbox.</p>
+            <p className="pick-meta" style={{ margin: 0 }}>Demo: prices are illustrative and bookings run in the PayPal sandbox, so no real money moves.</p>
             <dl className="fact-list">
               <div><dt>Price</dt><dd>{free ? "Free to book · pay the bill at the end" : `${money(e.price)} ${e.pricing === "per_group" ? "per group" : "per person"}`}</dd></div>
               <div><dt>Length</dt><dd>{duration(e.durationMinutes)}</dd></div>

@@ -8,7 +8,7 @@ export default async function RedeemRoute({ params }: { params: Promise<{ code: 
   return (
     <div style={{ minHeight: "100vh" }}>
       <section className="hero">
-        <Nav active="gifts" />
+        <Nav active="explore" />
         <div className="wrap plan-hero">
           <div className="eyebrow">You&rsquo;ve got a postcard</div>
           <h1 className="display">For you.</h1>

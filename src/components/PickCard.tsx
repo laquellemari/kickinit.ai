@@ -4,6 +4,7 @@ import { guests, money } from "@/lib/format";
 import { eventPrice, eventWhen, isEventVenue } from "@/lib/events/ticketmaster";
 import { isDiningExperience } from "@/lib/pricing/fees";
 import { VenuePhoto } from "@/components/VenuePhoto";
+import { STAMP } from "@/lib/catalog/labels";
 
 const CATEGORY: Record<string, string> = {
   culinary: "Food & drink", wellness: "Wellness & spa", movement: "Movement", culture: "Arts & culture",
@@ -17,7 +18,7 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
     return (
       <article className="pick" aria-label={e.name}>
         <VenuePhoto placeId={e.placeId} alt={e.name} height={170} bg={e.bg}>
-          <span className="stamp" style={{ width: 54, height: 60, fontSize: 9 }}>INSTANT BOOK</span>
+          <span className="stamp" style={{ width: 54, height: 60, fontSize: 9 }}>{STAMP[e.category]}</span>
         </VenuePhoto>
         <span className="pick-kicker">{CATEGORY[e.category]}</span>
         <h3 className="pick-name">{e.name}</h3>
@@ -63,7 +64,7 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
   return (
     <article className="pick" aria-label={p.name}>
       <VenuePhoto placeId={p.placeId} alt={p.name} height={170}>
-        <span className="stamp stamp-live" style={{ width: 54, height: 60, fontSize: 9 }}>REQUEST</span>
+        <span className="stamp" style={{ width: 54, height: 60, fontSize: 9 }}>{STAMP[p.category]}</span>
       </VenuePhoto>
       <span className="pick-kicker">{p.typeLabel}</span>
       <h3 className="pick-name">{p.name}</h3>
@@ -74,7 +75,7 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
         <strong>{stage ? "See what's on" : p.dining ? "Free to book" : "See prices"}</strong>
       </div>
       <div className="pick-actions">
-        <Link className="btn-navy" href={`/request/${p.placeId}?party=${partySize}`}>{stage ? "See events" : "Request to book"}</Link>
+        <Link className="btn-navy" href={`/request/${p.placeId}?party=${partySize}`}>{stage ? "See events" : "See details"}</Link>
         <a className="btn-line" href={p.mapsUrl} target="_blank" rel="noopener noreferrer">Map</a>
       </div>
     </article>
