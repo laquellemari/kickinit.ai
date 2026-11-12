@@ -105,15 +105,38 @@ export type EventQuery = {
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const clean = (s: string | undefined, max: number) => (s ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
 
+const GENERIC = /\b(theater|theatre|arena|amphitheatre|amphitheater|stadium|hall|center|centre|venue|auditorium|live)\b/gi;
+
+/**
+ * Ways to write a venue's name, most specific first. Google and Ticketmaster often differ:
+ * "The Colosseum Theater at Caesars Palace" on Google is "The Colosseum at Caesars Palace" on Ticketmaster.
+ * The last one ("Colosseum", the part before " at ") is only trusted inside the same city.
+ */
+export function venueNames(name: string): { name: string; cityOnly: boolean }[] {
+  const full = clean(name, 100);
+  const plain = full.replace(/^the\s+/i, "").replace(GENERIC, " ").replace(/\s+/g, " ").trim();
+  const head = plain.split(/\s+at\s+/i)[0].trim();
+  const out: { name: string; cityOnly: boolean }[] = [];
+  for (const [n, cityOnly] of [[full, false], [plain, false], [head, true]] as const) {
+    if (n.length >= 3 && !out.some((o) => o.name.toLowerCase() === n.toLowerCase())) out.push({ name: n, cityOnly });
+  }
+  return out;
+}
+
 /** Ticketmaster venue ids matching a name (best matches first), in the given city or state if known. */
 export async function findVenueIds(name: string, where: Pick<EventQuery, "city" | "stateCode"> = {}): Promise<string[]> {
-  const params: Record<string, string> = { keyword: clean(name, 100), size: "5", countryCode: "US" };
-  if (where.stateCode) params.stateCode = where.stateCode;
-  const r = await get<{ _embedded?: { venues?: { id: string; city?: { name?: string } }[] } }>("/venues.json", params);
-  const venues = r._embedded?.venues ?? [];
   const city = where.city?.toLowerCase();
-  const inCity = city ? venues.filter((v) => v.city?.name?.toLowerCase() === city) : [];
-  return (inCity.length ? inCity : venues).map((v) => v.id).slice(0, 3);
+  for (const v of venueNames(name)) {
+    if (v.cityOnly && !city) continue;
+    const params: Record<string, string> = { keyword: v.name, size: "5", countryCode: "US" };
+    if (where.stateCode) params.stateCode = where.stateCode;
+    const r = await get<{ _embedded?: { venues?: { id: string; city?: { name?: string } }[] } }>("/venues.json", params);
+    const venues = r._embedded?.venues ?? [];
+    const inCity = city ? venues.filter((x) => x.city?.name?.toLowerCase() === city) : [];
+    const ids = (inCity.length || v.cityOnly ? inCity : venues).map((x) => x.id).slice(0, 3);
+    if (ids.length) return ids;
+  }
+  return [];
 }
 
 const cache = new Map<string, { at: number; events: LiveEvent[] }>();
