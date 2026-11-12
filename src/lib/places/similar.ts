@@ -1,3 +1,4 @@
+import { isEventVenue } from "@/lib/events/ticketmaster";
 import { isDiningExperience } from "@/lib/pricing/fees";
 import { getExperienceByPlaceId, searchExperiences } from "@/lib/catalog/catalog";
 import { searchLivePlaces } from "./client";
@@ -22,6 +23,6 @@ export async function similarTo(place: LivePlace, partySize: number, search: (q:
   }
   const live: Recommendation[] = found
     .filter((l) => l.placeId !== place.placeId && !getExperienceByPlaceId(l.placeId))
-    .map((l) => ({ key: l.id, kind: "live", href: `/request/${l.placeId}?party=${partySize}`, name: l.name, meta: `${l.typeLabel} · Request`, price: l.dining ? "Free to book" : "See prices", placeId: l.placeId, bg: "#E6EDF3" }));
+    .map((l) => ({ key: l.id, kind: "live", href: `/request/${l.placeId}?party=${partySize}`, name: l.name, meta: `${l.typeLabel} · Request`, price: isEventVenue(l.primaryType) ? "See what's on" : l.dining ? "Free to book" : "See prices", placeId: l.placeId, bg: "#E6EDF3" }));
   return [...partners, ...live].slice(0, MAX_RECOMMENDATIONS);
 }

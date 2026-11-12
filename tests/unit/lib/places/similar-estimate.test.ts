@@ -71,6 +71,8 @@ describe("similarTo", () => {
     const r = await similarTo(spa, 2, async () => [createLivePlace({ placeId: "ChIJs2", name: "Spa Dos", dining: false })]);
     expect(r.find((x) => x.kind === "partner")!.price).toMatch(/^\$\d/);
     expect(r.at(-1)!.price).toBe("See prices");
+    const stage = await similarTo(spa, 2, async () => [createLivePlace({ placeId: "ChIJst", name: "Sphere", primaryType: "arena", dining: false })]);
+    expect(stage.at(-1)!.price).toBe("See what's on");
     const food = await similarTo(la, 2, async () => []);
     expect(food.every((x) => x.price === "Free to book")).toBe(true);
   });
