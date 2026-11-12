@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConciergeResult, HistoryItem, Mode } from "@/lib/concierge/agent";
 import { Nav } from "./Nav";
 import { PickCard } from "./PickCard";
+import { PlanLoading, type ExploreItem, type QuestTeaser } from "./PlanLoading";
 
 type Status = "idle" | "loading" | "done" | "error";
 
@@ -16,7 +17,7 @@ const ERRORS: Record<number, string> = {
   503: "The concierge is offline right now. Please try again shortly.",
 };
 
-export function PlanView({ q, mode, where }: { q: string; mode: Mode; where: string }) {
+export function PlanView({ q, mode, where, explore, teasers }: { q: string; mode: Mode; where: string; explore?: ExploreItem[]; teasers?: QuestTeaser[] }) {
   const [status, setStatus] = useState<Status>(q ? "loading" : "idle");
   const [result, setResult] = useState<ConciergeResult | null>(null);
   const [error, setError] = useState("");
@@ -73,16 +74,12 @@ export function PlanView({ q, mode, where }: { q: string; mode: Mode; where: str
       </section>
 
       <main className="plan-main">
+        {status !== "loading" && (
         <section className="concierge-card" aria-label="Concierge">
           {status === "idle" && (
             <p className="concierge-reply">
               Tell us what you&rsquo;re in the mood for on the <Link href="/">home page</Link> and we&rsquo;ll plan it.
             </p>
-          )}
-          {status === "loading" && (
-            <div className="concierge-status" role="status">
-              <span className="dot-pulse" aria-hidden="true" /> Finding the table, the treatment or the trip…
-            </div>
           )}
           {status === "error" && <p className="error-note" role="alert">{error}</p>}
           {status === "done" && result && <p className="concierge-reply">{result.reply}</p>}
@@ -104,6 +101,9 @@ export function PlanView({ q, mode, where }: { q: string; mode: Mode; where: str
             </form>
           )}
         </section>
+        )}
+
+        {status === "loading" && <PlanLoading explore={explore} teasers={teasers} />}
 
         {status === "done" && result && result.options.length > 0 && (
           <section aria-label="Options">

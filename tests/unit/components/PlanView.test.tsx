@@ -29,7 +29,7 @@ describe("PlanView", () => {
     it("asks the concierge once, shows a loading state, then the reply and both kinds of card", async () => {
       const f = mockConcierge({ status: 200, body: createConciergeResult() });
       render(<PlanView q="dinner for 2" mode="you" where="Miami" />);
-      expect(screen.getByRole("status")).toHaveTextContent("Finding the table");
+      expect(screen.getByRole("status")).toHaveTextContent("Reading what you asked for");
       expect(screen.getByText("“dinner for 2”")).toBeInTheDocument();
       await verifyPlan({ reply: "Here are two good ones.", cards: ["Carasau Pasta Bar", "Cucina Sorella"] });
       expect(f).toHaveBeenCalledTimes(1);

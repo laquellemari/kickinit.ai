@@ -5,6 +5,11 @@ import { eventPrice, eventWhen, isEventVenue } from "@/lib/events/ticketmaster";
 import { isDiningExperience } from "@/lib/pricing/fees";
 import { VenuePhoto } from "@/components/VenuePhoto";
 
+const CATEGORY: Record<string, string> = {
+  culinary: "Food & drink", wellness: "Wellness & spa", movement: "Movement", culture: "Arts & culture",
+  nightlife: "Nightlife", outdoors: "Outdoors", create: "Learn & create", getaways: "Getaway",
+};
+
 export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; partySize: number; gift?: boolean }) {
   if (pick.kind === "partner") {
     const e = pick.experience;
@@ -14,8 +19,9 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
         <VenuePhoto placeId={e.placeId} alt={e.name} height={170} bg={e.bg}>
           <span className="stamp" style={{ width: 54, height: 60, fontSize: 9 }}>INSTANT BOOK</span>
         </VenuePhoto>
+        <span className="pick-kicker">{CATEGORY[e.category]}</span>
         <h3 className="pick-name">{e.name}</h3>
-        <span className="pick-meta">{e.neighborhood}, {e.city}</span>
+        <span className="pick-meta pick-line">{e.neighborhood}, {e.city}</span>
         <p className="pick-why">{pick.why}</p>
         <div className="pick-price">
           <span className="pick-meta">{free ? "Pay the bill at the end" : `${guests(partySize)} · + concierge fee`}</span>
@@ -38,9 +44,9 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
         <div className="event-photo" style={{ height: 170, backgroundImage: e.image ? `url(${e.image})` : undefined }} role={e.image ? "img" : undefined} aria-label={e.image ? e.name : undefined}>
           <span className="stamp stamp-live" style={{ width: 54, height: 60, fontSize: 9 }}>TICKETS</span>
         </div>
-        <span className="pick-meta">{eventWhen(e)}{e.genre ? ` · ${e.genre}` : ""}</span>
+        <span className="pick-kicker">{eventWhen(e)}{e.genre ? ` · ${e.genre}` : ""}</span>
         <h3 className="pick-name">{e.name}</h3>
-        <span className="pick-meta">{e.venue}{e.city ? `, ${e.city}` : ""}</span>
+        <span className="pick-meta pick-line">{e.venue}{e.city ? `, ${e.city}` : ""}</span>
         <p className="pick-why">{pick.why}</p>
         <div className="pick-price">
           <span className="pick-meta">Tickets on Ticketmaster</span>
@@ -59,9 +65,9 @@ export function PickCard({ pick, partySize, gift = false }: { pick: PlanPick; pa
       <VenuePhoto placeId={p.placeId} alt={p.name} height={170}>
         <span className="stamp stamp-live" style={{ width: 54, height: 60, fontSize: 9 }}>REQUEST</span>
       </VenuePhoto>
-      <span className="pick-meta">{p.typeLabel}</span>
+      <span className="pick-kicker">{p.typeLabel}</span>
       <h3 className="pick-name">{p.name}</h3>
-      <span className="pick-meta">{p.address}</span>
+      <span className="pick-meta pick-line">{p.address}</span>
       <p className="pick-why">{pick.why}</p>
       <div className="pick-price">
         <span className="pick-meta">{stage ? "Upcoming shows here" : p.dining ? "Pay the bill at the end" : "Exact price from the venue"}</span>
