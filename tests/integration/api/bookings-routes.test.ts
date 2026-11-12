@@ -5,6 +5,8 @@ import { GET as one } from "@/app/api/bookings/[id]/route";
 import { POST as confirm } from "@/app/api/bookings/[id]/confirm/route";
 import { POST as decline } from "@/app/api/bookings/[id]/decline/route";
 import { POST as rateRoute } from "@/app/api/bookings/[id]/rating/route";
+import { POST as proposeRoute } from "@/app/api/bookings/[id]/propose/route";
+import { POST as proposalRoute } from "@/app/api/bookings/[id]/proposal/route";
 import { markCheckedIn } from "@/lib/bookings/repo";
 import { GET as adminList } from "@/app/api/admin/bookings/route";
 import { insertBooking, transition } from "@/lib/bookings/repo";
@@ -194,5 +196,38 @@ describe("POST /api/bookings/:id/rating", () => {
     await verifyRes(await rateRoute(req({ method: "POST", visitor: null, body: { stars: 5 } }), p(b.id)), { status: 401 });
     await verifyRes(await rateRoute(req({ method: "POST", body: { stars: 5 } }), p("x")), { status: 404 });
     await verifyRes(await rateRoute(req({ method: "POST", body: { stars: 9 } }), p(b.id)), { status: 400, body: { error: "Pick 1 to 5 stars" } });
+  });
+});
+
+describe("offering another time", () => {
+  const NEW = new Date(Date.now() + 4 * 86_400_000).toISOString();
+  const held = () => insertBooking(createNewBooking({ userId: ME, kind: "live", paypalOrderId: `free:${Math.random()}`, authorizationId: "", amount: "0.00" }));
+  it("the desk offers a time; the guest sees it and takes it", async () => {
+    const b = await held();
+    await verifyRes(await proposeRoute(req({ method: "POST", admin: ADMIN, body: { startsAt: NEW } }), p(b.id)), { status: 200, body: { proposedStartsAt: NEW, status: "held" } });
+    await verifyRes(await one(req(), p(b.id)), { status: 200, body: { proposedStartsAt: NEW } });
+    await verifyRes(await proposalRoute(req({ method: "POST", body: { accept: true } }), p(b.id)), { status: 200, body: { status: "confirmed", startsAt: NEW, proposedStartsAt: null } });
+  });
+  it("the guest can say no", async () => {
+    const b = await held();
+    await proposeRoute(req({ method: "POST", admin: ADMIN, body: { startsAt: NEW } }), p(b.id));
+    await verifyRes(await proposalRoute(req({ method: "POST", body: { accept: false } }), p(b.id)), { status: 200, body: { status: "declined" } });
+  });
+  it("offering needs the admin key (the guest can't move their own booking)", async () => {
+    const b = await held();
+    await verifyRes(await proposeRoute(req({ method: "POST", body: { startsAt: NEW } }), p(b.id)), { status: 401 });
+  });
+  it("only the guest can answer; others get 404, no cookie 401", async () => {
+    const b = await held();
+    await proposeRoute(req({ method: "POST", admin: ADMIN, body: { startsAt: NEW } }), p(b.id));
+    await verifyRes(await proposalRoute(req({ method: "POST", visitor: THEM, body: { accept: true } }), p(b.id)), { status: 404 });
+    await verifyRes(await proposalRoute(req({ method: "POST", visitor: null, body: { accept: true } }), p(b.id)), { status: 401 });
+  });
+  it("bad ids are 404 on both; bad input is 400", async () => {
+    await verifyRes(await proposeRoute(req({ method: "POST", admin: ADMIN, body: { startsAt: NEW } }), p("x")), { status: 404 });
+    await verifyRes(await proposalRoute(req({ method: "POST", body: { accept: true } }), p("x")), { status: 404 });
+    const b = await held();
+    await verifyRes(await proposeRoute(req({ method: "POST", admin: ADMIN, body: { startsAt: "soon" } }), p(b.id)), { status: 400, body: { error: "Pick a date and time" } });
+    await verifyRes(await proposalRoute(req({ method: "POST", body: { accept: "yes" } }), p(b.id)), { status: 400, body: { error: "Say yes or no to the new time" } });
   });
 });

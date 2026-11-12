@@ -76,6 +76,14 @@ export function BookingStatus({ id }: { id: string }) {
   if (error) return <p className="error-note" role="alert">{error}</p>;
   if (!b) return <div className="concierge-status" role="status"><span className="dot-pulse" aria-hidden="true" /> Loading your booking…</div>;
 
+  async function answer(accept: boolean) {
+    setCheckInError("");
+    const res = await fetch(`/api/bookings/${id}/proposal`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accept }) });
+    const body = await res.json();
+    if (!res.ok) return setCheckInError(body.error ?? "Couldn't save your answer.");
+    setB(body);
+  }
+
   async function checkIn() {
     setCheckInError("");
     const res = await fetch(`/api/bookings/${id}/check-in`, { method: "POST" });
@@ -85,8 +93,12 @@ export function BookingStatus({ id }: { id: string }) {
   }
 
   const base = (b.free ? FREE : PAID)[b.status];
-  const c = { ...base, body: base.body(b) };
-  const when = new Date(b.startsAt).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const offered = b.status === "held" && !!b.proposedStartsAt;
+  const c = offered
+    ? { title: "A new time is offered.", stamp: "NEW TIME", body: "The venue answered your request with a different time. Nothing has been charged yet." }
+    : { ...base, body: base.body(b) };
+  const fmt = (iso: string) => new Date(iso).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const when = fmt(b.startsAt);
   return (
     <article className="concierge-card" aria-label="Booking" style={{ gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
@@ -96,6 +108,19 @@ export function BookingStatus({ id }: { id: string }) {
         </div>
         <span className={`stamp stamp-wide ${b.status === "confirmed" ? "" : "stamp-live"}`} style={{ position: "static", height: 64 }}>{c.stamp}</span>
       </div>
+      {b.status === "held" && b.proposedStartsAt && (
+        <section className="offer" aria-label="A new time from the venue" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <p className="concierge-reply" style={{ margin: 0 }}>
+            {b.name} can&rsquo;t do {when}, but they can do <strong>{fmt(b.proposedStartsAt)}</strong>.
+            {b.free ? "" : ` Take it and your ${money(b.amount)} is charged now; say no and the hold is released.`}
+          </p>
+          <div className="pick-actions">
+            <button type="button" className="btn-navy" onClick={() => answer(true)}>Take the new time</button>
+            <button type="button" className="btn-line" onClick={() => answer(false)}>{b.free ? "No thanks, cancel" : "No thanks, release my hold"}</button>
+          </div>
+          {checkInError && <p className="error-note" role="alert">{checkInError}</p>}
+        </section>
+      )}
       <dl className="fact-list">
         <div><dt>Where</dt><dd>{b.name}</dd></div>
         <div><dt>When</dt><dd>{when}</dd></div>

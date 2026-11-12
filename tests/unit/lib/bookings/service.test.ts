@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { placeBooking, requestFreeBooking, confirmBooking, declineBooking, parseStartsAt, BookingError, LIVE_MAX_DAYS, MAX_UPCOMING_FREE, type PlaceBookingInput } from "@/lib/bookings/service";
+import { placeBooking, requestFreeBooking, confirmBooking, declineBooking, proposeTime, answerProposal, parseStartsAt, BookingError, LIVE_MAX_DAYS, MAX_UPCOMING_FREE, type PlaceBookingInput } from "@/lib/bookings/service";
 import { getBooking, getBookingByOrder, insertBooking, markCheckedIn, transition } from "@/lib/bookings/repo";
 import { resetTokenCache } from "@/lib/paypal/client";
 import { saveMenu } from "@/lib/pricing/menu-store";
@@ -267,3 +267,127 @@ describe("confirmBooking / declineBooking (venue's answer)", () => {
   });
 });
 
+
+describe("offering another time (the venue can't do the requested one)", () => {
+  const REQ = new Date("2026-11-14T19:30:00Z");
+  const NEW = "2026-11-14T21:00:00.000Z";
+  const heldLive = (o: Parameters<typeof createNewBooking>[0] = {}) =>
+    insertBooking(createNewBooking({ userId: "u1", kind: "live", itemId: "gp:ChIJ1", authorizationId: "AUTHL", amount: "360.00", startsAt: REQ, ...o }));
+
+  it("the desk offers a time: saved on the booking, nothing charged", async () => {
+    const b = await heldLive();
+    const f = mockPayPal();
+    const offered = await proposeTime({ id: b.id, startsAt: NEW, now: NOW });
+    expect(offered).toMatchObject({ status: "held", proposedStartsAt: new Date(NEW), startsAt: REQ });
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("the guest takes it: the time moves (local hour too), and the exact price is charged now", async () => {
+    const b = await heldLive();
+    await proposeTime({ id: b.id, startsAt: NEW, now: NOW });
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture({ id: "CAPN" }) });
+    const done = await answerProposal({ id: b.id, userId: "u1", accept: true });
+    verifyBooking(done, { status: "confirmed", captureId: "CAPN" });
+    expect(done.startsAt.toISOString()).toBe(NEW);
+    expect(done.proposedStartsAt).toBeNull();
+    expect(done.facts.localHour).toBe(21);
+    expect(urls(f)[1]).toBe("/v2/payments/authorizations/AUTHL/capture");
+  });
+  it("the local hour wraps past midnight, and earlier times move it back", async () => {
+    const late = await heldLive({ facts: { tags: [], city: "", country: "US", neighborhood: null, cuisine: null, localHour: 23 } });
+    await proposeTime({ id: late.id, startsAt: "2026-11-14T21:30:00Z", now: NOW });
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
+    expect((await answerProposal({ id: late.id, userId: "u1", accept: true })).facts.localHour).toBe(1);
+    resetTokenCache();
+    const early = await heldLive({ facts: { tags: [], city: "", country: "US", neighborhood: null, cuisine: null, localHour: 1 } });
+    await proposeTime({ id: early.id, startsAt: "2026-11-14T17:30:00Z", now: NOW });
+    mockPayPal({ status: 200, body: pp.token() }, { status: 201, body: pp.capture() });
+    expect((await answerProposal({ id: early.id, userId: "u1", accept: true })).facts.localHour).toBe(23);
+  });
+  it("the guest says no: the hold is released, nothing charged", async () => {
+    const b = await heldLive();
+    await proposeTime({ id: b.id, startsAt: NEW, now: NOW });
+    const f = mockPayPal({ status: 200, body: pp.token() }, { status: 204 });
+    verifyBooking(await answerProposal({ id: b.id, userId: "u1", accept: false }), { status: "declined" });
+    expect(urls(f)[1]).toBe("/v2/payments/authorizations/AUTHL/void");
+  });
+  it("free restaurant requests work the same, with no PayPal", async () => {
+    const b = await heldLive({ paypalOrderId: "free:x", authorizationId: "", amount: "0.00" });
+    await proposeTime({ id: b.id, startsAt: NEW, now: NOW });
+    const f = mockPayPal();
+    verifyBooking(await answerProposal({ id: b.id, userId: "u1", accept: true }), { status: "confirmed", captureId: null });
+    expect(f).not.toHaveBeenCalled();
+  });
+  describe("offer validation", () => {
+    it.each([
+      ["no time", undefined, 400, "Pick a date and time"],
+      ["in the past", "2026-11-10T19:00:00Z", 400, "Pick a time at least an hour from now"],
+      ["the same time", REQ.toISOString(), 400, "Offer a different time from the one requested"],
+    ])("%s", async (_l, at, status, msg) => {
+      const b = await heldLive();
+      await expect(proposeTime({ id: b.id, startsAt: at, now: NOW })).rejects.toMatchObject({ status, message: msg });
+    });
+    it("unknown booking → 404; already answered → 409", async () => {
+      await expect(proposeTime({ id: "00000000-0000-0000-0000-000000000000", startsAt: NEW, now: NOW })).rejects.toMatchObject({ status: 404 });
+      const b = await heldLive();
+      await transition(b.id, ["held"], "confirmed");
+      await expect(proposeTime({ id: b.id, startsAt: NEW, now: NOW })).rejects.toMatchObject({ status: 409, message: "Booking is already confirmed" });
+    });
+    it(`boundary: a paid request can be moved up to ${LIVE_MAX_DAYS} days after it was made, not past it (PayPal's hold window)`, async () => {
+      const b = await heldLive();
+      const edge = new Date(b.createdAt.getTime() + LIVE_MAX_DAYS * DAY);
+      await expect(proposeTime({ id: b.id, startsAt: new Date(edge.getTime() + 60_000).toISOString(), now: new Date(b.createdAt) })).rejects.toMatchObject({ status: 400, message: `Offer a time within ${LIVE_MAX_DAYS} days of the request` });
+      await expect(proposeTime({ id: b.id, startsAt: edge.toISOString(), now: new Date(b.createdAt) })).resolves.toMatchObject({ proposedStartsAt: edge });
+    });
+    it("partners and free bookings aren't limited to the hold window", async () => {
+      const p = await insertBooking(createNewBooking({ userId: "u1", kind: "partner", startsAt: REQ }));
+      const far = new Date(p.createdAt.getTime() + 60 * DAY).toISOString();
+      await expect(proposeTime({ id: p.id, startsAt: far, now: new Date(p.createdAt) })).resolves.toMatchObject({ status: "held" });
+      const free = await heldLive({ paypalOrderId: "free:far", authorizationId: "" });
+      await expect(proposeTime({ id: free.id, startsAt: far, now: new Date(free.createdAt) })).resolves.toMatchObject({ status: "held" });
+    });
+    it("defaults now to the current time", async () => {
+      const b = await heldLive();
+      await expect(proposeTime({ id: b.id, startsAt: "2000-01-01T00:00:00Z" })).rejects.toThrow("at least an hour");
+    });
+    it("a race where the booking is answered mid-offer → 409", async () => {
+      const b = await heldLive();
+      const { getDb } = await import("@/lib/db");
+      const db = await getDb();
+      const orig = db.query.bind(db);
+      vi.spyOn(db, "query").mockImplementation(async (...a: Parameters<typeof db.query>) => {
+        if (String(a[0]).includes("SET proposed_starts_at")) await orig("UPDATE bookings SET status = 'declined' WHERE id = $1", [b.id]);
+        return orig(...a);
+      });
+      await expect(proposeTime({ id: b.id, startsAt: NEW, now: NOW })).rejects.toMatchObject({ status: 409, message: "Booking changed while offering a time" });
+    });
+  });
+  describe("answer validation and access", () => {
+    it.each([undefined, "yes", 1])("accept must be true or false (%j)", async (accept) => {
+      const b = await heldLive();
+      await proposeTime({ id: b.id, startsAt: NEW, now: NOW });
+      await expect(answerProposal({ id: b.id, userId: "u1", accept })).rejects.toMatchObject({ status: 400, message: "Say yes or no to the new time" });
+    });
+    it("someone else's booking, or an unknown one → 404", async () => {
+      const b = await heldLive();
+      await proposeTime({ id: b.id, startsAt: NEW, now: NOW });
+      await expect(answerProposal({ id: b.id, userId: "intruder", accept: true })).rejects.toMatchObject({ status: 404 });
+      await expect(answerProposal({ id: "00000000-0000-0000-0000-000000000000", userId: "u1", accept: true })).rejects.toMatchObject({ status: 404 });
+    });
+    it("no offer waiting → 409", async () => {
+      const b = await heldLive();
+      await expect(answerProposal({ id: b.id, userId: "u1", accept: true })).rejects.toMatchObject({ status: 409, message: "There's no new time waiting for an answer" });
+    });
+    it("a race where the offer disappears mid-answer → 409", async () => {
+      const b = await heldLive();
+      await proposeTime({ id: b.id, startsAt: NEW, now: NOW });
+      const { getDb } = await import("@/lib/db");
+      const db = await getDb();
+      const orig = db.query.bind(db);
+      vi.spyOn(db, "query").mockImplementation(async (...a: Parameters<typeof db.query>) => {
+        if (String(a[0]).includes("proposed_starts_at = NULL")) await orig("UPDATE bookings SET proposed_starts_at = NULL WHERE id = $1", [b.id]);
+        return orig(...a);
+      });
+      await expect(answerProposal({ id: b.id, userId: "u1", accept: true })).rejects.toMatchObject({ status: 409, message: "Booking changed while taking the new time" });
+    });
+  });
+});

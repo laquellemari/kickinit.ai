@@ -16,6 +16,7 @@ export function AdminBookings() {
   const [toCheckIn, setToCheckIn] = useState<PublicBooking[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [offers, setOffers] = useState<Record<string, string>>({});
 
   const load = useCallback(async (k: string) => {
     setError("");
@@ -50,6 +51,21 @@ export function AdminBookings() {
     await load(key);
   }
 
+  /** The venue can't do the requested time: offer the guest another (from a local date-time field). */
+  async function offer(b: PublicBooking) {
+    const local = offers[b.id] ?? "";
+    setBusy(b.id);
+    setError("");
+    const res = await fetch(`/api/bookings/${b.id}/propose`, {
+      method: "POST", headers: { "x-admin-key": key, "content-type": "application/json" },
+      body: JSON.stringify({ startsAt: local ? new Date(local).toISOString() : "" }),
+    });
+    const body = await res.json();
+    setBusy(null);
+    if (!res.ok) return setError(body.error);
+    await load(key);
+  }
+
   if (!key || !list) {
     return (
       <form className="concierge-card" onSubmit={(e) => { e.preventDefault(); save(draft); setKey(draft); void load(draft); }}>
@@ -76,6 +92,17 @@ export function AdminBookings() {
             <button className="btn-navy" disabled={busy === b.id} onClick={() => act(b.id, "confirm")}>{b.free ? "Confirm" : "Confirm & charge"}</button>
             <button className="btn-line" disabled={busy === b.id} onClick={() => act(b.id, "decline")}>Decline &amp; release</button>
           </div>
+          {b.proposedStartsAt ? (
+            <p className="pick-meta" style={{ width: "100%", margin: 0 }}>Offered {new Date(b.proposedStartsAt).toLocaleString()} instead · waiting for the guest</p>
+          ) : (
+            <form className="pick-actions" style={{ width: "100%", alignItems: "center" }} aria-label={`Offer another time: ${b.name}`} onSubmit={(e) => { e.preventDefault(); void offer(b); }}>
+              <label className="pick-meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                Not available? Offer
+                <input type="datetime-local" value={offers[b.id] ?? ""} onChange={(e) => setOffers({ ...offers, [b.id]: e.target.value })} style={{ minHeight: 40, border: "1px solid var(--line)", padding: "0 8px", font: "400 15px var(--body)" }} />
+              </label>
+              <button type="submit" className="btn-line" disabled={busy === b.id}>Offer this time</button>
+            </form>
+          )}
         </div>
       ))}
     </section>

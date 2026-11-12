@@ -132,4 +132,31 @@ describe("AdminBookings", () => {
     expect(within(diner).getByRole("button", { name: "Confirm" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Open bills")).toBeNull();
   });
+  describe("offering another time", () => {
+    it("sends the picked local time as an instant and refreshes; an offered request says it's waiting", async () => {
+      const f = mockApi(
+        { status: 200, body: { bookings: [held("b1", "Spa Uno")] } },
+        { status: 200, body: {} },
+        { status: 200, body: { bookings: [{ ...held("b1", "Spa Uno"), proposedStartsAt: "2026-11-15T05:00:00.000Z" }] } },
+      );
+      render(<AdminBookings />);
+      login();
+      const form = await screen.findByRole("form", { name: "Offer another time: Spa Uno" });
+      fireEvent.change(within(form).getByLabelText(/Not available\? Offer/), { target: { value: "2026-11-14T21:00" } });
+      fireEvent.click(within(form).getByRole("button", { name: "Offer this time" }));
+      expect(await screen.findByText(/instead · waiting for the guest/)).toBeInTheDocument();
+      const [url, init] = (f as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[1];
+      expect(url).toBe("/api/bookings/b1/propose");
+      expect(JSON.parse(init.body as string)).toEqual({ startsAt: new Date("2026-11-14T21:00").toISOString() });
+      expect(screen.queryByRole("form", { name: "Offer another time: Spa Uno" })).toBeNull();
+    });
+    it("no time picked is sent as empty, and the server's reason is shown", async () => {
+      const f = mockApi({ status: 200, body: { bookings: [held("b1", "Spa Uno")] } }, { status: 400, body: { error: "Pick a date and time" } });
+      render(<AdminBookings />);
+      login();
+      fireEvent.click(within(await screen.findByRole("form", { name: "Offer another time: Spa Uno" })).getByRole("button", { name: "Offer this time" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Pick a date and time");
+      expect(JSON.parse(((f as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[1][1]).body as string)).toEqual({ startsAt: "" });
+    });
+  });
 });

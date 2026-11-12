@@ -8,6 +8,7 @@ export function publicBooking(b: Booking) {
     holdExpiresAt: b.holdExpiresAt?.toISOString() ?? null, createdAt: b.createdAt.toISOString(),
     checkedInAt: b.checkedInAt?.toISOString() ?? null, city: b.facts.city,
     fee: b.fee, serviceName: b.serviceName, free: isFree(b),
+    proposedStartsAt: b.proposedStartsAt?.toISOString() ?? null,
   };
 }
 export type PublicBooking = ReturnType<typeof publicBooking>;
