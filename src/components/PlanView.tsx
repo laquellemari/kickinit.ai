@@ -109,14 +109,15 @@ export function PlanView({ q, mode, where }: { q: string; mode: Mode; where: str
           <section aria-label="Options">
             <div className="legend">
               <span><strong>Instant book</strong>: kickinit partner, fixed price.</span>
-              <span><strong>Request</strong>: we hold an estimate on PayPal; you&rsquo;re only charged once the venue confirms.</span>
+              <span><strong>Request</strong>: the venue&rsquo;s own exact price, charged only once the venue confirms. Restaurants and bars are free to book.</span>
+              <span><strong>Tickets</strong>: real shows and games, bought on Ticketmaster.</span>
             </div>
             <p className="pick-meta" style={{ margin: "8px 0 0" }}>
               Showing {Math.min(shown, result.options.length)} of {result.options.length} options
             </p>
             <div className="pick-grid pick-grid-4" style={{ marginTop: 18 }}>
               {result.options.slice(0, shown).map((o) => (
-                <PickCard key={o.kind === "partner" ? o.experience.id : o.place.id} pick={o} partySize={party} gift={mode === "them"} />
+                <PickCard key={o.kind === "partner" ? o.experience.id : o.kind === "event" ? o.event.id : o.place.id} pick={o} partySize={party} gift={mode === "them"} />
               ))}
             </div>
             {shown < result.options.length && (

@@ -160,3 +160,7 @@ a:hover { color: var(--navy-deep); }
 .rate textarea { font: 400 16px var(--body); border: 1px solid var(--line); border-radius: 3px; padding: 8px 10px; color: var(--navy); }
 .star { min-width: 44px; min-height: 44px; border: 0; background: none; font-size: 30px; line-height: 1; color: var(--navy); cursor: pointer; }
 .star[aria-pressed="true"] { color: var(--navy); }
+
+.event-photo { position: relative; background: #1E2A44 center / cover no-repeat; border-radius: 3px; }
+.event-list { display: flex; flex-direction: column; gap: 10px; }
+.event-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px dashed var(--line); padding: 8px 0; flex-wrap: wrap; }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { runConcierge, validateInput, type ConciergeInput } from "@/lib/concierge/agent";
 import { clientKey, createLimiter } from "@/lib/concierge/rate-limit";
-import { conciergeModel, liveSearch, paypalTools } from "@/lib/concierge/runtime";
+import { conciergeModel, eventSearch, liveSearch, paypalTools } from "@/lib/concierge/runtime";
 import { recordSearch } from "@/lib/ideas/repo";
 import { HttpError, readJson } from "@/lib/paypal/http";
 import { visitorId } from "@/lib/visitor";
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     } catch (err) {
       throw new HttpError(503, (err as Error).message);
     }
-    return NextResponse.json(await runConcierge(input, { model, extraTools: paypalTools(), searchLive: liveSearch() }));
+    return NextResponse.json(await runConcierge(input, { model, extraTools: paypalTools(), searchLive: liveSearch(), searchEvents: eventSearch() }));
   } catch (err) {
     if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error("Concierge error:", err);

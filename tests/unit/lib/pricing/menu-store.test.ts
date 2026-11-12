@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { cachedMenu, saveMenu, menuFor, FOUND_TTL_DAYS, EMPTY_TTL_DAYS } from "@/lib/pricing/menu-store";
+import { cachedMenu, saveMenu, menuFor, FOUND_TTL_DAYS, EMPTY_TTL_DAYS, MENU_VERSION } from "@/lib/pricing/menu-store";
 import type { MenuItem } from "@/lib/pricing/menu";
 import { getDb } from "@/lib/db";
 import { useTestDb } from "../../../helpers/db";
@@ -19,8 +19,8 @@ const claude = (items: string) => new Response(JSON.stringify({
 
 let t: Awaited<ReturnType<typeof useTestDb>>;
 beforeAll(async () => { t = await useTestDb(); });
-beforeEach(async () => { await t.reset(); vi.stubEnv("ANTHROPIC_API_KEY", "sk"); });
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+beforeEach(async () => { await t.reset(); vi.stubEnv("ANTHROPIC_API_KEY", "sk"); vi.spyOn(console, "info").mockImplementation(() => {}); });
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("the menu cache", () => {
   it("saves and reads back a menu, and a second save replaces it", async () => {
@@ -71,6 +71,16 @@ describe("menuFor", () => {
     expect((await cachedMenu("ChIJ1", NOW))!.items).toEqual(a.items);
     await menuFor(place, NOW);
     expect(f).toHaveBeenCalledTimes(1);
+  });
+  it("a lookup that opened no page isn't cached either", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: "I couldn't reach their site." }] }))));
+    expect((await menuFor(place, NOW)).items).toEqual([]);
+    expect(await cachedMenu("ChIJ1", NOW)).toBeNull();
+  });
+  it("menus are stored under a version, so older lookups are redone", async () => {
+    await saveMenu("ChIJ1", { items: [item], checkedAt: NOW });
+    const { rows } = await (await getDb()).query<{ place_id: string }>("SELECT place_id FROM venue_menus");
+    expect(rows.map((r) => r.place_id)).toEqual([`${MENU_VERSION}:ChIJ1`]);
   });
   it("a failed lookup isn't cached, so the next visit tries again", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));

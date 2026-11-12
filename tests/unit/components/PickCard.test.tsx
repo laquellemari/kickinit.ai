@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { PickCard } from "@/components/PickCard";
-import { partnerPick, livePick } from "../../helpers/factories";
+import { partnerPick, livePick, eventPick } from "../../helpers/factories";
 
 describe("PickCard", () => {
   it("partner restaurant: instant-book stamp, free to book, link to details with party size", () => {
@@ -44,5 +44,33 @@ describe("PickCard", () => {
     expect(within(card).getByText("See prices")).toBeInTheDocument();
     expect(within(card).getByText("Exact price from the venue")).toBeInTheDocument();
     expect(within(card).queryByText(/\$/)).toBeNull();
+  });
+  it("event: when, venue, price range and a Get tickets link to Ticketmaster in a new tab", () => {
+    render(<PickCard pick={eventPick()} partySize={2} />);
+    const card = screen.getByRole("article", { name: "Adele" });
+    expect(within(card).getByText("TICKETS")).toBeInTheDocument();
+    expect(within(card).getByText("Sat, Nov 14 · 8:00 PM · Pop")).toBeInTheDocument();
+    expect(within(card).getByText("The Colosseum at Caesars Palace, Las Vegas")).toBeInTheDocument();
+    expect(within(card).getByText("$60–$250")).toBeInTheDocument();
+    expect(within(card).getByRole("img", { name: "Adele" })).toHaveStyle({ backgroundImage: "url(https://s1.ticketm.net/a.jpg)" });
+    const link = within(card).getByRole("link", { name: "Get tickets" });
+    expect(link).toHaveAttribute("href", "https://www.ticketmaster.com/event/G5v1");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer sponsored");
+  });
+  it("event without image, genre, city or published price", () => {
+    render(<PickCard pick={eventPick({ image: null, genre: null, city: "", priceMin: null, priceMax: null })} partySize={2} />);
+    const card = screen.getByRole("article", { name: "Adele" });
+    expect(within(card).queryByRole("img")).toBeNull();
+    expect(within(card).getByText("Sat, Nov 14 · 8:00 PM")).toBeInTheDocument();
+    expect(within(card).getByText("The Colosseum at Caesars Palace")).toBeInTheDocument();
+    expect(within(card).getByText("See prices")).toBeInTheDocument();
+  });
+  it("a stage or arena found on Google points to what's on there", () => {
+    render(<PickCard pick={livePick({ name: "Sphere", primaryType: "arena", dining: false })} partySize={2} />);
+    const card = screen.getByRole("article", { name: "Sphere" });
+    expect(within(card).getByText("See what's on")).toBeInTheDocument();
+    expect(within(card).getByText("Upcoming shows here")).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "See events" })).toHaveAttribute("href", "/request/ChIJsd1?party=2");
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("@/components/VenuePhoto", () => ({ VenuePhoto: ({ children }: { children?: React.ReactNode }) => <div>{children}</div> }));
 import { PlanView } from "@/components/PlanView";
-import { createConciergeResult, livePick } from "../../helpers/factories";
+import { createConciergeResult, livePick, eventPick } from "../../helpers/factories";
 
 type Reply = { status: number; body: unknown };
 function mockConcierge(...replies: Reply[]) {
@@ -34,7 +34,15 @@ describe("PlanView", () => {
       await verifyPlan({ reply: "Here are two good ones.", cards: ["Carasau Pasta Bar", "Cucina Sorella"] });
       expect(f).toHaveBeenCalledTimes(1);
       expect(sent(f, 0)).toEqual({ message: "dinner for 2", mode: "you", where: "Miami", history: [] });
-      expect(screen.getByText(/we hold an estimate on PayPal/)).toBeInTheDocument();
+      expect(screen.getByText(/the venue’s own exact price, charged only once the venue confirms/)).toBeInTheDocument();
+      expect(screen.getByText(/real shows and games, bought on Ticketmaster/)).toBeInTheDocument();
+    });
+
+    it("shows event cards alongside venues", async () => {
+      mockConcierge({ status: 200, body: createConciergeResult({ options: [eventPick(), livePick()] }) });
+      render(<PlanView q="concerts in vegas" mode="you" where="Las Vegas, NV" />);
+      await verifyPlan({ reply: "Here are two good ones.", cards: ["Adele", "Cucina Sorella"] });
+      expect(screen.getByRole("link", { name: "Get tickets" })).toBeInTheDocument();
     });
 
     it("gift mode changes the heading and highlights Gifts in the nav", async () => {

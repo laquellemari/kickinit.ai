@@ -68,7 +68,7 @@ export function verifyConcierge(r: ConciergeResult, expected: { reply?: string |
   else if (expected.reply !== undefined) expect(r.reply).toBe(expected.reply);
   expect(r.partySize).toBe(expected.partySize);
   // The model's picks lead, in order; the server may add more matches after them.
-  const got = r.options.map((o) => ({ id: o.kind === "partner" ? o.experience.id : o.place.id, total: o.kind === "partner" ? o.quote.total : null }));
+  const got = r.options.map((o) => ({ id: o.kind === "partner" ? o.experience.id : o.kind === "event" ? o.event.id : o.place.id, total: o.kind === "partner" ? o.quote.total : null }));
   expect(got.slice(0, expected.picks.length)).toEqual(expected.picks);
   if (!expected.picks.length) expect(got).toEqual([]);
   expect(new Set(got.map((g) => g.id)).size).toBe(got.length);

@@ -4,11 +4,12 @@ import { createScriptedModel } from "../../helpers/factories";
 import { useTestDb } from "../../helpers/db";
 import { recentSearches } from "@/lib/ideas/repo";
 
-const runtime = vi.hoisted(() => ({ model: null as unknown, configured: true, live: undefined as undefined | (() => Promise<unknown[]>) }));
+const runtime = vi.hoisted(() => ({ model: null as unknown, configured: true, live: undefined as undefined | (() => Promise<unknown[]>), events: undefined as undefined | (() => Promise<unknown[]>) }));
 vi.mock("@/lib/concierge/runtime", () => ({
   conciergeModel: () => { if (!runtime.configured) throw new Error("Concierge is not configured"); return runtime.model; },
   paypalTools: () => ({}),
   liveSearch: () => runtime.live,
+  eventSearch: () => runtime.events,
 }));
 
 const { POST } = await import("@/app/api/concierge/route");
@@ -18,7 +19,7 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
   POST(new Request("http://localhost/api/concierge", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `10.0.0.${++ip}`, ...headers }, body: JSON.stringify(body) }));
 
 let t: Awaited<ReturnType<typeof useTestDb>>;
-beforeEach(async () => { t ??= await useTestDb(); await t.reset(); runtime.configured = true; runtime.live = undefined; });
+beforeEach(async () => { t ??= await useTestDb(); await t.reset(); runtime.configured = true; runtime.live = undefined; runtime.events = undefined; });
 afterEach(() => vi.restoreAllMocks());
 
 describe("POST /api/concierge", () => {
@@ -41,6 +42,17 @@ describe("POST /api/concierge", () => {
     expect(toolNames[0]).toContain("search_live_places");
     expect(body.options[0]).toMatchObject({ kind: "live", place: { name: "Sorella", dining: true }, why: "Cozy." });
     expect(body.options[0]).not.toHaveProperty("quote");
+  });
+  it("passes event search through when configured, and returns events with ticket links", async () => {
+    runtime.events = async () => [{ id: "tm:E1", name: "Adele", url: "https://www.ticketmaster.com/event/E1", localDate: "2026-11-14", localTime: "20:00:00", venue: "The Colosseum", city: "Las Vegas", state: "NV", image: null, priceMin: null, priceMax: null, currency: null, genre: null }];
+    const { model, toolNames } = createScriptedModel([
+      { tool: "search_events", args: { venue: "The Colosseum" } },
+      { tool: "present_options", args: { intro: "One show.", partySize: 2, picks: [{ experienceId: "tm:E1", why: "Residency." }] } },
+    ]);
+    runtime.model = model;
+    const body = await (await post({ message: "what's on at the Colosseum", where: "Las Vegas, NV" })).json();
+    expect(toolNames[0]).toContain("search_events");
+    expect(body.options[0]).toMatchObject({ kind: "event", event: { name: "Adele", url: "https://www.ticketmaster.com/event/E1" } });
   });
   it("defaults mode to 'you'", async () => {
     const { model, prompts } = createScriptedModel([{ text: "ok" }]);

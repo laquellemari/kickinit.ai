@@ -137,13 +137,16 @@ describe("lookupMenu", () => {
   const reply = (content: unknown[], stop_reason = "end_turn", status = 200) => new Response(JSON.stringify({ content, stop_reason }), { status });
   const env = () => vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
 
-  it("happy: asks Claude with web search + fetch, keeps verified prices", async () => {
+  it("happy: asks Claude with web search + fetch, keeps verified prices, and logs what happened", async () => {
     env();
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const f = vi.fn(async () => reply([page("https://spauno.com/menu", PRICES), text("ITEM | Swedish Massage | 150 | person | 60\nITEM | Invented Facial | 99 | person | 30")]));
     vi.stubGlobal("fetch", f);
     const now = new Date("2026-11-11T12:00:00Z");
     const m = await lookupMenu(venue, now);
-    expect(m).toEqual({ checkedAt: now, items: [{ id: "swedish-massage-150", name: "Swedish Massage", price: "150.00", per: "person", durationMinutes: 60, sourceUrl: "https://spauno.com/menu" }] });
+    expect(m).toEqual({ checkedAt: now, cacheable: true, items: [{ id: "swedish-massage-150", name: "Swedish Massage", price: "150.00", per: "person", durationMinutes: 60, sourceUrl: "https://spauno.com/menu" }] });
+    const logged = JSON.parse(String(info.mock.calls[0][1]));
+    expect(logged).toMatchObject({ venue: "Spa Uno", fetched: ["https://spauno.com/menu"], candidates: 2, verified: 1, searches: 0, toolErrors: 0 });
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.anthropic.com/v1/messages");
     const h = new Headers(init.headers);
@@ -166,10 +169,21 @@ describe("lookupMenu", () => {
     const models = f.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string).model);
     expect(models).toEqual(["claude-sonnet-5-5", "claude-opus-5-5"]);
   });
-  it("NONE: an empty menu (nothing guessed)", async () => {
+  it("NONE: an empty menu (nothing guessed), worth remembering", async () => {
     env();
     vi.stubGlobal("fetch", vi.fn(async () => reply([text("NONE")])));
-    expect((await lookupMenu(venue)).items).toEqual([]);
+    expect(await lookupMenu(venue)).toMatchObject({ items: [], cacheable: true });
+  });
+  it("no page opened and no NONE (searches failed, say): empty and not to be remembered; tool errors are counted", async () => {
+    env();
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn(async () => reply([
+      { type: "server_tool_use", id: "s1", name: "web_search", input: { query: "x" } },
+      { type: "web_search_tool_result", tool_use_id: "s1", content: { type: "web_search_tool_result_error", error_code: "unavailable" } },
+      text("ITEM | Swedish Massage | 150 | person | 60"),
+    ])));
+    expect(await lookupMenu(venue)).toMatchObject({ items: [], cacheable: false });
+    expect(JSON.parse(String(info.mock.calls[0][1]))).toMatchObject({ searches: 1, toolErrors: 1, candidates: 1, verified: 0 });
   });
   it("a paused turn is sent back so Claude can finish, then the pages from every turn count", async () => {
     env();
