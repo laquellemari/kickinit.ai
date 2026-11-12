@@ -17,6 +17,8 @@ const API = "https://api.anthropic.com/v1/messages";
 const DEFAULT_MODEL = "claude-haiku-5-5";
 export const MAX_WORDS = 55;
 export const MAX_CHARS = 500;
+/** Room for the model to think before it writes; a reply that still runs out is thrown away, never kept half-written. */
+export const MAX_TOKENS = 1500;
 
 /** The facts as plain lines for the prompt. Empty facts are left out. */
 export function factsText(f: PlaceFacts): string {
@@ -59,7 +61,7 @@ export function cleanAbout(reply: string): string | null {
   return out.length >= 20 && out.length <= MAX_CHARS ? out : null;
 }
 
-type ApiResponse = { content?: { type: string; text?: string }[]; error?: { message?: string } };
+type ApiResponse = { content?: { type: string; text?: string }[]; stop_reason?: string; error?: { message?: string } };
 
 /** Claude writes the description from the venue's Google Maps facts. */
 export async function writeAbout(f: PlaceFacts): Promise<string | null> {
@@ -68,18 +70,19 @@ export async function writeAbout(f: PlaceFacts): Promise<string | null> {
   const res = await fetch(API, {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: process.env.ABOUT_MODEL || process.env.CONCIERGE_MODEL || DEFAULT_MODEL, max_tokens: 300, messages: [{ role: "user", content: aboutPrompt(f) }] }),
+    body: JSON.stringify({ model: process.env.ABOUT_MODEL || process.env.CONCIERGE_MODEL || DEFAULT_MODEL, max_tokens: MAX_TOKENS, messages: [{ role: "user", content: aboutPrompt(f) }] }),
     signal: AbortSignal.timeout(30_000),
   });
   const raw = await res.text();
   const json = (raw ? JSON.parse(raw) : {}) as ApiResponse;
   if (!res.ok) throw new AboutError(502, `Description failed: ${json.error?.message ?? `HTTP ${res.status}`}`);
   const reply = (json.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join(" ");
-  const about = cleanAbout(reply);
+  const finished = json.stop_reason === undefined || json.stop_reason === "end_turn";
+  const about = finished ? cleanAbout(reply) : null;
   // One line per venue, so an empty description can be understood from the logs.
   console.info("[about]", JSON.stringify({
     venue: f.name, editorial: !!f.editorial, overview: !!f.overview, reviewSummary: !!f.reviewSummary, reviews: f.reviews.length,
-    features: f.features.length, kept: about !== null, reply: reply.slice(0, 600),
+    features: f.features.length, stop: json.stop_reason ?? null, kept: about !== null, reply: reply.slice(0, 600),
   }));
   return about;
 }
@@ -89,7 +92,7 @@ const DAY = 86_400_000;
 export const FOUND_TTL_DAYS = 30;
 export const EMPTY_TTL_DAYS = 7;
 /** Bumped when the prompt changes, so descriptions written by an older prompt are rewritten. */
-export const ABOUT_VERSION = "v2";
+export const ABOUT_VERSION = "v3";
 const keyOf = (placeId: string) => `${ABOUT_VERSION}:${placeId}`;
 
 export type About = { about: string | null; checkedAt: Date };

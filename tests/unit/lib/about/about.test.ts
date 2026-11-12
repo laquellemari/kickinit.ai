@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import {
   factsText, aboutPrompt, cleanAbout, writeAbout, cachedAbout, saveAbout, aboutFor, AboutError,
-  MAX_WORDS, MAX_CHARS, FOUND_TTL_DAYS, EMPTY_TTL_DAYS, ABOUT_VERSION,
+  MAX_WORDS, MAX_CHARS, MAX_TOKENS, FOUND_TTL_DAYS, EMPTY_TTL_DAYS, ABOUT_VERSION,
 } from "@/lib/about/about";
 import type { PlaceFacts } from "@/lib/places/client";
 import { getDb } from "@/lib/db";
@@ -77,10 +77,10 @@ describe("writeAbout", () => {
     expect(url).toBe("https://api.anthropic.com/v1/messages");
     expect(new Headers(init.headers).get("x-api-key")).toBe("sk");
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ model: "claude-haiku-5-5", max_tokens: 300, messages: [{ role: "user", content: aboutPrompt(facts()) }] });
+    expect(body).toMatchObject({ model: "claude-haiku-5-5", max_tokens: MAX_TOKENS, messages: [{ role: "user", content: aboutPrompt(facts()) }] });
     expect(body.tools).toBeUndefined();
     expect(vi.mocked(console.info)).toHaveBeenCalledWith("[about]", JSON.stringify({
-      venue: "Perch", editorial: true, overview: true, reviewSummary: true, reviews: 2, features: 2, kept: true, reply: `${GOOD} `,
+      venue: "Perch", editorial: true, overview: true, reviewSummary: true, reviews: 2, features: 2, stop: null, kept: true, reply: `${GOOD} `,
     }));
   });
   it("the model can be changed: ABOUT_MODEL, else CONCIERGE_MODEL", async () => {
@@ -91,6 +91,15 @@ describe("writeAbout", () => {
     vi.stubEnv("ABOUT_MODEL", "a-model");
     await writeAbout(facts());
     expect(f.mock.calls.map((c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)).model)).toEqual(["c-model", "a-model"]);
+  });
+  it("a finished reply (end_turn) is kept", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => claude(200, { stop_reason: "end_turn", content: [{ type: "text", text: GOOD }] })));
+    expect(await writeAbout(facts())).toBe(GOOD);
+  });
+  it("a reply cut off by the token limit is thrown away, and logged", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => claude(200, { stop_reason: "max_tokens", content: [{ type: "thinking" }, { type: "text", text: "Elevated French rooftop bistro known for a wide range of well" }] })));
+    expect(await writeAbout(facts())).toBeNull();
+    expect(String(vi.mocked(console.info).mock.calls.at(-1)?.[1])).toContain('"stop":"max_tokens","kept":false');
   });
   it("NONE → null", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => answer("NONE")));
