@@ -86,10 +86,11 @@ function buildTools(searchLive: SearchLive | undefined, liveCache: Map<string, L
     }),
     present_options: tool({
       description: "Show your final picks to the user. Call this exactly once, last. Use ids exactly as returned by the search tools.",
+      // Lenient on purpose: a missing or over-long field is fixed on the server rather than failing the whole request.
       parameters: z.object({
-        intro: z.string().max(400),
-        partySize: z.number().int().min(1).max(20),
-        picks: z.array(z.object({ experienceId: z.string(), why: z.string().max(200) })).max(LIMITS.picks),
+        intro: z.string().default("").describe("Up to 2 sentences"),
+        partySize: z.number().default(2).describe("1 to 20"),
+        picks: z.array(z.object({ experienceId: z.string(), why: z.string().default("") })).default([]).describe(`Up to ${LIMITS.picks}, best first`),
       }),
       // No execute: calling this ends the agent run.
     }),
@@ -224,14 +225,17 @@ export async function runConcierge(
     messages,
     tools: { ...(deps.extraTools ?? {}), ...buildTools(deps.searchLive, liveCache, found, deps.searchEvents, eventCache) },
     maxSteps: 6,
-    maxTokens: 1600,
+    maxTokens: 3000,
   });
 
   const call = result.steps.flatMap((s) => s.toolCalls).find((c) => c.toolName === "present_options");
   if (!call) return { reply: result.text.trim() || "Sorry, I couldn't put options together. Try rephrasing?", partySize: null, options: [] };
 
-  const args = call.args as { intro: string; partySize: number; picks: { experienceId: string; why: string }[] };
-  const options = withMoreOptions(resolvePicks(args.picks, args.partySize, liveCache, LIMITS.picks, eventCache), found, args.partySize, liveCache, eventCache);
-  const reply = options.length ? args.intro : "I couldn't find anything bookable that fits. Try a different area, date or budget?";
-  return { reply, partySize: args.partySize, options };
+  const raw = call.args as { intro: string; partySize: number; picks: { experienceId: string; why: string }[] };
+  const partySize = Math.min(Math.max(Math.round(raw.partySize), 1), 20);
+  const picks = raw.picks.slice(0, LIMITS.picks).map((p) => ({ experienceId: p.experienceId, why: p.why.slice(0, 200) }));
+  const options = withMoreOptions(resolvePicks(picks, partySize, liveCache, LIMITS.picks, eventCache), found, partySize, liveCache, eventCache);
+  const intro = raw.intro.trim().slice(0, 600) || "Here are some good options.";
+  const reply = options.length ? intro : "I couldn't find anything bookable that fits. Try a different area, date or budget?";
+  return { reply, partySize, options };
 }

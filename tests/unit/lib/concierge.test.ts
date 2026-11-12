@@ -387,3 +387,35 @@ describe("events (Ticketmaster)", () => {
     spy.mockRestore();
   });
 });
+
+describe("present_options is forgiving (a malformed final call doesn't fail the request)", () => {
+  it("no picks at all (the live failure): the matches from its searches are shown", async () => {
+    const { model } = createScriptedModel([
+      { tool: "search_experiences", args: { category: "wellness", partySize: 2 } },
+      { tool: "present_options", args: { intro: "Here's what fits.", partySize: 2 } },
+    ]);
+    const r = await runConcierge(input(), { model });
+    expect(r.reply).toBe("Here's what fits.");
+    expect(r.options.length).toBeGreaterThan(0);
+    expect(r.options.every((o) => o.kind === "partner" && o.experience.category === "wellness")).toBe(true);
+  });
+  it("nothing but the call: party of 2 and a plain intro", async () => {
+    const { model } = createScriptedModel([{ tool: "search_experiences", args: { q: "spa" } }, { tool: "present_options", args: {} }]);
+    const r = await runConcierge(input(), { model });
+    expect(r.partySize).toBe(2);
+    expect(r.reply).toBe("Here are some good options.");
+  });
+  it.each([[0, 1], [25, 20], [2.6, 3]])("party size %s becomes %s", async (given, used) => {
+    const { model } = createScriptedModel([{ tool: "present_options", args: { intro: "x", partySize: given, picks: [{ experienceId: "hugh-spa", why: "y" }] } }]);
+    expect((await runConcierge(input(), { model })).partySize).toBe(used);
+  });
+  it("over-long text is trimmed, a missing reason is allowed, and extra picks are cut to the limit", async () => {
+    const picks = searchExperiences({ partySize: 2, limit: 12 }).map((e, i) => (i === 0 ? { experienceId: e.id } : { experienceId: e.id, why: "w".repeat(300) }));
+    const { model } = createScriptedModel([{ tool: "present_options", args: { intro: "i".repeat(700), partySize: 2, picks } }]);
+    const r = await runConcierge(input(), { model });
+    expect(r.reply).toHaveLength(600);
+    expect(r.options[0].why).toBe("");
+    expect(r.options[1].why).toHaveLength(200);
+    expect(r.options.slice(0, LIMITS.picks).map((o) => (o.kind === "partner" ? o.experience.id : ""))).toEqual(picks.slice(0, LIMITS.picks).map((p) => p.experienceId));
+  });
+});
