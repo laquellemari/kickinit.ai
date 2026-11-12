@@ -4,6 +4,7 @@ import { CheckoutPanel } from "@/components/CheckoutPanel";
 import { getExperience } from "@/lib/catalog/catalog";
 import { duration, guests, money } from "@/lib/format";
 import { VenuePhoto } from "@/components/VenuePhoto";
+import { averageFor } from "@/lib/ratings/ratings";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -17,6 +18,8 @@ export default async function ExperiencePage({ params, searchParams }: Props) {
   if (!e) notFound();
   const raw = (await searchParams).party;
   const party = Number(Array.isArray(raw) ? raw[0] : raw) || 2;
+  // Guest ratings are a bonus: the page still renders if the database is unavailable.
+  const score = await averageFor(e.id).catch(() => null);
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -34,6 +37,7 @@ export default async function ExperiencePage({ params, searchParams }: Props) {
               <span className="stamp stamp-wide">{e.category.toUpperCase()}</span>
             </VenuePhoto>
             <p className="concierge-reply">{e.description}</p>
+            {score && <p className="google-meta">★ {score.average.toFixed(1)} from {score.count} kickinit {score.count === 1 ? "guest" : "guests"}</p>}
             <p className="pick-meta" style={{ margin: 0 }}>Demo partner: a real venue, shown with its Google photo. kickinit has no partnership with it; prices are illustrative and bookings run in the PayPal sandbox.</p>
             <dl className="fact-list">
               <div><dt>Price</dt><dd>{money(e.price)} {e.pricing === "per_group" ? "per group" : "per person"}</dd></div>

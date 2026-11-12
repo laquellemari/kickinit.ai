@@ -150,3 +150,8 @@ a:hover { color: var(--navy-deep); }
 .hold-lines dd { margin: 0; color: var(--navy); }
 .consent { flex-direction: row !important; align-items: flex-start; gap: 10px !important; font-size: 14px !important; letter-spacing: normal !important; text-transform: none !important; color: var(--navy) !important; cursor: pointer; }
 .consent input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; }
+
+.rate { display: flex; flex-direction: column; gap: 10px; border-top: 1px dashed var(--line); padding-top: 14px; }
+.rate textarea { font: 400 16px var(--body); border: 1px solid var(--line); border-radius: 3px; padding: 8px 10px; color: var(--navy); }
+.star { min-width: 44px; min-height: 44px; border: 0; background: none; font-size: 30px; line-height: 1; color: var(--navy); cursor: pointer; }
+.star[aria-pressed="true"] { color: var(--navy); }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { BookingStatus } from "@/components/BookingStatus";
 
 const booking = (o: Record<string, unknown> = {}) => ({
@@ -91,5 +91,54 @@ describe("BookingStatus", () => {
     expect(await screen.findByRole("heading", { name: "Bill paid." })).toBeInTheDocument();
     expect(screen.getByText("PAID")).not.toHaveClass("stamp-live");
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  describe("rating a visit", () => {
+    function api(first: unknown, rate?: { status: number; body: unknown }) {
+      const f = vi.fn(async (url: string) => url.endsWith("/rating") ? new Response(JSON.stringify(rate!.body), { status: rate!.status }) : new Response(JSON.stringify(first)));
+      vi.stubGlobal("fetch", f);
+      return f;
+    }
+    const visited = { checkedInAt: "2026-11-15T03:40:00.000Z", rating: null };
+    it("after check-in: pick stars, add a note, save; then it shows what you gave", async () => {
+      const f = api(booking(visited), { status: 201, body: { stars: 4, note: "Great tub", createdAt: "x" } });
+      render(<BookingStatus id="b1" />);
+      const form = await screen.findByRole("form", { name: "Rate your visit" });
+      expect(within(form).getByRole("button", { name: "Save rating" })).toBeDisabled();
+      fireEvent.click(within(form).getByRole("button", { name: "4 stars" }));
+      expect(within(form).getByRole("button", { name: "4 stars" })).toHaveAttribute("aria-pressed", "true");
+      expect(within(form).getAllByText("★")).toHaveLength(4);
+      fireEvent.change(within(form).getByLabelText(/A note/), { target: { value: "Great tub" } });
+      fireEvent.click(within(form).getByRole("button", { name: "Save rating" }));
+      expect(await screen.findByLabelText("Your rating")).toHaveTextContent("You rated it ★★★★☆: “Great tub”");
+      expect(screen.queryByRole("form", { name: "Rate your visit" })).toBeNull();
+      const call = f.mock.calls.find((c) => (c[0] as string).endsWith("/rating")) as unknown as [string, RequestInit];
+      expect(call[0]).toBe("/api/bookings/b1/rating");
+      expect(JSON.parse(call[1].body as string)).toEqual({ stars: 4, note: "Great tub" });
+    });
+    it("1 star is singular", async () => {
+      api(booking(visited));
+      render(<BookingStatus id="b1" />);
+      expect(await screen.findByRole("button", { name: "1 star" })).toBeInTheDocument();
+    });
+    it("already rated, without a note", async () => {
+      api(booking({ ...visited, rating: { stars: 2, note: "" } }));
+      render(<BookingStatus id="b1" />);
+      expect(await screen.findByLabelText("Your rating")).toHaveTextContent(/^You rated it ★★☆☆☆$/);
+      expect(screen.queryByRole("form", { name: "Rate your visit" })).toBeNull();
+    });
+    it("not checked in yet: no rating form", async () => {
+      api(booking());
+      render(<BookingStatus id="b1" />);
+      await screen.findByRole("heading", { name: "You're booked." });
+      expect(screen.queryByRole("form", { name: "Rate your visit" })).toBeNull();
+    });
+    it.each([[{ status: 409, body: { error: "You've already rated this visit" } }, "You've already rated this visit"], [{ status: 500, body: {} }, "Couldn't save your rating."]])("errors are shown (%j)", async (reply, msg) => {
+      api(booking(visited), reply);
+      render(<BookingStatus id="b1" />);
+      fireEvent.click(await screen.findByRole("button", { name: "5 stars" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save rating" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(msg);
+    });
   });
 });

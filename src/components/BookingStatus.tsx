@@ -13,8 +13,42 @@ const COPY: Record<PublicBooking["status"], { title: string; body: (b: PublicBoo
   failed: { title: "Something went wrong.", stamp: "FAILED", body: () => "This booking didn't go through and you weren't charged." },
 };
 
+type View = PublicBooking & { rating?: { stars: number; note: string } | null };
+
+/** 1–5 stars and an optional note, for a visit the guest checked in to. */
+function RateVisit({ id, onRated }: { id: string; onRated: (r: { stars: number; note: string }) => void }) {
+  const [stars, setStars] = useState(0);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  async function send() {
+    setError("");
+    const res = await fetch(`/api/bookings/${id}/rating`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ stars, note }) });
+    const body = await res.json();
+    if (!res.ok) return setError(body.error ?? "Couldn't save your rating.");
+    onRated({ stars: body.stars, note: body.note });
+  }
+  return (
+    <form className="rate" aria-label="Rate your visit" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+      <span className="caps">How was it?</span>
+      <div role="group" aria-label="Stars" style={{ display: "flex", gap: 4 }}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} type="button" className="star" aria-label={`${n} star${n === 1 ? "" : "s"}`} aria-pressed={stars === n} onClick={() => setStars(n)}>
+            {n <= stars ? "★" : "☆"}
+          </button>
+        ))}
+      </div>
+      <label className="pick-meta" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        A note (optional)
+        <textarea rows={2} maxLength={280} value={note} onChange={(e) => setNote(e.target.value)} />
+      </label>
+      <button type="submit" className="btn-navy" style={{ alignSelf: "flex-start" }} disabled={stars === 0}>Save rating</button>
+      {error && <p className="error-note" role="alert">{error}</p>}
+    </form>
+  );
+}
+
 export function BookingStatus({ id }: { id: string }) {
-  const [b, setB] = useState<PublicBooking | null>(null);
+  const [b, setB] = useState<View | null>(null);
   const [error, setError] = useState("");
   const [checkInError, setCheckInError] = useState("");
 
@@ -67,6 +101,12 @@ export function BookingStatus({ id }: { id: string }) {
         </div>
       )}
       {b.checkedInAt && <p className="concierge-reply" role="status">Checked in. <Link href="/passport">See your passport</Link>.</p>}
+      {b.checkedInAt && !b.rating && <RateVisit id={b.id} onRated={(rating) => setB({ ...b, rating })} />}
+      {b.rating && (
+        <p className="pick-meta" aria-label="Your rating">
+          You rated it {"★".repeat(b.rating.stars)}{"☆".repeat(5 - b.rating.stars)}{b.rating.note ? `: “${b.rating.note}”` : ""}
+        </p>
+      )}
       <div className="pick-actions">
         <Link className="btn-line" href="/">Plan something else</Link>
       </div>

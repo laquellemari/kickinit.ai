@@ -5,6 +5,8 @@ import { GET as one } from "@/app/api/bookings/[id]/route";
 import { POST as confirm } from "@/app/api/bookings/[id]/confirm/route";
 import { POST as decline } from "@/app/api/bookings/[id]/decline/route";
 import { POST as closeBillRoute } from "@/app/api/bookings/[id]/close-bill/route";
+import { POST as rateRoute } from "@/app/api/bookings/[id]/rating/route";
+import { markCheckedIn } from "@/lib/bookings/repo";
 import { GET as adminList } from "@/app/api/admin/bookings/route";
 import { insertBooking, transition } from "@/lib/bookings/repo";
 import { resetTokenCache } from "@/lib/paypal/client";
@@ -181,5 +183,28 @@ describe("POST /api/bookings/:id/close-bill", () => {
   it("400 for a bad amount", async () => {
     const b = await confirmedLive();
     await verifyRes(await closeBillRoute(req({ method: "POST", admin: ADMIN, body: { billTotal: "lots" } }), p(b.id)), { status: 400, body: { error: "Enter the final bill, like 96.50" } });
+  });
+});
+
+describe("POST /api/bookings/:id/rating", () => {
+  it("the guest rates a checked-in visit; the booking then shows the rating", async () => {
+    const b = await insertBooking(createNewBooking({ userId: ME }));
+    await transition(b.id, ["held"], "confirmed");
+    await markCheckedIn(b.id, new Date());
+    const json = await verifyRes(await rateRoute(req({ method: "POST", body: { stars: 5, note: "Great" } }), p(b.id)), { status: 201, body: { stars: 5, note: "Great" } });
+    expect(typeof json.createdAt).toBe("string");
+    await verifyRes(await one(req({}), p(b.id)), { status: 200, body: { id: b.id, rating: { stars: 5, note: "Great" } } });
+  });
+  it("an unrated booking shows rating: null", async () => {
+    const b = await insertBooking(createNewBooking({ userId: ME }));
+    await verifyRes(await one(req({}), p(b.id)), { status: 200, body: { rating: null } });
+  });
+  it("401 without a visitor; 404 for a bad id; 400 for bad stars", async () => {
+    const b = await insertBooking(createNewBooking({ userId: ME }));
+    await transition(b.id, ["held"], "confirmed");
+    await markCheckedIn(b.id, new Date());
+    await verifyRes(await rateRoute(req({ method: "POST", visitor: null, body: { stars: 5 } }), p(b.id)), { status: 401 });
+    await verifyRes(await rateRoute(req({ method: "POST", body: { stars: 5 } }), p("x")), { status: 404 });
+    await verifyRes(await rateRoute(req({ method: "POST", body: { stars: 9 } }), p(b.id)), { status: 400, body: { error: "Pick 1 to 5 stars" } });
   });
 });

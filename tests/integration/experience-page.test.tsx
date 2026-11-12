@@ -3,6 +3,8 @@ import { render, screen } from "@testing-library/react";
 import "../helpers/paypal-react";
 import ExperiencePage, { generateMetadata } from "@/app/experience/[id]/page";
 
+const score = vi.hoisted(() => ({ next: (): Promise<unknown> => Promise.reject(new Error("no db")) }));
+vi.mock("@/lib/ratings/ratings", () => ({ averageFor: () => score.next() }));
 vi.mock("next/navigation", async (orig) => ({ ...(await orig<object>()), notFound: () => { throw new Error("NEXT_NOT_FOUND"); }, useRouter: () => ({ push: vi.fn() }) }));
 
 const page = async (id: string, sp: Record<string, string | string[] | undefined> = {}) =>
@@ -38,5 +40,24 @@ describe("/experience/[id]", () => {
   it("metadata uses the experience name, or Not found", async () => {
     expect(await generateMetadata({ params: Promise.resolve({ id: "vibrato-grill-jazz" }) })).toEqual({ title: "Vibrato Grill Jazz · kickinit" });
     expect(await generateMetadata({ params: Promise.resolve({ id: "nope" }) })).toEqual({ title: "Not found · kickinit" });
+  });
+
+  it("shows the kickinit guest rating when there is one", async () => {
+    score.next = async () => ({ average: 4.3, count: 3 });
+    await page("hugh-spa");
+    expect(screen.getByText("★ 4.3 from 3 kickinit guests")).toBeInTheDocument();
+  });
+  it("one rating is singular", async () => {
+    score.next = async () => ({ average: 5, count: 1 });
+    await page("hugh-spa");
+    expect(screen.getByText("★ 5.0 from 1 kickinit guest")).toBeInTheDocument();
+  });
+  it("no ratings, or ratings unavailable: no line", async () => {
+    score.next = async () => null;
+    await page("hugh-spa");
+    expect(screen.queryByText(/kickinit guest/)).toBeNull();
+    score.next = () => Promise.reject(new Error("db down"));
+    await page("the-broad");
+    expect(screen.queryByText(/kickinit guest/)).toBeNull();
   });
 });
