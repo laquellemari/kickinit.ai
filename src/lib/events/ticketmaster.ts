@@ -31,6 +31,8 @@ export class EventsError extends Error {
 
 const BASE = "https://app.ticketmaster.com/discovery/v2";
 export const MAX_EVENTS = 30;
+/** How many Ticketmaster venue ids one venue name may expand to. */
+export const MAX_VENUES = 10;
 export const CACHE_MS = 10 * 60_000;
 
 type TmImage = { url?: string; ratio?: string; width?: number };
@@ -136,6 +138,9 @@ export async function findVenueIds(name: string, where: Pick<EventQuery, "city" 
   const names = venueNames(name);
   const core = names[names.length - 1].name.toLowerCase();
   const named = (v: TmVenue) => (v.name ?? "").toLowerCase().includes(core);
+  // Every spelling is tried and their matches pooled: Ticketmaster often lists a venue more than once (a parking or
+  // premium "venue" next to the real room), so stopping at the first match can land on one with no shows.
+  const ids: string[] = [];
   for (const v of names) {
     if (v.cityOnly && !city) continue;
     const params: Record<string, string> = { keyword: v.name, size: "10", countryCode: "US" };
@@ -143,10 +148,9 @@ export async function findVenueIds(name: string, where: Pick<EventQuery, "city" 
     const r = await get<{ _embedded?: { venues?: TmVenue[] } }>("/venues.json", params);
     const venues = (r._embedded?.venues ?? []).filter(named);
     const inCity = city ? venues.filter((x) => x.city?.name?.toLowerCase() === city) : [];
-    const ids = (inCity.length || v.cityOnly ? inCity : venues).map((x) => x.id).slice(0, 3);
-    if (ids.length) return ids;
+    for (const x of inCity.length || v.cityOnly ? inCity : venues) if (!ids.includes(x.id)) ids.push(x.id);
   }
-  return [];
+  return ids.slice(0, MAX_VENUES);
 }
 
 const cache = new Map<string, { at: number; events: LiveEvent[] }>();

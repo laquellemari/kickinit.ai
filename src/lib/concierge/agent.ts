@@ -234,7 +234,9 @@ export async function runConcierge(
   const raw = call.args as { intro: string; partySize: number; picks: { experienceId: string; why: string }[] };
   const partySize = Math.min(Math.max(Math.round(raw.partySize), 1), 20);
   const picks = raw.picks.slice(0, LIMITS.picks).map((p) => ({ experienceId: p.experienceId, why: p.why.slice(0, 200) }));
-  const options = withMoreOptions(resolvePicks(picks, partySize, liveCache, LIMITS.picks, eventCache), found, partySize, liveCache, eventCache);
+  // With event search on, a stage or arena (the Colosseum, Sphere) is never a result: its shows are.
+  const options = withMoreOptions(resolvePicks(picks, partySize, liveCache, LIMITS.picks, eventCache), found, partySize, liveCache, eventCache)
+    .filter((o) => !(deps.searchEvents && o.kind === "live" && isEventVenue(o.place.primaryType)));
   const intro = raw.intro.trim().slice(0, 600) || "Here are some good options.";
   const reply = options.length ? intro : "I couldn't find anything bookable that fits. Try a different area, date or budget?";
   return { reply, partySize, options };

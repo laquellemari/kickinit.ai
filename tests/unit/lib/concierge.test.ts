@@ -362,7 +362,24 @@ describe("events (Ticketmaster)", () => {
     expect(kinds.slice(0, 2)).toEqual(["tm:G5v1", "gp:ChIJsd1"]);
   });
 
-  it("without events, an arena can still be shown (its page lists what's on)", () => {
+  it("with event search on, an arena is never a result, even when no events came back", async () => {
+    const { model } = createScriptedModel([
+      { tool: "search_live_places", args: { query: "Colosseum Las Vegas" } },
+      present([{ experienceId: "gp:ChIJsphere", why: "Big room." }, { experienceId: "gp:ChIJsd1", why: "Dinner." }]),
+    ]);
+    const r = await runConcierge(input(), { model, searchLive: async () => [sphere, createLivePlace()], searchEvents: async () => [] });
+    expect(r.options.map((o) => (o.kind === "live" ? o.place.id : ""))).not.toContain("gp:ChIJsphere");
+    expect(r.options.some((o) => o.kind === "live" && o.place.id === "gp:ChIJsd1")).toBe(true);
+  });
+  it("without event search, an arena can still be shown (its page lists what's on)", async () => {
+    const { model } = createScriptedModel([
+      { tool: "search_live_places", args: { query: "Colosseum Las Vegas" } },
+      present([{ experienceId: "gp:ChIJsphere", why: "Big room." }]),
+    ]);
+    const r = await runConcierge(input(), { model, searchLive: async () => [sphere] });
+    expect(r.options[0]).toMatchObject({ kind: "live", place: { id: "gp:ChIJsphere" } });
+  });
+  it("resolvePicks alone keeps an arena when there are no events", () => {
     const out = resolvePicks([{ experienceId: "gp:ChIJsphere", why: "x" }], 2, new Map([["gp:ChIJsphere", sphere]]));
     expect(out).toHaveLength(1);
   });
