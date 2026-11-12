@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import PlanPage from "@/app/plan/page";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -27,8 +27,16 @@ describe("/plan page", () => {
     const f = vi.fn(() => new Promise(() => {}));
     vi.stubGlobal("fetch", f);
     await renderPage({ q: "x".repeat(1500) });
-    const body = JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
-    expect(body.message).toHaveLength(1000);
+    const call = (f.mock.calls as unknown as [string, RequestInit][]).find((c) => c[0] === "/api/concierge")!;
+    expect(JSON.parse(call[1].body as string).message).toHaveLength(1000);
+  });
+  it("while searching, shows the steps, a rotating row of experiences to explore, and a quest to aim for", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    await renderPage({ q: "spa day" });
+    expect(screen.getByRole("region", { name: "Finding your options" })).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "More to explore!" })).getAllByRole("link")).toHaveLength(4);
+    expect(screen.getByRole("region", { name: "A quest to aim for" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Concierge" })).toBeNull();
   });
   it("no params: empty state", async () => {
     await renderPage({});

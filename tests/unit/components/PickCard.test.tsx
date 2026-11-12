@@ -73,4 +73,16 @@ describe("PickCard", () => {
     expect(within(card).getByText("Upcoming shows here")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "See events" })).toHaveAttribute("href", "/request/ChIJsd1?party=2");
   });
+  it("every card has the same parts in the same order: kicker, name, place, reason, price, buttons", () => {
+    const { container } = render(<>
+      <PickCard pick={partnerPick("hugh-spa", 2)} partySize={2} />
+      <PickCard pick={livePick()} partySize={2} />
+      <PickCard pick={eventPick()} partySize={2} />
+    </>);
+    const shapes = [...container.querySelectorAll("article")].map((a) => [...a.children].map((c) => c.className.split(" ").find((k) => k.startsWith("pick-") || k.startsWith("photo") || k.startsWith("event")) ?? c.tagName));
+    expect(shapes[0].slice(1)).toEqual(["pick-kicker", "pick-name", "pick-meta", "pick-why", "pick-price", "pick-actions"]);
+    expect(shapes[1].slice(1)).toEqual(shapes[0].slice(1));
+    expect(shapes[2].slice(1)).toEqual(shapes[0].slice(1));
+    expect(screen.getByText("Wellness & spa")).toBeInTheDocument();
+  });
 });
