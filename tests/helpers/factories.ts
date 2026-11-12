@@ -102,7 +102,7 @@ export const createLivePlace = (overrides: Partial<LivePlace> = {}): LivePlace =
     id: `gp:${placeId}`, placeId, name: "Cucina Sorella", address: "1 Main St, San Diego, CA", lat: 32.7, lng: -117.16,
     category: "culinary", typeLabel: "Italian restaurant", mapsUrl: "https://maps.google.com/?cid=1", estimatePerPerson: "60.00",
     estimateBasis: "Typical spend for a italian restaurant", summary: null, rating: null, ratingCount: 0,
-    city: "San Diego", country: "US", utcOffsetMinutes: -480, primaryType: "italian_restaurant", dining: true, website: null, ...overrides,
+    city: "San Diego", country: "US", state: "CA", utcOffsetMinutes: -480, primaryType: "italian_restaurant", dining: true, website: null, ...overrides,
   };
 };
 

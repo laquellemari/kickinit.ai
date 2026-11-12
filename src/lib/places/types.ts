@@ -26,6 +26,8 @@ export type LivePlace = {
   city: string;
   /** ISO country code, e.g. "US". */
   country: string;
+  /** State or region short code, e.g. "NV" (empty when Google doesn't say). */
+  state: string;
   /** The venue's current offset from UTC, for local start times. */
   utcOffsetMinutes: number | null;
   primaryType: string | null;
