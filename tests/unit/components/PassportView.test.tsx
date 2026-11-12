@@ -31,7 +31,9 @@ describe("PassportView", () => {
     expect(screen.getByRole("region", { name: "In progress" })).toBeInTheDocument();
     expect(screen.getAllByLabelText(/\(unlocked\)/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Your passport is empty/)).toBeNull();
-    expect(screen.getByLabelText("Culinary")).toHaveTextContent(/[1-9]\d* \/ 52/);
+    const culinary = screen.getByRole("link", { name: /^Culinary: [1-9]\d* of 52 quests$/ });
+    expect(culinary).toHaveAttribute("href", "/passport/culinary");
+    expect(culinary).toHaveTextContent("See quests →");
   });
   it("load error", async () => {
     mock(500, {});

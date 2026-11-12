@@ -1,8 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { questBooking, giftAsBooking, buildActivity } from "@/lib/passport/activity";
-import { computePassport } from "@/lib/passport/passport";
-import { loadPassport } from "@/lib/passport/load";
+import { computePassport, computeCategory, categoryInfo, CATEGORY_INFO } from "@/lib/passport/passport";
+import { loadPassport, loadCategory } from "@/lib/passport/load";
+import { GET as categoryRoute } from "@/app/api/passport/[category]/route";
 import { getProfile, saveProfile, MAX_AVATAR_CHARS } from "@/lib/profile/repo";
 import { GET as passportRoute } from "@/app/api/passport/route";
 import { GET as getProfileRoute, PUT as putProfileRoute } from "@/app/api/profile/route";
@@ -146,6 +147,22 @@ describe("routes", () => {
     expect(res.status).toBe(200);
     expect((await res.json()).stats.attended).toBe(1);
   });
+  it("GET /api/passport/:category returns that category's quests with my progress", async () => {
+    await attended();
+    const res = await categoryRoute(req(), { params: Promise.resolve({ category: "culinary" }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.category).toEqual({ id: "culinary", name: "Culinary", emoji: "🍽️" });
+    expect(body.quests).toHaveLength(52);
+    expect(body.quests.find((q: { id: string }) => q.id === "culinary-pasta-pilgrim")).toMatchObject({ current: 1, target: 3, complete: false });
+  });
+  it("GET /api/passport/:category: 404 for an unknown category, 401 without a visitor", async () => {
+    expect((await categoryRoute(req(), { params: Promise.resolve({ category: "nope" }) })).status).toBe(404);
+    expect((await categoryRoute(req({ cookie: false }), { params: Promise.resolve({ category: "culinary" }) })).status).toBe(401);
+  });
+  it("loadCategory: null for an unknown category", async () => {
+    expect(await loadCategory(U, "nope")).toBeNull();
+  });
   it("loadPassport uses my profile's home city", async () => {
     await saveProfile(U, { homeCity: "Austin" });
     await attended({ facts: { tags: ["food_tour"], city: "Austin", country: "US", neighborhood: null, cuisine: null, localHour: 12 } });
@@ -164,5 +181,38 @@ describe("routes", () => {
     const a = await insertGift(createNewGift({ organizerId: U }));
     const b = await insertGift(createNewGift({ organizerId: U }));
     expect((await listGiftsByOrganizer(U)).map((g) => g.id)).toEqual([b.id, a.id]);
+  });
+});
+
+describe("computeCategory", () => {
+  const activity = (bookings: Parameters<typeof computePassport>[0]["bookings"] = []) =>
+    ({ bookings, ctx: { homeCity: "Los Angeles", homeCountry: "US" }, questProgress: [], counters: { poolsFundedAsOrganizer: 0, poolContributions: 0, giftsRedeemed: 0, referralsConverted: 0, reviews: 0 } });
+  it("every category has its quests, in their set order, none collected yet", () => {
+    let total = 0;
+    for (const c of CATEGORY_INFO) {
+      const page = computeCategory(activity(), c.id)!;
+      expect(page.category).toEqual(c);
+      expect(page.completed).toBe(0);
+      expect(page.xpEarned).toBe(0);
+      expect(page.xpTotal).toBe(page.quests.reduce((n, q) => n + q.xp, 0));
+      expect(page.quests.every((q) => q.category === c.id && q.current === 0)).toBe(true);
+      expect(page.quests.map((q) => q.order)).toEqual([...page.quests.map((q) => q.order)].sort((a, b) => a - b));
+      total += page.total;
+    }
+    expect(total).toBe(403);
+    expect(CATEGORY_INFO).toHaveLength(8);
+  });
+  it("collected quests count toward the category's XP", async () => {
+    const bookings = [];
+    for (let i = 0; i < 3; i++) bookings.push(questBooking(await attended({ itemId: `it-${i}`, facts: { tags: ["restaurant", "italian"], city: "Los Angeles", country: "US", neighborhood: null, cuisine: "italian", localHour: 19 } })));
+    const page = computeCategory(activity(bookings), "culinary")!;
+    const pasta = page.quests.find((q) => q.id === "culinary-pasta-pilgrim")!;
+    expect(pasta).toMatchObject({ complete: true, current: 3, target: 3, xp: 100, mode: "duo", difficulty: "Easy", emoji: "🍝" });
+    expect(page.completed).toBeGreaterThan(0);
+    expect(page.xpEarned).toBe(page.quests.filter((q) => q.complete).reduce((n, q) => n + q.xp, 0));
+  });
+  it("an unknown category is null", () => {
+    expect(computeCategory(activity(), "nope")).toBeNull();
+    expect(categoryInfo("nope")).toBeNull();
   });
 });

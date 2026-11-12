@@ -40,15 +40,16 @@ export function PassportView() {
       )}
 
       <section aria-label="Categories">
-        <h2 className="display" style={{ margin: "0 0 16px", fontSize: 34 }}>Stamps by category</h2>
+        <h2 className="display" style={{ margin: "0 0 6px", fontSize: 34 }}>Stamps by category</h2>
+        <p className="pick-meta" style={{ margin: "0 0 16px" }}>Open a category to see every quest in it.</p>
         <div className="pick-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 18 }}>
           {p.categories.map((c) => (
-            <div key={c.id} className="passport-stamp" aria-label={c.name}
+            <Link key={c.id} href={`/passport/${c.id}`} className="passport-stamp category-tile" aria-label={`${c.name}: ${c.completed} of ${c.total} quests`}
               style={{ width: "auto", height: 140, borderRadius: 12, borderStyle: c.completed ? "solid" : "dashed", borderColor: c.completed ? "var(--sun)" : "var(--blue)", background: c.completed ? "#FFF6DC" : "#fff" }}>
               <span aria-hidden="true" style={{ fontSize: 30 }}>{c.emoji}</span>
               <span className="display" style={{ fontSize: 17 }}>{c.name}</span>
-              <span className="pick-meta">{c.completed} / {c.total}</span>
-            </div>
+              <span className="pick-meta">{c.completed} / {c.total} · See quests →</span>
+            </Link>
           ))}
         </div>
       </section>
